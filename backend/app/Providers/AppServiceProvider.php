@@ -2,6 +2,10 @@
 
 namespace App\Providers;
 
+use App\Domain\Agent\AgentRuntime;
+use App\Domain\Agent\Contracts\AgentRuntimeInterface;
+use App\Domain\Agent\Contracts\LlmProviderInterface;
+use App\Domain\Agent\OpenAIResponsesLlmProvider;
 use App\Domain\Conversations\CacheConversationLockManager;
 use App\Domain\Conversations\Contracts\ConversationLockManager;
 use App\Domain\Conversations\Contracts\ConversationResolver;
@@ -34,6 +38,8 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->scoped(TenantContextManager::class);
+        $this->app->bind(AgentRuntimeInterface::class, AgentRuntime::class);
+        $this->app->bind(LlmProviderInterface::class, OpenAIResponsesLlmProvider::class);
         $this->app->bind(ConversationResolver::class, DatabaseConversationResolver::class);
         $this->app->bind(ConversationStateRepository::class, EloquentConversationStateRepository::class);
         $this->app->bind(ConversationLockManager::class, CacheConversationLockManager::class);

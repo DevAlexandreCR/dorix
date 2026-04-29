@@ -2,6 +2,9 @@
 
 namespace Tests\Feature\Conversations;
 
+use App\Domain\Agent\AgentContextLoader;
+use App\Domain\Agent\AgentDecisionApplier;
+use App\Domain\Agent\Contracts\AgentRuntimeInterface;
 use App\Domain\Conversations\Contracts\ConversationLockManager;
 use App\Domain\Conversations\Contracts\ConversationResolver;
 use App\Domain\Conversations\Contracts\ConversationStateRepository;
@@ -159,6 +162,9 @@ class ConversationStateAndConcurrencyTest extends TestCase
             app(AgentEventRecorder::class),
             app(ConversationLockManager::class),
             app(ConversationStateRepository::class),
+            app(AgentContextLoader::class),
+            app(AgentRuntimeInterface::class),
+            app(AgentDecisionApplier::class),
         );
 
         $state = ConversationState::query()->where('conversation_id', $conversation->id)->firstOrFail();
@@ -192,6 +198,9 @@ class ConversationStateAndConcurrencyTest extends TestCase
                 app(AgentEventRecorder::class),
                 app(ConversationLockManager::class),
                 app(ConversationStateRepository::class),
+                app(AgentContextLoader::class),
+                app(AgentRuntimeInterface::class),
+                app(AgentDecisionApplier::class),
             );
         });
 

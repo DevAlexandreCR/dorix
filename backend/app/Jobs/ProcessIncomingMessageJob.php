@@ -2,8 +2,12 @@
 
 namespace App\Jobs;
 
+use App\Domain\Agent\AgentContextLoader;
+use App\Domain\Agent\AgentDecisionApplier;
+use App\Domain\Agent\Contracts\AgentRuntimeInterface;
 use App\Domain\Conversations\Contracts\ConversationLockManager;
 use App\Domain\Conversations\Contracts\ConversationStateRepository;
+use App\Enums\ConversationStatus;
 use App\Models\Conversation;
 use App\Support\AgentEvents\AgentEventRecorder;
 use App\Support\Tenancy\Jobs\RunsInTenantContext;
@@ -50,10 +54,13 @@ class ProcessIncomingMessageJob implements ShouldQueue, TenantAwareJob
         AgentEventRecorder $events,
         ConversationLockManager $lockManager,
         ConversationStateRepository $stateRepository,
+        AgentContextLoader $contextLoader,
+        AgentRuntimeInterface $agentRuntime,
+        AgentDecisionApplier $decisionApplier,
     ): void
     {
-        $this->runInTenantContext($manager, $this->tenantId, function () use ($events, $lockManager, $stateRepository): void {
-            $processed = $lockManager->runExclusive($this->tenantId, $this->conversationId, function () use ($events, $stateRepository): void {
+        $this->runInTenantContext($manager, $this->tenantId, function () use ($events, $lockManager, $stateRepository, $contextLoader, $agentRuntime, $decisionApplier): void {
+            $processed = $lockManager->runExclusive($this->tenantId, $this->conversationId, function () use ($events, $stateRepository, $contextLoader, $agentRuntime, $decisionApplier): void {
                 $conversation = Conversation::query()
                     ->forTenant($this->tenantId)
                     ->findOrFail($this->conversationId);
@@ -73,10 +80,47 @@ class ProcessIncomingMessageJob implements ShouldQueue, TenantAwareJob
                     'payload' => $payload,
                 ]);
 
+                $runtimeOutcome = 'skipped';
+
+                if ($conversation->status !== ConversationStatus::BotActive) {
+                    $runtimeOutcome = 'skipped_due_to_status';
+
+                    $events->record($this->tenantId, 'agent_runtime_skipped_due_to_status', [
+                        'conversation_id' => $this->conversationId,
+                        'conversation_message_id' => $this->messageId,
+                        'payload' => [
+                            'conversation_status' => $conversation->status->value,
+                        ],
+                    ]);
+                } else {
+                    try {
+                        $context = $contextLoader->load($conversation, $this->messageId, $state);
+                        $decision = $agentRuntime->run($context);
+                        $decisionApplier->apply($context, $decision);
+                        $runtimeOutcome = $decision->outcome->value;
+                    } catch (Throwable $exception) {
+                        $decisionApplier->fallbackToHumanHandoff(
+                            $conversation,
+                            $conversation->whatsapp_line_id,
+                            $this->messageId,
+                            $exception->getMessage(),
+                            [
+                                'job' => static::class,
+                                'conversation_status' => $conversation->status->value,
+                                'exception' => $exception::class,
+                            ],
+                        );
+
+                        $runtimeOutcome = 'fallback_human_handoff';
+                    }
+                }
+
                 $events->record($this->tenantId, 'processing_job_completed', [
                     'conversation_id' => $this->conversationId,
                     'conversation_message_id' => $this->messageId,
-                    'payload' => $payload,
+                    'payload' => array_merge($payload, [
+                        'runtime_outcome' => $runtimeOutcome,
+                    ]),
                 ]);
             });
 
