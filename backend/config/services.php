@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    'whatsapp' => [
+        'meta' => [
+            'base_url' => env('WHATSAPP_META_BASE_URL', 'https://graph.facebook.com'),
+            'api_version' => env('WHATSAPP_META_API_VERSION', 'v23.0'),
+            'webhook_verify_token' => env('WHATSAPP_WEBHOOK_VERIFY_TOKEN'),
+        ],
+    ],
+
 ];

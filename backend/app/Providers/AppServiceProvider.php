@@ -3,6 +3,12 @@
 namespace App\Providers;
 
 use App\Enums\Permission;
+use App\Domain\WhatsApp\Contracts\OutboundMessageSender;
+use App\Domain\WhatsApp\Contracts\WhatsAppLineResolver;
+use App\Domain\WhatsApp\Contracts\WhatsAppWebhookHandler;
+use App\Domain\WhatsApp\DatabaseWhatsAppLineResolver;
+use App\Domain\WhatsApp\MetaGraphOutboundMessageSender;
+use App\Domain\WhatsApp\MetaWhatsAppWebhookHandler;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\Auth\TenantAccess;
@@ -21,6 +27,9 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->scoped(TenantContextManager::class);
         $this->app->bind(TenantContextResolver::class, RequestTenantContextResolver::class);
+        $this->app->bind(WhatsAppLineResolver::class, DatabaseWhatsAppLineResolver::class);
+        $this->app->bind(WhatsAppWebhookHandler::class, MetaWhatsAppWebhookHandler::class);
+        $this->app->bind(OutboundMessageSender::class, MetaGraphOutboundMessageSender::class);
         $this->app->singleton(TenantAccess::class);
     }
 
