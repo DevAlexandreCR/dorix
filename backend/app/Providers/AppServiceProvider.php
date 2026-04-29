@@ -2,6 +2,14 @@
 
 namespace App\Providers;
 
+use App\Domain\Conversations\CacheConversationLockManager;
+use App\Domain\Conversations\Contracts\ConversationLockManager;
+use App\Domain\Conversations\Contracts\ConversationResolver;
+use App\Domain\Conversations\Contracts\ConversationStateRepository;
+use App\Domain\Conversations\Contracts\ConversationStatusTransitioner;
+use App\Domain\Conversations\ConversationStatusManager;
+use App\Domain\Conversations\DatabaseConversationResolver;
+use App\Domain\Conversations\EloquentConversationStateRepository;
 use App\Enums\Permission;
 use App\Domain\WhatsApp\Contracts\OutboundMessageSender;
 use App\Domain\WhatsApp\Contracts\WhatsAppLineResolver;
@@ -26,6 +34,10 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->scoped(TenantContextManager::class);
+        $this->app->bind(ConversationResolver::class, DatabaseConversationResolver::class);
+        $this->app->bind(ConversationStateRepository::class, EloquentConversationStateRepository::class);
+        $this->app->bind(ConversationLockManager::class, CacheConversationLockManager::class);
+        $this->app->bind(ConversationStatusTransitioner::class, ConversationStatusManager::class);
         $this->app->bind(TenantContextResolver::class, RequestTenantContextResolver::class);
         $this->app->bind(WhatsAppLineResolver::class, DatabaseWhatsAppLineResolver::class);
         $this->app->bind(WhatsAppWebhookHandler::class, MetaWhatsAppWebhookHandler::class);

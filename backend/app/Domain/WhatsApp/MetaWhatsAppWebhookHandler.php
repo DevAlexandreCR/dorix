@@ -2,13 +2,13 @@
 
 namespace App\Domain\WhatsApp;
 
+use App\Domain\Conversations\Contracts\ConversationResolver;
 use App\Domain\WhatsApp\Contracts\WhatsAppLineResolver;
 use App\Domain\WhatsApp\Contracts\WhatsAppWebhookHandler;
 use App\Domain\WhatsApp\DTO\InboundMessageData;
 use App\Domain\WhatsApp\DTO\ResolvedWhatsAppLine;
 use App\Domain\WhatsApp\DTO\StatusUpdateData;
 use App\Domain\WhatsApp\DTO\WebhookHandlingResult;
-use App\Enums\ConversationStatus;
 use App\Enums\MessageDirection;
 use App\Jobs\ProcessIncomingMessageJob;
 use App\Models\Conversation;
@@ -17,12 +17,14 @@ use App\Support\AgentEvents\AgentEventRecorder;
 use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantContextManager;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 
 class MetaWhatsAppWebhookHandler implements WhatsAppWebhookHandler
 {
     public function __construct(
         protected MetaWebhookPayloadNormalizer $normalizer,
         protected WhatsAppLineResolver $lineResolver,
+        protected ConversationResolver $conversationResolver,
         protected TenantContextManager $tenantContextManager,
         protected AgentEventRecorder $events,
     ) {
@@ -41,7 +43,7 @@ class MetaWhatsAppWebhookHandler implements WhatsAppWebhookHandler
             $resolvedLine = $this->lineResolver->resolve($inboundMessage->phoneNumberId);
 
             $wasSaved = $this->withinTenantContext($resolvedLine, function () use ($resolvedLine, $inboundMessage, &$jobsDispatched): bool {
-                $conversation = $this->findOrCreateConversation($resolvedLine, $inboundMessage);
+                $conversation = $this->conversationResolver->resolveForInbound($resolvedLine, $inboundMessage);
 
                 return $this->persistInboundMessage($resolvedLine, $conversation, $inboundMessage, $jobsDispatched);
             });
@@ -70,34 +72,6 @@ class MetaWhatsAppWebhookHandler implements WhatsAppWebhookHandler
         );
     }
 
-    protected function findOrCreateConversation(ResolvedWhatsAppLine $resolvedLine, InboundMessageData $message): Conversation
-    {
-        $conversation = Conversation::query()
-            ->forTenant($resolvedLine->tenantId())
-            ->where('whatsapp_line_id', $resolvedLine->line->getKey())
-            ->where('contact_phone', $message->contactPhone)
-            ->orderByDesc('last_message_at')
-            ->orderByDesc('id')
-            ->first();
-
-        if ($conversation) {
-            return $conversation;
-        }
-
-        return Conversation::query()->create([
-            'tenant_id' => $resolvedLine->tenantId(),
-            'whatsapp_line_id' => $resolvedLine->line->getKey(),
-            'contact_phone' => $message->contactPhone,
-            'contact_name' => $message->contactName,
-            'status' => ConversationStatus::BotActive,
-            'last_message_at' => $message->receivedAt,
-            'last_customer_message_at' => $message->receivedAt,
-            'metadata' => [
-                'source' => 'whatsapp_webhook',
-            ],
-        ]);
-    }
-
     protected function persistInboundMessage(
         ResolvedWhatsAppLine $resolvedLine,
         Conversation $conversation,
@@ -115,23 +89,36 @@ class MetaWhatsAppWebhookHandler implements WhatsAppWebhookHandler
             'occurred_at' => $message->receivedAt,
         ]);
 
+        $existingMessage = ConversationMessage::query()
+            ->forTenant($resolvedLine->tenantId())
+            ->where('provider_message_id', $message->providerMessageId)
+            ->first();
+
+        if ($existingMessage) {
+            $this->recordDeduplicatedInboundMessage($resolvedLine, $conversation, $message, $existingMessage);
+
+            return false;
+        }
+
         try {
-            $conversationMessage = ConversationMessage::query()->create([
-                'tenant_id' => $resolvedLine->tenantId(),
-                'conversation_id' => $conversation->getKey(),
-                'direction' => MessageDirection::Inbound,
-                'message_type' => $message->messageType,
-                'body' => $message->body,
-                'payload' => [
-                    'source' => 'meta_webhook',
-                    'phone_number_id' => $message->phoneNumberId,
-                    'provider_message_type' => $message->providerMessageType,
-                    'raw' => $message->payload,
-                ],
-                'provider_message_id' => $message->providerMessageId,
-                'status' => 'received',
-                'received_at' => $message->receivedAt,
-            ]);
+            $conversationMessage = DB::transaction(function () use ($resolvedLine, $conversation, $message): ConversationMessage {
+                return ConversationMessage::query()->create([
+                    'tenant_id' => $resolvedLine->tenantId(),
+                    'conversation_id' => $conversation->getKey(),
+                    'direction' => MessageDirection::Inbound,
+                    'message_type' => $message->messageType,
+                    'body' => $message->body,
+                    'payload' => [
+                        'source' => 'meta_webhook',
+                        'phone_number_id' => $message->phoneNumberId,
+                        'provider_message_type' => $message->providerMessageType,
+                        'raw' => $message->payload,
+                    ],
+                    'provider_message_id' => $message->providerMessageId,
+                    'status' => 'received',
+                    'received_at' => $message->receivedAt,
+                ]);
+            });
         } catch (QueryException $exception) {
             if (! $this->isDuplicateMessageException($exception)) {
                 throw $exception;
@@ -142,15 +129,7 @@ class MetaWhatsAppWebhookHandler implements WhatsAppWebhookHandler
                 ->where('provider_message_id', $message->providerMessageId)
                 ->first();
 
-            $this->events->record($resolvedLine->tenantId(), 'message_deduplicated', [
-                'whatsapp_line_id' => $resolvedLine->line->getKey(),
-                'conversation_id' => $existingMessage?->conversation_id ?? $conversation->getKey(),
-                'conversation_message_id' => $existingMessage?->getKey(),
-                'payload' => [
-                    'provider_message_id' => $message->providerMessageId,
-                ],
-                'occurred_at' => $message->receivedAt,
-            ]);
+            $this->recordDeduplicatedInboundMessage($resolvedLine, $conversation, $message, $existingMessage);
 
             return false;
         }
@@ -191,6 +170,23 @@ class MetaWhatsAppWebhookHandler implements WhatsAppWebhookHandler
         ]);
 
         return true;
+    }
+
+    protected function recordDeduplicatedInboundMessage(
+        ResolvedWhatsAppLine $resolvedLine,
+        Conversation $conversation,
+        InboundMessageData $message,
+        ?ConversationMessage $existingMessage,
+    ): void {
+        $this->events->record($resolvedLine->tenantId(), 'message_deduplicated', [
+            'whatsapp_line_id' => $resolvedLine->line->getKey(),
+            'conversation_id' => $existingMessage?->conversation_id ?? $conversation->getKey(),
+            'conversation_message_id' => $existingMessage?->getKey(),
+            'payload' => [
+                'provider_message_id' => $message->providerMessageId,
+            ],
+            'occurred_at' => $message->receivedAt,
+        ]);
     }
 
     protected function persistStatusUpdate(ResolvedWhatsAppLine $resolvedLine, StatusUpdateData $statusUpdate): void

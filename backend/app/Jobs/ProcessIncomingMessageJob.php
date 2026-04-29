@@ -2,6 +2,9 @@
 
 namespace App\Jobs;
 
+use App\Domain\Conversations\Contracts\ConversationLockManager;
+use App\Domain\Conversations\Contracts\ConversationStateRepository;
+use App\Models\Conversation;
 use App\Support\AgentEvents\AgentEventRecorder;
 use App\Support\Tenancy\Jobs\RunsInTenantContext;
 use App\Support\Tenancy\Jobs\TenantAwareJob;
@@ -28,6 +31,8 @@ class ProcessIncomingMessageJob implements ShouldQueue, TenantAwareJob
      */
     public array $backoff = [5, 15, 45];
 
+    public int $lockReleaseSeconds = 5;
+
     public function __construct(
         protected int $tenantId,
         public int $conversationId,
@@ -40,10 +45,46 @@ class ProcessIncomingMessageJob implements ShouldQueue, TenantAwareJob
         return $this->tenantId;
     }
 
-    public function handle(TenantContextManager $manager, AgentEventRecorder $events): void
+    public function handle(
+        TenantContextManager $manager,
+        AgentEventRecorder $events,
+        ConversationLockManager $lockManager,
+        ConversationStateRepository $stateRepository,
+    ): void
     {
-        $this->runInTenantContext($manager, $this->tenantId, function () use ($events): void {
-            $events->record($this->tenantId, 'processing_job_started', [
+        $this->runInTenantContext($manager, $this->tenantId, function () use ($events, $lockManager, $stateRepository): void {
+            $processed = $lockManager->runExclusive($this->tenantId, $this->conversationId, function () use ($events, $stateRepository): void {
+                $conversation = Conversation::query()
+                    ->forTenant($this->tenantId)
+                    ->findOrFail($this->conversationId);
+
+                $state = $stateRepository->getOrCreate($conversation);
+                $state = $stateRepository->expireOperationalMemory($state);
+
+                $payload = [
+                    'job' => static::class,
+                    'conversation_status' => $conversation->status->value,
+                    'conversation_state_id' => $state->getKey(),
+                ];
+
+                $events->record($this->tenantId, 'processing_job_started', [
+                    'conversation_id' => $this->conversationId,
+                    'conversation_message_id' => $this->messageId,
+                    'payload' => $payload,
+                ]);
+
+                $events->record($this->tenantId, 'processing_job_completed', [
+                    'conversation_id' => $this->conversationId,
+                    'conversation_message_id' => $this->messageId,
+                    'payload' => $payload,
+                ]);
+            });
+
+            if ($processed) {
+                return;
+            }
+
+            $events->record($this->tenantId, 'processing_job_released_due_to_lock', [
                 'conversation_id' => $this->conversationId,
                 'conversation_message_id' => $this->messageId,
                 'payload' => [
@@ -51,13 +92,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, TenantAwareJob
                 ],
             ]);
 
-            $events->record($this->tenantId, 'processing_job_completed', [
-                'conversation_id' => $this->conversationId,
-                'conversation_message_id' => $this->messageId,
-                'payload' => [
-                    'job' => static::class,
-                ],
-            ]);
+            $this->job?->release($this->lockReleaseSeconds);
         });
     }
 

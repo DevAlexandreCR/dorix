@@ -11,6 +11,7 @@ use App\Models\ApiCredential;
 use App\Models\AgentEvent;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
+use App\Models\ConversationState;
 use App\Models\Tenant;
 use App\Models\WhatsAppLine;
 use App\Support\Tenancy\TenantScopeKey;
@@ -68,6 +69,10 @@ class WhatsAppGatewayTest extends TestCase
         $this->assertSame('wamid.inbound.1', $message->provider_message_id);
         $this->assertSame('Ana Cliente', $conversation->contact_name);
         $this->assertSame($line->id, $conversation->whatsapp_line_id);
+        $this->assertDatabaseHas('conversation_states', [
+            'tenant_id' => $tenant->id,
+            'conversation_id' => $conversation->id,
+        ]);
 
         $this->postJson('/api/webhooks/meta/whatsapp', $payload)
             ->assertOk()
@@ -193,6 +198,11 @@ class WhatsAppGatewayTest extends TestCase
         $this->assertSame('accepted', $message->status);
         $this->assertNotNull($message->sent_at);
         $this->assertSame('wamid.outbound.accepted.1', data_get($message->payload, 'response.messages.0.id'));
+        $this->assertDatabaseHas('conversation_states', [
+            'tenant_id' => $tenant->id,
+            'conversation_id' => $conversation->id,
+        ]);
+        $this->assertNotNull($conversation->fresh()->last_message_at);
 
         $this->assertDatabaseCount('conversation_messages', 1);
         $this->assertDatabaseHas('agent_events', [

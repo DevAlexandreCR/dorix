@@ -2,6 +2,7 @@
 
 namespace App\Domain\WhatsApp;
 
+use App\Domain\Conversations\Contracts\ConversationStateRepository;
 use App\Domain\WhatsApp\Contracts\OutboundMessageSender;
 use App\Domain\WhatsApp\DTO\OutboundMessageData;
 use App\Domain\WhatsApp\Exceptions\MissingWhatsAppCredentialException;
@@ -28,6 +29,7 @@ class MetaGraphOutboundMessageSender implements OutboundMessageSender
     public function __construct(
         protected HttpFactory $http,
         protected TenantContextManager $tenantContextManager,
+        protected ConversationStateRepository $stateRepository,
         protected AgentEventRecorder $events,
     ) {
     }
@@ -56,6 +58,8 @@ class MetaGraphOutboundMessageSender implements OutboundMessageSender
         }
 
         return $this->withinTenantContext($line, function () use ($outboundMessage, $line, $conversation): ConversationMessage {
+            $this->stateRepository->getOrCreate($conversation);
+
             try {
                 $message = ConversationMessage::query()->create([
                     'tenant_id' => $outboundMessage->tenantId,
