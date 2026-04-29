@@ -15,7 +15,13 @@ class MetaController
                 'base_path' => '/api/v1',
                 'health_path' => '/api/health',
                 'auth' => 'sanctum',
-                'tenancy' => 'single_database_multi_tenant',
+                'tenancy' => [
+                    'mode' => 'single_database_multi_tenant',
+                    'resolver' => 'explicit',
+                    'route_parameter' => 'tenant',
+                    'headers' => ['X-Tenant-Id', 'X-Tenant-Slug'],
+                    'job_payload_key' => 'tenant_id',
+                ],
             ],
             'frontend' => [
                 'framework' => 'vue-3',
@@ -28,4 +34,3 @@ class MetaController
         ]);
     }
 }
-
