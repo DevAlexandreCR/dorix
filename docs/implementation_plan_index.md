@@ -22,6 +22,7 @@ Decisiones globales ya cerradas:
 - Data source inicial: Excel solamente.
 - Vertical Excel MVP: inventario y conocimiento documental.
 - Set obligatorio de tools MVP: `create_lead`, `save_customer_data`, `handoff_to_human`, `search_inventory`, `search_knowledge`.
+- El runtime debe quedar listo para continuation después de retrieval tool antes de cerrar la Fase 6.
 - Non-text inbound persistido como `unsupported`.
 - Fallo de runtime con fallback a `HUMAN_HANDOFF`.
 - Manual reply del operador: solo texto.
@@ -34,7 +35,7 @@ El MVP se considera listo cuando:
 - existe un tenant configurable con una línea de WhatsApp operativa;
 - el webhook recibe, persiste, deduplica y procesa mensajes inbound;
 - el runtime puede responder o derivar a handoff con trazabilidad completa;
-- una fuente Excel puede cargarse, indexarse e inyectar contexto al agente vía tools;
+- una fuente Excel puede cargarse, indexarse, vincularse a tools e inyectar contexto al agente vía retrieval;
 - un operador puede tomar la conversación, responder manualmente y devolver control al bot;
 - la plataforma corre en Docker Compose con observabilidad básica, colas y cifrado de secretos.
 
@@ -59,7 +60,7 @@ El MVP se considera listo cuando:
 | 5 | `docs/phases/phase_5_tools_registry_and_execution_logging.md` | Tools base y trazabilidad | Runtime + backend | Fase 4 | Pendiente |
 | 6 | `docs/phases/phase_6_excel_document_retrieval_and_indexing.md` | Excel y retrieval documental | Integración + datos | Fase 5 | Pendiente |
 | 7 | `docs/phases/phase_7_handoff_internal_console_and_manual_reply.md` | Consola operativa autenticada, handoff y reply manual | UI + backend | Fase 6 | Pendiente |
-| 8 | `docs/phases/phase_8_admin_panel_and_tenant_configuration.md` | Panel admin y configuración | UI + backend | Fase 7 | Pendiente |
+| 8 | `docs/phases/phase_8_admin_panel_and_tenant_configuration.md` | Panel admin, configuración y data sources | UI + backend | Fase 7 | Pendiente |
 | 9 | `docs/phases/phase_9_observability_security_and_production_hardening.md` | Hardening de producción | Infra + seguridad | Fase 8 | Pendiente |
 
 ## Relación con las macro-fases del master plan

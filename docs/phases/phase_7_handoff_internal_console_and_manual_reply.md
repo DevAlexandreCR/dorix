@@ -20,6 +20,7 @@ Habilitar la operación humana mínima del MVP: ver conversaciones, tomar contro
 - Routing avanzado.
 - SLAs, macros, analytics o omnichannel.
 - Templates manuales fuera de ventana.
+- Gestión o edición de conocimiento documental.
 
 ## Precondiciones
 
@@ -48,6 +49,7 @@ Habilitar la operación humana mínima del MVP: ver conversaciones, tomar contro
 - Permitir reply manual reutilizando el pipeline outbound ya construido.
 - Definir transiciones seguras de vuelta a `BOT_ACTIVE` o `WAITING_CUSTOMER`.
 - Aplicar guardas de acceso por rol para operadores y usuarios con permiso de reactivación.
+- Mantener la consola operativa agnóstica del origen del conocimiento usado por el runtime antes del handoff.
 
 ## Interfaces o contratos a definir
 
@@ -61,6 +63,7 @@ Habilitar la operación humana mínima del MVP: ver conversaciones, tomar contro
 - Evitar que el bot responda mientras el humano escribe o después de un reply manual.
 - Evitar estados intermedios inconsistentes al retomar el bot.
 - Validar permisos por rol para tomar o reactivar conversaciones.
+- Evitar introducir UI o contratos que sugieran FAQs estructuradas o catálogos importados.
 
 ## Checklist de implementación
 

@@ -312,6 +312,7 @@ The runtime is responsible for:
 - deciding whether to answer, ask for missing information, call a tool, wait, or request human handoff
 - validating response output before sending
 - storing runtime events and tool execution logs
+- handling a follow-up LLM pass when a retrieval tool returns approved context for the reply
 
 ### 5.3.1 Runtime Input Contract
 
@@ -326,6 +327,7 @@ The minimum runtime context must include:
 - current `conversation_state`
 - active `agent_config`
 - enabled tenant tools
+- optional `retrieved_context` and retrieval metadata when a tool has already returned context
 
 ### 5.3.2 Runtime Output Contract
 
@@ -342,6 +344,12 @@ The runtime must resolve into one of these outcomes:
 - `error`
 
 The runtime must never access tenant data sources directly. It may only use registered tools and approved adapters behind those tools.
+
+`Fixed Decision`
+
+- Retrieval tools do not produce the final customer-facing answer in the MVP.
+- A retrieval tool may return approved context plus metadata.
+- The runtime then executes a second pass so the conversational model answers from `retrieved_context`.
 
 ### 5.3.3 Runtime Failure Behavior
 
@@ -456,20 +464,20 @@ MVP interfaces:
 ```php
 interface DataSourceReader
 {
-    public function search(array $filters): array;
-    public function find(string $id): ?array;
+    public function search(DataSource $dataSource, array $filters): array;
 }
 
 interface DataSourceImporter
 {
-    public function sync(): void;
+    public function sync(DataSourceImport $import): DataSourceImportResult;
 }
 ```
 
 Clarification:
 
-- `search()` and `find()` are the read contract expected by tools.
-- `sync()` belongs to `DataSourceImporter` in the MVP and is not part of the read contract.
+- `search()` is the MVP read contract expected by retrieval tools.
+- `find()` is not part of the MVP contract and remains deferred until a real use case exists.
+- `sync()` belongs to `DataSourceImporter` in the MVP and is the indexing contract for one import attempt.
 - Live read-through integrations are deferred and do not shape the MVP interfaces.
 
 Initial adapter candidates:
@@ -484,6 +492,7 @@ ExcelDataSourceAdapter
 - Excel parsing into retrievable chunks
 - product or service retrieval over indexed data
 - documentary knowledge retrieval over indexed data
+- second-pass model answers from retrieved context
 
 `Fixed Decision`
 
@@ -869,6 +878,7 @@ app/
 - conversation state loading
 - basic intent handling
 - tool execution
+- retrieval continuation with `retrieved_context`
 - human handoff decision
 - event logging
 
@@ -880,6 +890,7 @@ app/
 - Excel parsing to retrievable chunks
 - `search_inventory` over indexed data
 - `search_knowledge` over indexed data
+- binding document sources to retrieval tools
 - `create_lead`
 - `save_customer_data`
 - `handoff_to_human`

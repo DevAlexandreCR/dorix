@@ -88,6 +88,9 @@ Arquitectura base ya cerrada:
   - `ToolRegistry`
 - Contexto mínimo cargado por runtime:
   - tenant, line, conversation, messages recientes, state snapshot, agent config, tools habilitadas
+- El contrato del runtime debe soportar continuation tras una retrieval tool:
+  - una tool puede devolver contexto recuperado y metadata
+  - el runtime hace un segundo pase del LLM para redactar la respuesta final
 - Outcomes cerrados:
   - `send_message`, `request_missing_information`, `call_tool`, `wait_for_customer`, `request_handoff`, `no_reply`, `error`
 - Política de fallo:
@@ -111,8 +114,8 @@ Arquitectura base ya cerrada:
 ### 5. Data sources y Excel
 
 - Separar contratos:
-  - `DataSourceReader` con `search()` y `find()`
-  - `DataSourceImporter` para importación y sync
+  - `DataSourceReader` con `search()` como contrato MVP de retrieval
+  - `DataSourceImporter` con `sync()` para indexación y trazabilidad
 - No crear abstracción genérica de API ni DB en la primera implementación.
 - Implementar vertical de Excel:
   - upload de archivo
@@ -122,6 +125,7 @@ Arquitectura base ya cerrada:
 - Recuperación para runtime:
   - retrieval documental en Postgres sobre chunks indexados para inventario y conocimiento
   - el LLM redacta la respuesta final desde el contexto recuperado
+  - el archivo subido es la fuente canónica; los chunks son la representación de retrieval
   - sin vector DB ni embeddings en baseline
 
 ### 6. Handoff interno y panel admin
@@ -138,6 +142,8 @@ Arquitectura base ya cerrada:
   - CRUD de WhatsApp lines
   - storage seguro de credenciales
   - configuración de prompt/agente
+  - gestión de fuentes documentales Excel
+  - bindings de `search_inventory` y `search_knowledge`
   - toggles de automatización
   - visualización básica de logs/eventos
 - Reglas de handoff:
@@ -157,6 +163,7 @@ Arquitectura base ya cerrada:
 - Observabilidad:
   - persistir al menos el set de eventos definido en el spec
   - usar Horizon como capa principal de observación de colas
+  - dejar trazabilidad suficiente de importaciones, retries y retrieval tools
 - Fiabilidad:
   - `3` retries con backoff exponencial
   - fallo persistente visible por logs/Horizon, sin UI específica en esta fase
@@ -231,7 +238,7 @@ Arquitectura base ya cerrada:
   - permisos por rol y aislamiento multi-tenant
 - Acceptance scenarios:
   - alta tenant + line + credenciales + prompt
-  - carga Excel, retrieval desde tool y respuesta desde contexto recuperado
+  - carga Excel, binding de tool, retrieval desde tool y respuesta desde contexto recuperado
   - conversación bot end-to-end
   - handoff automático por fallo de runtime
   - reply manual texto y retorno del bot
