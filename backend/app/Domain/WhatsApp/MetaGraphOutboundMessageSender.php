@@ -7,6 +7,7 @@ use App\Domain\WhatsApp\Contracts\OutboundMessageSender;
 use App\Domain\WhatsApp\DTO\OutboundMessageData;
 use App\Domain\WhatsApp\Exceptions\MissingWhatsAppCredentialException;
 use App\Domain\WhatsApp\Exceptions\WhatsAppSendFailedException;
+use App\Enums\ConversationStatus;
 use App\Enums\MessageDirection;
 use App\Models\ApiCredential;
 use App\Models\Conversation;
@@ -58,6 +59,24 @@ class MetaGraphOutboundMessageSender implements OutboundMessageSender
         }
 
         return $this->withinTenantContext($line, function () use ($outboundMessage, $line, $conversation): ConversationMessage {
+            if (
+                $conversation->status === ConversationStatus::HumanHandoff
+                && $this->isAutomatedRuntimePayload($outboundMessage->payload)
+            ) {
+                $this->events->record($outboundMessage->tenantId, 'whatsapp_message_rejected', [
+                    'whatsapp_line_id' => $line->getKey(),
+                    'conversation_id' => $conversation->getKey(),
+                    'payload' => [
+                        'idempotency_key' => $outboundMessage->idempotencyKey,
+                        'reason' => 'blocked_during_human_handoff',
+                    ],
+                ]);
+
+                throw new WhatsAppSendFailedException(
+                    'Automated outbound messages are blocked while the conversation is in HUMAN_HANDOFF.',
+                );
+            }
+
             $this->stateRepository->getOrCreate($conversation);
 
             try {
@@ -231,6 +250,16 @@ class MetaGraphOutboundMessageSender implements OutboundMessageSender
 
         return in_array($sqlState, ['23000', '23505'], true)
             && str_contains($exception->getMessage(), 'idempotency_key');
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    protected function isAutomatedRuntimePayload(array $payload): bool
+    {
+        $source = (string) ($payload['source'] ?? '');
+
+        return str_starts_with($source, 'agent_runtime');
     }
 
     /**

@@ -52,7 +52,7 @@ class DomainSchemaConstraintsTest extends TestCase
         ConversationState::query()->create([
             'tenant_id' => $conversation->tenant_id,
             'conversation_id' => $conversation->id,
-            'current_intent' => 'faq_lookup',
+            'current_intent' => 'knowledge_lookup',
         ]);
     }
 

@@ -24,7 +24,7 @@ Habilitar la operación humana mínima del MVP: ver conversaciones, tomar contro
 ## Precondiciones
 
 - Fase 6 terminada.
-- Revisar [phase_6_excel_data_source_and_structured_retrieval.md](/Users/alexandrecr/devs/gorda/auto/docs/phases/phase_6_excel_data_source_and_structured_retrieval.md).
+- Revisar [phase_6_excel_document_retrieval_and_indexing.md](./phase_6_excel_document_retrieval_and_indexing.md).
 
 ## Decisiones cerradas
 
@@ -86,7 +86,7 @@ Habilitar la operación humana mínima del MVP: ver conversaciones, tomar contro
 Implementa solo la Fase 7 usando:
 - docs/implementation_plan_index.md
 - docs/phases/phase_7_handoff_internal_console_and_manual_reply.md
-- docs/phases/phase_6_excel_data_source_and_structured_retrieval.md
+- docs/phases/phase_6_excel_document_retrieval_and_indexing.md
 - docs/whatsapp_automation_mvp_architecture.md
 
 Trabaja en backend/ y frontend/ solo para la consola operativa mínima.

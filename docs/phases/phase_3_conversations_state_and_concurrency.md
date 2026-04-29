@@ -22,7 +22,7 @@ Volver consistente la conversación como unidad operativa persistente, con snaps
 ## Precondiciones
 
 - Fase 2 terminada.
-- Revisar [phase_2_whatsapp_gateway_and_message_lifecycle.md](/Users/alexandrecr/devs/gorda/auto/docs/phases/phase_2_whatsapp_gateway_and_message_lifecycle.md).
+- Revisar [phase_2_whatsapp_gateway_and_message_lifecycle.md](./phase_2_whatsapp_gateway_and_message_lifecycle.md).
 
 ## Decisiones cerradas
 

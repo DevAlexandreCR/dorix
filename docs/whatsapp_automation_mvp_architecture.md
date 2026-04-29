@@ -413,7 +413,7 @@ Initial tool set:
 ```text
 search_inventory
 create_lead
-search_faq
+search_knowledge
 handoff_to_human
 save_customer_data
 ```
@@ -421,7 +421,7 @@ save_customer_data
 Implementation baseline:
 
 - `create_lead`, `save_customer_data`, and `handoff_to_human` are functionally implemented in the tooling slice before Excel.
-- `search_inventory` and `search_faq` become functionally complete when the Excel vertical is delivered.
+- `search_inventory` and `search_knowledge` become functionally complete when the Excel vertical is delivered.
 
 Bad practice:
 
@@ -481,9 +481,9 @@ ExcelDataSourceAdapter
 `MVP In Scope`
 
 - Excel upload
-- Excel parsing into internal tables
-- product or service search over imported data
-- FAQ search over imported data
+- Excel parsing into retrievable chunks
+- product or service retrieval over indexed data
+- documentary knowledge retrieval over indexed data
 
 `Fixed Decision`
 
@@ -641,14 +641,14 @@ Explicit handoff flow:
 
 `Fixed Decision`
 
-The MVP uses structured retrieval first.
+The MVP uses documentary retrieval first.
 
 Retrieval policy:
 
-- store FAQs in PostgreSQL
-- parse Excel catalogs into normalized or import-friendly internal tables
+- keep the uploaded file as canonical source material
+- parse Excel workbooks into retrievable chunks with row and sheet references
 - use PostgreSQL search for MVP retrieval needs
-- keep products and services as structured records whenever possible
+- let the conversational model answer from retrieved context
 - do not introduce a vector database in the MVP baseline
 
 `Decision Needed`
@@ -877,9 +877,9 @@ app/
 `MVP In Scope`
 
 - Excel upload
-- Excel parsing to internal tables
-- `search_inventory` over imported data
-- `search_faq` over imported data
+- Excel parsing to retrievable chunks
+- `search_inventory` over indexed data
+- `search_knowledge` over indexed data
 - `create_lead`
 - `save_customer_data`
 - `handoff_to_human`

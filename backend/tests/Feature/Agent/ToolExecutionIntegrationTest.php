@@ -20,9 +20,13 @@ use App\Models\AgentConfig;
 use App\Models\ApiCredential;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
+use App\Models\DataSource;
+use App\Models\DataSourceChunk;
+use App\Models\DataSourceImport;
 use App\Models\Tenant;
 use App\Models\TenantToolConfig;
 use App\Models\ToolExecution;
+use App\Models\UploadedFile;
 use App\Models\WhatsAppLine;
 use App\Support\AgentEvents\AgentEventRecorder;
 use App\Support\Tenancy\TenantContextManager;
@@ -46,15 +50,15 @@ class ToolExecutionIntegrationTest extends TestCase
             'save_customer_data',
             'handoff_to_human',
             'search_inventory',
-            'search_faq',
+            'search_knowledge',
         ], $definitions->keys()->all());
         $this->assertTrue($definitions['create_lead']->isImplemented);
         $this->assertTrue($definitions['save_customer_data']->isImplemented);
         $this->assertTrue($definitions['handoff_to_human']->isImplemented);
-        $this->assertFalse($definitions['search_inventory']->isImplemented);
-        $this->assertFalse($definitions['search_faq']->isImplemented);
+        $this->assertTrue($definitions['search_inventory']->isImplemented);
+        $this->assertTrue($definitions['search_knowledge']->isImplemented);
         $this->assertSame(6, $definitions['search_inventory']->implementationPhase);
-        $this->assertSame(6, $definitions['search_faq']->implementationPhase);
+        $this->assertSame(6, $definitions['search_knowledge']->implementationPhase);
     }
 
     public function test_processing_job_executes_save_customer_data_and_logs_the_tool_execution(): void
@@ -212,6 +216,179 @@ class ToolExecutionIntegrationTest extends TestCase
         ]);
     }
 
+    public function test_processing_job_executes_search_inventory_using_the_bound_excel_data_source(): void
+    {
+        [$tenant, $line, $conversation, $message] = $this->conversationFixtures();
+
+        $this->createWhatsappCredential($tenant);
+        [$dataSource, $import] = $this->createReadyExcelDataSource($tenant);
+
+        DataSourceChunk::query()->create([
+            'tenant_id' => $tenant->id,
+            'data_source_id' => $dataSource->id,
+            'data_source_import_id' => $import->id,
+            'chunk_type' => 'table_row',
+            'sheet_name' => 'Inventario',
+            'row_start' => 2,
+            'row_end' => 2,
+            'section_key' => 'inventario-row-2',
+            'content_text' => "Sku: SKU-100\nNombre: Mesa auxiliar\nCategoria: mobiliario\nPrecio: 159900\nMoneda: COP\nCantidad: 8\nDisponibilidad: Disponible",
+            'structured_payload' => [
+                'sku' => 'SKU-100',
+                'nombre' => 'Mesa auxiliar',
+                'categoria' => 'mobiliario',
+                'precio' => '159900',
+                'moneda' => 'COP',
+                'cantidad' => '8',
+                'disponibilidad' => 'Disponible',
+            ],
+            'metadata' => [
+                'datasets' => ['inventory', 'knowledge'],
+            ],
+        ]);
+
+        $this->enableTool($tenant, $line, 'search_inventory', bindings: [
+            'data_source_id' => $dataSource->id,
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/v1/responses' => Http::sequence()
+                ->push([
+                    'output_text' => json_encode([
+                        'outcome' => 'call_tool',
+                        'reply_text' => '',
+                        'handoff_reason' => '',
+                        'tool_name' => 'search_inventory',
+                        'tool_arguments_json' => json_encode([
+                            'query' => 'mesa auxiliar',
+                        ], JSON_THROW_ON_ERROR),
+                        'missing_information_fields' => [],
+                        'current_intent' => 'inventory_lookup',
+                        'internal_notes' => 'Retrieve inventory context first.',
+                    ], JSON_THROW_ON_ERROR),
+                ], 200)
+                ->push([
+                    'output_text' => json_encode([
+                        'outcome' => 'send_message',
+                        'reply_text' => 'Sí, encontré la Mesa auxiliar. El archivo indica SKU-100, precio 159900 COP y disponibilidad Disponible.',
+                        'handoff_reason' => '',
+                        'tool_name' => '',
+                        'tool_arguments_json' => '{}',
+                        'missing_information_fields' => [],
+                        'current_intent' => 'inventory_lookup',
+                        'internal_notes' => 'Answer only from retrieved rows.',
+                    ], JSON_THROW_ON_ERROR),
+                ], 200),
+            'https://graph.facebook.com/*' => Http::response([
+                'messages' => [
+                    ['id' => 'wamid.outbound.inventory.300'],
+                ],
+            ], 200),
+        ]);
+
+        config()->set('services.openai.api_key', 'test-openai-key');
+
+        $this->runProcessingJob($tenant, $conversation, $message);
+
+        $execution = ToolExecution::query()->firstOrFail();
+        $outboundMessage = ConversationMessage::query()
+            ->where('conversation_id', $conversation->id)
+            ->where('direction', MessageDirection::Outbound)
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame('succeeded', $execution->status);
+        $this->assertSame('search_inventory', $execution->tool_name);
+        $this->assertSame(1, $execution->output_summary['match_count']);
+        $this->assertStringContainsString('Mesa auxiliar', $execution->output_summary['matches'][0]['content_text']);
+        $this->assertStringContainsString('Mesa auxiliar', $outboundMessage->body ?? '');
+        $this->assertStringContainsString('SKU-100', $outboundMessage->body ?? '');
+    }
+
+    public function test_processing_job_executes_search_knowledge_using_the_bound_excel_data_source(): void
+    {
+        [$tenant, $line, $conversation, $message] = $this->conversationFixtures();
+
+        $this->createWhatsappCredential($tenant);
+        [$dataSource, $import] = $this->createReadyExcelDataSource($tenant);
+
+        DataSourceChunk::query()->create([
+            'tenant_id' => $tenant->id,
+            'data_source_id' => $dataSource->id,
+            'data_source_import_id' => $import->id,
+            'chunk_type' => 'text_block',
+            'sheet_name' => 'FAQ',
+            'row_start' => 1,
+            'row_end' => 3,
+            'section_key' => 'faq-text',
+            'content_text' => "Envios\n¿Hacen envíos nacionales?\nSí, hacemos envíos a todo Colombia.",
+            'structured_payload' => [
+                'topic' => 'envios',
+                'question' => '¿Hacen envíos nacionales?',
+                'answer' => 'Sí, hacemos envíos a todo Colombia.',
+            ],
+            'metadata' => [
+                'datasets' => ['knowledge'],
+            ],
+        ]);
+
+        $this->enableTool($tenant, $line, 'search_knowledge', bindings: [
+            'data_source_id' => $dataSource->id,
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/v1/responses' => Http::sequence()
+                ->push([
+                    'output_text' => json_encode([
+                        'outcome' => 'call_tool',
+                        'reply_text' => '',
+                        'handoff_reason' => '',
+                        'tool_name' => 'search_knowledge',
+                        'tool_arguments_json' => json_encode([
+                            'question' => '¿Hacen envíos nacionales?',
+                        ], JSON_THROW_ON_ERROR),
+                        'missing_information_fields' => [],
+                        'current_intent' => 'knowledge_lookup',
+                        'internal_notes' => 'Retrieve documentary context first.',
+                    ], JSON_THROW_ON_ERROR),
+                ], 200)
+                ->push([
+                    'output_text' => json_encode([
+                        'outcome' => 'send_message',
+                        'reply_text' => 'Sí. Según la información cargada, hacen envíos a todo Colombia.',
+                        'handoff_reason' => '',
+                        'tool_name' => '',
+                        'tool_arguments_json' => '{}',
+                        'missing_information_fields' => [],
+                        'current_intent' => 'knowledge_lookup',
+                        'internal_notes' => 'Answer from retrieved context only.',
+                    ], JSON_THROW_ON_ERROR),
+                ], 200),
+            'https://graph.facebook.com/*' => Http::response([
+                'messages' => [
+                    ['id' => 'wamid.outbound.faq.300'],
+                ],
+            ], 200),
+        ]);
+
+        config()->set('services.openai.api_key', 'test-openai-key');
+
+        $this->runProcessingJob($tenant, $conversation, $message);
+
+        $execution = ToolExecution::query()->firstOrFail();
+        $outboundMessage = ConversationMessage::query()
+            ->where('conversation_id', $conversation->id)
+            ->where('direction', MessageDirection::Outbound)
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame('succeeded', $execution->status);
+        $this->assertSame('search_knowledge', $execution->tool_name);
+        $this->assertSame(1, $execution->output_summary['match_count']);
+        $this->assertStringContainsString('envíos a todo Colombia', $execution->output_summary['matches'][0]['content_text']);
+        $this->assertStringContainsString('envíos a todo Colombia', $outboundMessage->body ?? '');
+    }
+
     protected function runProcessingJob(Tenant $tenant, Conversation $conversation, ConversationMessage $message): void
     {
         $job = new ProcessIncomingMessageJob($tenant->id, $conversation->id, $message->id);
@@ -226,7 +403,13 @@ class ToolExecutionIntegrationTest extends TestCase
         );
     }
 
-    protected function enableTool(Tenant $tenant, WhatsAppLine $line, string $toolName, ?int $timeoutSeconds = null): void
+    protected function enableTool(
+        Tenant $tenant,
+        WhatsAppLine $line,
+        string $toolName,
+        ?int $timeoutSeconds = null,
+        array $bindings = [],
+    ): void
     {
         TenantToolConfig::query()->create([
             'tenant_id' => $tenant->id,
@@ -236,6 +419,7 @@ class ToolExecutionIntegrationTest extends TestCase
             'tool_name' => $toolName,
             'enabled' => true,
             'timeout_seconds' => $timeoutSeconds,
+            'bindings' => $bindings,
         ]);
     }
 
@@ -306,6 +490,47 @@ class ToolExecutionIntegrationTest extends TestCase
             'credential_key' => 'access_token',
             'secret' => 'test-whatsapp-token',
         ]);
+    }
+
+    /**
+     * @return array{0: DataSource, 1: DataSourceImport}
+     */
+    protected function createReadyExcelDataSource(Tenant $tenant): array
+    {
+        $dataSource = DataSource::query()->create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Catalogo principal',
+            'type' => 'excel',
+            'status' => 'ready',
+            'last_synced_at' => now(),
+            'metadata' => [
+                'datasets' => ['inventory', 'knowledge'],
+            ],
+        ]);
+
+        $uploadedFile = UploadedFile::query()->create([
+            'tenant_id' => $tenant->id,
+            'data_source_id' => $dataSource->id,
+            'disk' => 'local',
+            'path' => 'data-sources/test.xlsx',
+            'original_name' => 'test.xlsx',
+            'mime_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'size_bytes' => 1024,
+        ]);
+
+        $import = DataSourceImport::query()->create([
+            'tenant_id' => $tenant->id,
+            'data_source_id' => $dataSource->id,
+            'uploaded_file_id' => $uploadedFile->id,
+            'status' => 'succeeded',
+            'attempts_count' => 1,
+            'processed_sheet_count' => 2,
+            'generated_chunk_count' => 2,
+            'started_at' => now(),
+            'finished_at' => now(),
+        ]);
+
+        return [$dataSource, $import];
     }
 }
 

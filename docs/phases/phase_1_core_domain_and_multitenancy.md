@@ -22,7 +22,7 @@ Definir el núcleo del dominio y la infraestructura de tenancy sobre la que se m
 ## Precondiciones
 
 - Fase 0 terminada.
-- Revisar [phase_0_foundation_and_repo_bootstrap.md](/Users/alexandrecr/devs/gorda/auto/docs/phases/phase_0_foundation_and_repo_bootstrap.md).
+- Revisar [phase_0_foundation_and_repo_bootstrap.md](./phase_0_foundation_and_repo_bootstrap.md).
 
 ## Decisiones cerradas
 

@@ -99,6 +99,8 @@ For all other outcomes, reply_text must be an empty string.
 tool_arguments_json must always be a JSON object string such as {} when unused.
 missing_information_fields must contain snake_case field names when the customer must provide data.
 Prefer concise replies and keep the language aligned with the customer's latest message.
+When retrieved_context is present, treat it as the only approved knowledge source for the current reply.
+When retrieved_context is present, do not call another tool. Use the retrieved_context to answer, ask for clarification, or request_handoff.
 TEXT;
     }
 
@@ -141,6 +143,10 @@ TEXT;
                     fn (EnabledTool $tool): array => $this->serializeTool($tool),
                     $context->enabledTools,
                 ),
+                'retrieval_context' => [
+                    'matches' => $context->retrievedContext,
+                    'metadata' => $context->retrievalMetadata,
+                ],
                 'triggering_message' => $this->serializeMessage($context->triggeringMessage),
                 'recent_messages' => array_map(
                     fn (ConversationMessage $message): array => $this->serializeMessage($message),

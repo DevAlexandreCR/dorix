@@ -21,8 +21,8 @@ Crear el esqueleto operativo del proyecto para que el equipo pueda desarrollar e
 
 ## Precondiciones
 
-- Leer [implementation_plan_index.md](/Users/alexandrecr/devs/gorda/auto/docs/implementation_plan_index.md).
-- Tomar [whatsapp_automation_mvp_architecture.md](/Users/alexandrecr/devs/gorda/auto/docs/whatsapp_automation_mvp_architecture.md) como baseline técnica.
+- Leer [implementation_plan_index.md](../implementation_plan_index.md).
+- Tomar [whatsapp_automation_mvp_architecture.md](../whatsapp_automation_mvp_architecture.md) como baseline técnica.
 
 ## Decisiones cerradas
 

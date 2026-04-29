@@ -24,7 +24,7 @@ Construir el gateway de WhatsApp y el ciclo de vida de mensajes inbound/outbound
 ## Precondiciones
 
 - Fase 1 terminada.
-- Revisar [phase_1_core_domain_and_multitenancy.md](/Users/alexandrecr/devs/gorda/auto/docs/phases/phase_1_core_domain_and_multitenancy.md).
+- Revisar [phase_1_core_domain_and_multitenancy.md](./phase_1_core_domain_and_multitenancy.md).
 
 ## Decisiones cerradas
 

@@ -4,6 +4,7 @@ namespace App\Domain\Agent;
 
 use App\Domain\Agent\DTO\AgentContext;
 use App\Domain\Agent\DTO\AgentDecision;
+use App\Domain\Agent\Contracts\AgentRuntimeInterface;
 use App\Domain\Conversations\Contracts\ConversationStateRepository;
 use App\Domain\Conversations\Contracts\ConversationStatusTransitioner;
 use App\Domain\Tools\DTO\ToolResult;
@@ -25,6 +26,7 @@ class AgentDecisionApplier
         protected OutboundMessageSender $outboundMessageSender,
         protected AgentEventRecorder $events,
         protected ToolExecutionRunner $toolExecutionRunner,
+        protected AgentRuntimeInterface $agentRuntime,
     ) {
     }
 
@@ -116,6 +118,7 @@ class AgentDecisionApplier
 
         match ($result->nextAction) {
             ToolNextAction::SendMessageAndWait => $this->sendToolReplyAndWait($context, $decision, $conversation, $result),
+            ToolNextAction::ContinueWithRetrievedContext => $this->continueWithRetrievedContext($context, $decision, $conversation, $result),
             ToolNextAction::WaitForCustomer => $this->waitForCustomer($conversation),
             ToolNextAction::RequestHandoff => $this->fallbackToHumanHandoff(
                 $conversation,
@@ -129,6 +132,50 @@ class AgentDecisionApplier
             ),
             ToolNextAction::NoReply => null,
         };
+    }
+
+    protected function continueWithRetrievedContext(
+        AgentContext $context,
+        AgentDecision $decision,
+        Conversation $conversation,
+        ToolResult $result,
+    ): void {
+        $retrievedContext = $this->normalizeRetrievedContext($result);
+
+        if ($retrievedContext === []) {
+            $this->waitForCustomer($conversation);
+
+            return;
+        }
+
+        $followUpContext = $context->withRetrievedContext(
+            $retrievedContext,
+            [
+                'tool_name' => $decision->toolName,
+                'tool_arguments' => $decision->toolArguments,
+                'tool_result' => $result->outputSummary,
+            ],
+        );
+
+        $followUpDecision = $this->agentRuntime->run($followUpContext);
+
+        if ($followUpDecision->outcome === AgentDecisionOutcome::CallTool) {
+            $this->fallbackToHumanHandoff(
+                $conversation,
+                $context->line->getKey(),
+                $context->triggeringMessage->getKey(),
+                sprintf('The retrieval follow-up after tool "%s" attempted an additional tool call.', $decision->toolName),
+                [
+                    'decision' => $decision->toArray(),
+                    'tool_result' => $result->toArray(),
+                    'follow_up_decision' => $followUpDecision->toArray(),
+                ],
+            );
+
+            return;
+        }
+
+        $this->apply($followUpContext, $followUpDecision);
     }
 
     protected function sendReplyAndWait(AgentContext $context, AgentDecision $decision, Conversation $conversation): void
@@ -236,5 +283,18 @@ class AgentDecisionApplier
         $conversation->forceFill($result->conversationUpdates)->save();
 
         return $conversation->fresh();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    protected function normalizeRetrievedContext(ToolResult $result): array
+    {
+        $retrievedContext = $result->metadata['retrieved_context'] ?? $result->outputSummary['matches'] ?? [];
+
+        return is_array($retrievedContext) ? array_values(array_filter(
+            $retrievedContext,
+            static fn (mixed $item): bool => is_array($item),
+        )) : [];
     }
 }

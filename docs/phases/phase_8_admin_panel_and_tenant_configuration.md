@@ -22,7 +22,7 @@ Completar el panel administrativo mínimo para operar tenants, líneas, credenci
 ## Precondiciones
 
 - Fase 7 terminada.
-- Revisar [phase_7_handoff_internal_console_and_manual_reply.md](/Users/alexandrecr/devs/gorda/auto/docs/phases/phase_7_handoff_internal_console_and_manual_reply.md).
+- Revisar [phase_7_handoff_internal_console_and_manual_reply.md](./phase_7_handoff_internal_console_and_manual_reply.md).
 
 ## Decisiones cerradas
 

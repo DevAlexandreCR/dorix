@@ -24,13 +24,14 @@ class AgentRuntime implements AgentRuntimeInterface
             'whatsapp_line_id' => $context->line->getKey(),
             'conversation_id' => $context->conversation->getKey(),
             'conversation_message_id' => $context->triggeringMessage->getKey(),
-            'payload' => [
-                'model' => $context->agentConfig->model,
-                'prompt_version' => $context->agentConfig->prompt_version,
-                'recent_message_count' => count($context->recentMessages),
-                'enabled_tools' => array_map(
-                    static fn ($tool): string => $tool->name(),
-                    $context->enabledTools,
+                'payload' => [
+                    'model' => $context->agentConfig->model,
+                    'prompt_version' => $context->agentConfig->prompt_version,
+                    'recent_message_count' => count($context->recentMessages),
+                    'retrieved_context_count' => count($context->retrievedContext),
+                    'enabled_tools' => array_map(
+                        static fn ($tool): string => $tool->name(),
+                        $context->enabledTools,
                 ),
             ],
         ]);
@@ -45,6 +46,7 @@ class AgentRuntime implements AgentRuntimeInterface
                 'payload' => [
                     'model' => $context->agentConfig->model,
                     'prompt_version' => $context->agentConfig->prompt_version,
+                    'retrieved_context_count' => count($context->retrievedContext),
                     'decision' => $decision->toArray(),
                 ],
             ]);
@@ -58,6 +60,7 @@ class AgentRuntime implements AgentRuntimeInterface
                 'payload' => [
                     'model' => $context->agentConfig->model,
                     'prompt_version' => $context->agentConfig->prompt_version,
+                    'retrieved_context_count' => count($context->retrievedContext),
                     'error' => $exception->getMessage(),
                     'exception' => $exception::class,
                 ],

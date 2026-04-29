@@ -78,7 +78,7 @@ class ConversationStateAndConcurrencyTest extends TestCase
         $state = ConversationState::query()->create([
             'tenant_id' => $tenant->id,
             'conversation_id' => $conversation->id,
-            'current_intent' => 'faq_lookup',
+            'current_intent' => 'knowledge_lookup',
             'collected_data' => ['customer_name' => 'Ana'],
             'memory_summary' => 'Cliente preguntó por inventario.',
             'expires_at' => now()->subMinute(),
@@ -89,7 +89,7 @@ class ConversationStateAndConcurrencyTest extends TestCase
         $this->assertNull($expiredState->memory_summary);
         $this->assertSame(['customer_name' => 'Ana'], $expiredState->collected_data);
         $this->assertNull($expiredState->expires_at);
-        $this->assertSame('faq_lookup', $expiredState->current_intent);
+        $this->assertSame('knowledge_lookup', $expiredState->current_intent);
     }
 
     public function test_status_transitions_clear_assignment_when_bot_resumes_and_reject_invalid_paths(): void

@@ -22,7 +22,7 @@ Cerrar el MVP para operación productiva con observabilidad suficiente, protecci
 ## Precondiciones
 
 - Fase 8 terminada.
-- Revisar [phase_8_admin_panel_and_tenant_configuration.md](/Users/alexandrecr/devs/gorda/auto/docs/phases/phase_8_admin_panel_and_tenant_configuration.md).
+- Revisar [phase_8_admin_panel_and_tenant_configuration.md](./phase_8_admin_panel_and_tenant_configuration.md).
 
 ## Decisiones cerradas
 

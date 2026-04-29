@@ -15,6 +15,8 @@ final readonly class AgentContext
     /**
      * @param  array<int, ConversationMessage>  $recentMessages
      * @param  array<int, EnabledTool>  $enabledTools
+     * @param  array<int, array<string, mixed>>  $retrievedContext
+     * @param  array<string, mixed>  $retrievalMetadata
      */
     public function __construct(
         public Tenant $tenant,
@@ -25,6 +27,8 @@ final readonly class AgentContext
         public ConversationMessage $triggeringMessage,
         public array $recentMessages,
         public array $enabledTools,
+        public array $retrievedContext = [],
+        public array $retrievalMetadata = [],
     ) {
     }
 
@@ -37,5 +41,25 @@ final readonly class AgentContext
         }
 
         return null;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $retrievedContext
+     * @param  array<string, mixed>  $retrievalMetadata
+     */
+    public function withRetrievedContext(array $retrievedContext, array $retrievalMetadata = []): self
+    {
+        return new self(
+            tenant: $this->tenant,
+            line: $this->line,
+            conversation: $this->conversation,
+            state: $this->state,
+            agentConfig: $this->agentConfig,
+            triggeringMessage: $this->triggeringMessage,
+            recentMessages: $this->recentMessages,
+            enabledTools: $this->enabledTools,
+            retrievedContext: $retrievedContext,
+            retrievalMetadata: $retrievalMetadata,
+        );
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class UploadedFile extends TenantScopedModel
 {
@@ -16,6 +17,11 @@ class UploadedFile extends TenantScopedModel
     public function dataSource(): BelongsTo
     {
         return $this->belongsTo(DataSource::class);
+    }
+
+    public function imports(): HasMany
+    {
+        return $this->hasMany(DataSourceImport::class);
     }
 
     public function uploadedByUser(): BelongsTo

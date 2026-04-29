@@ -12,7 +12,7 @@ Agregar la capa de tools del runtime con registry code-only, enablement por tena
 - Timeouts y ejecución controlada.
 - Logs de ejecución y errores.
 - Implementación funcional de `create_lead`, `save_customer_data` y `handoff_to_human`.
-- Registro de `search_inventory` y `search_faq` para completarse funcionalmente en la Fase 6.
+- Registro de `search_inventory` y `search_knowledge` para completarse funcionalmente en la Fase 6.
 
 ## Fuera de scope
 
@@ -23,7 +23,7 @@ Agregar la capa de tools del runtime con registry code-only, enablement por tena
 ## Precondiciones
 
 - Fase 4 terminada.
-- Revisar [phase_4_agent_runtime_and_llm_integration.md](/Users/alexandrecr/devs/gorda/auto/docs/phases/phase_4_agent_runtime_and_llm_integration.md).
+- Revisar [phase_4_agent_runtime_and_llm_integration.md](./phase_4_agent_runtime_and_llm_integration.md).
 
 ## Decisiones cerradas
 
@@ -37,7 +37,7 @@ Agregar la capa de tools del runtime con registry code-only, enablement por tena
 - `ToolInterface`.
 - Ejecutor con timeout y logging.
 - Tools funcionales `create_lead`, `save_customer_data` y `handoff_to_human`.
-- Registro estable de `search_inventory` y `search_faq` con contratos listos para su integración en la Fase 6.
+- Registro estable de `search_inventory` y `search_knowledge` con contratos listos para su integración en la Fase 6.
 
 ## Cambios técnicos esperados
 
@@ -46,6 +46,7 @@ Agregar la capa de tools del runtime con registry code-only, enablement por tena
 - Persistir `tool_executions` con input/output resumido, duración y resultado.
 - Integrar `call_tool` como outcome soportado del runtime.
 - Declarar explícitamente en `ToolRegistry` qué tools quedan funcionales en esta fase y cuáles dependen del vertical Excel.
+- Dejar claro que las tools de retrieval recuperan contexto y no construyen la respuesta final al cliente.
 
 ## Interfaces o contratos a definir
 
@@ -69,13 +70,13 @@ Agregar la capa de tools del runtime con registry code-only, enablement por tena
 - Registrar `tool_executions`.
 - Integrar tool calling al runtime.
 - Implementar `create_lead`, `save_customer_data` y `handoff_to_human`.
-- Registrar `search_inventory` y `search_faq` con contratos definitivos para conectarse a Excel en la Fase 6.
+- Registrar `search_inventory` y `search_knowledge` con contratos definitivos para conectarse a Excel en la Fase 6.
 
 ## Criterio de done
 
 - El runtime puede resolver y ejecutar con trazabilidad `create_lead`, `save_customer_data` y `handoff_to_human`.
 - Los tenants pueden habilitar o deshabilitar tools por configuración.
-- `search_inventory` y `search_faq` quedan registradas sin ambigüedad y listas para hacerse funcionales en la Fase 6.
+- `search_inventory` y `search_knowledge` quedan registradas sin ambigüedad y listas para hacerse funcionales en la Fase 6.
 - La observabilidad de tools queda lista para uso operativo.
 
 ## Prompt sugerido para Codex
@@ -91,6 +92,6 @@ Trabaja solo en backend/ y tests asociados.
 No implementes todavía Excel importer completo ni UI admin de tools.
 Explora primero cómo quedó el runtime y luego agrega registry, contratos y execution logging sin introducir lógica por tenant hardcodeada.
 Implementa funcionalmente `create_lead`, `save_customer_data` y `handoff_to_human`.
-Deja `search_inventory` y `search_faq` registradas con contrato estable pero con implementación funcional diferida a la Fase 6.
+Deja `search_inventory` y `search_knowledge` registradas con contrato estable pero con implementación funcional diferida a la Fase 6.
 Valida con pruebas de enablement, timeout y persistencia de tool executions.
 ```

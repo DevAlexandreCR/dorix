@@ -22,7 +22,7 @@ Implementar el runtime mínimo del agente con integración a OpenAI `gpt-5.1`, c
 ## Precondiciones
 
 - Fase 3 terminada.
-- Revisar [phase_3_conversations_state_and_concurrency.md](/Users/alexandrecr/devs/gorda/auto/docs/phases/phase_3_conversations_state_and_concurrency.md).
+- Revisar [phase_3_conversations_state_and_concurrency.md](./phase_3_conversations_state_and_concurrency.md).
 
 ## Decisiones cerradas
 

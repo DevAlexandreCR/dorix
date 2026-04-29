@@ -19,4 +19,14 @@ class DataSource extends TenantScopedModel
     {
         return $this->hasMany(UploadedFile::class);
     }
+
+    public function imports(): HasMany
+    {
+        return $this->hasMany(DataSourceImport::class);
+    }
+
+    public function chunks(): HasMany
+    {
+        return $this->hasMany(DataSourceChunk::class);
+    }
 }

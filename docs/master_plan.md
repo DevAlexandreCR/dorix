@@ -102,7 +102,7 @@ Arquitectura base ya cerrada:
   - registrar toda ejecución en `tool_executions`
 - Implementar el set obligatorio de tools del MVP:
   - Fase 5: `create_lead`, `save_customer_data`, `handoff_to_human`
-  - Fase 6: `search_inventory`, `search_faq`
+  - Fase 6: `search_inventory`, `search_knowledge`
 - Dejar fuera en esta fase:
   - tool marketplace
   - tool definitions administrables
@@ -117,10 +117,11 @@ Arquitectura base ya cerrada:
 - Implementar vertical de Excel:
   - upload de archivo
   - validación y persistencia de metadata
-  - parser/importador a tablas internas de catálogo y FAQ
+  - parser/indexador a chunks recuperables
   - trazabilidad de importaciones y errores
 - Recuperación para runtime:
-  - búsqueda estructurada en Postgres sobre tablas normalizadas/importadas para inventario y FAQ
+  - retrieval documental en Postgres sobre chunks indexados para inventario y conocimiento
+  - el LLM redacta la respuesta final desde el contexto recuperado
   - sin vector DB ni embeddings en baseline
 
 ### 6. Handoff interno y panel admin
@@ -191,7 +192,7 @@ Arquitectura base ya cerrada:
 3. `Agent Slice`
    - runtime, provider OpenAI `gpt-5.1`, prompt config, Tool Registry, logs de runtime, fallback a handoff
 4. `Excel Slice`
-   - upload, parse/import, búsqueda de inventario y FAQ, tools funcionales
+   - upload, parse/index, retrieval de inventario y conocimiento, tools funcionales
 5. `Operations UI`
    - slice 7: login/sesión mínima, inbox, thread, manual reply texto, handoff/resume
    - slice 8: panel admin, configuración, credenciales, prompts, toggles y logs básicos
@@ -225,12 +226,12 @@ Arquitectura base ya cerrada:
   - reintentos idempotentes no duplican reply visible
   - resume de bot limpia `assigned_to_user_id`
 - Integration tests:
-  - runtime + tools + catálogo Excel
+  - runtime + tools + fuente Excel indexada
   - locking por conversación con mensajes cercanos
   - permisos por rol y aislamiento multi-tenant
 - Acceptance scenarios:
   - alta tenant + line + credenciales + prompt
-  - carga Excel y búsqueda desde tool
+  - carga Excel, retrieval desde tool y respuesta desde contexto recuperado
   - conversación bot end-to-end
   - handoff automático por fallo de runtime
   - reply manual texto y retorno del bot

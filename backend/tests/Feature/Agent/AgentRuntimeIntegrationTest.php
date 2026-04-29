@@ -80,7 +80,7 @@ class AgentRuntimeIntegrationTest extends TestCase
             'whatsapp_line_id' => null,
             'scope_type' => 'tenant',
             'scope_key' => TenantScopeKey::forTenant($tenant),
-            'tool_name' => 'search_faq',
+            'tool_name' => 'search_knowledge',
             'enabled' => true,
         ]);
 
@@ -90,11 +90,11 @@ class AgentRuntimeIntegrationTest extends TestCase
                     'outcome' => 'call_tool',
                     'reply_text' => '',
                     'handoff_reason' => '',
-                    'tool_name' => 'search_faq',
+                    'tool_name' => 'search_knowledge',
                     'tool_arguments_json' => '{"question":"horarios"}',
                     'missing_information_fields' => [],
-                    'current_intent' => 'faq_lookup',
-                    'internal_notes' => 'Need product FAQ lookup.',
+                    'current_intent' => 'knowledge_lookup',
+                    'internal_notes' => 'Need knowledge retrieval.',
                 ], JSON_THROW_ON_ERROR),
             ], 200),
         ]);
@@ -106,7 +106,7 @@ class AgentRuntimeIntegrationTest extends TestCase
         );
 
         $this->assertSame(AgentDecisionOutcome::CallTool, $decision->outcome);
-        $this->assertSame('search_faq', $decision->toolName);
+        $this->assertSame('search_knowledge', $decision->toolName);
         $this->assertSame(['question' => 'horarios'], $decision->toolArguments);
     }
 
