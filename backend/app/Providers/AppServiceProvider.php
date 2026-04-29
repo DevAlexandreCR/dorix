@@ -14,6 +14,12 @@ use App\Domain\Conversations\Contracts\ConversationStatusTransitioner;
 use App\Domain\Conversations\ConversationStatusManager;
 use App\Domain\Conversations\DatabaseConversationResolver;
 use App\Domain\Conversations\EloquentConversationStateRepository;
+use App\Domain\Tools\ToolRegistry;
+use App\Domain\Tools\Tools\CreateLeadTool;
+use App\Domain\Tools\Tools\HandoffToHumanTool;
+use App\Domain\Tools\Tools\SaveCustomerDataTool;
+use App\Domain\Tools\Tools\SearchFaqTool;
+use App\Domain\Tools\Tools\SearchInventoryTool;
 use App\Enums\Permission;
 use App\Domain\WhatsApp\Contracts\OutboundMessageSender;
 use App\Domain\WhatsApp\Contracts\WhatsAppLineResolver;
@@ -49,6 +55,19 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(WhatsAppWebhookHandler::class, MetaWhatsAppWebhookHandler::class);
         $this->app->bind(OutboundMessageSender::class, MetaGraphOutboundMessageSender::class);
         $this->app->singleton(TenantAccess::class);
+        $this->app->singleton(CreateLeadTool::class);
+        $this->app->singleton(SaveCustomerDataTool::class);
+        $this->app->singleton(HandoffToHumanTool::class);
+        $this->app->singleton(SearchInventoryTool::class);
+        $this->app->singleton(SearchFaqTool::class);
+        $this->app->tag([
+            CreateLeadTool::class,
+            SaveCustomerDataTool::class,
+            HandoffToHumanTool::class,
+            SearchInventoryTool::class,
+            SearchFaqTool::class,
+        ], 'agent-tools');
+        $this->app->singleton(ToolRegistry::class, fn ($app): ToolRegistry => new ToolRegistry($app->tagged('agent-tools')));
     }
 
     /**

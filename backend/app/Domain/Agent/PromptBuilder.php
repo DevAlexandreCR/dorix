@@ -3,8 +3,8 @@
 namespace App\Domain\Agent;
 
 use App\Domain\Agent\DTO\AgentContext;
+use App\Domain\Tools\DTO\EnabledTool;
 use App\Models\ConversationMessage;
-use App\Models\TenantToolConfig;
 use JsonException;
 
 class PromptBuilder
@@ -138,7 +138,7 @@ TEXT;
                     'settings' => $context->agentConfig->settings ?? [],
                 ],
                 'enabled_tools' => array_map(
-                    fn (TenantToolConfig $tool): array => $this->serializeTool($tool),
+                    fn (EnabledTool $tool): array => $this->serializeTool($tool),
                     $context->enabledTools,
                 ),
                 'triggering_message' => $this->serializeMessage($context->triggeringMessage),
@@ -157,15 +157,9 @@ TEXT;
     /**
      * @return array<string, mixed>
      */
-    protected function serializeTool(TenantToolConfig $tool): array
+    protected function serializeTool(EnabledTool $tool): array
     {
-        return [
-            'name' => $tool->tool_name,
-            'enabled' => $tool->enabled,
-            'timeout_seconds' => $tool->timeout_seconds,
-            'overrides' => $tool->overrides ?? [],
-            'bindings' => $tool->bindings ?? [],
-        ];
+        return $tool->toArray();
     }
 
     /**

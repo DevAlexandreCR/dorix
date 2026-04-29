@@ -4,6 +4,8 @@ namespace App\Domain\Agent;
 
 use App\Domain\Agent\DTO\AgentContext;
 use App\Domain\Agent\Exceptions\MissingAgentConfigurationException;
+use App\Domain\Tools\DTO\EnabledTool;
+use App\Domain\Tools\ToolRegistry;
 use App\Models\AgentConfig;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
@@ -14,6 +16,11 @@ use App\Support\Tenancy\TenantScopeKey;
 
 class AgentContextLoader
 {
+    public function __construct(
+        protected ToolRegistry $toolRegistry,
+    ) {
+    }
+
     public function load(Conversation $conversation, int $messageId, ConversationState $state): AgentContext
     {
         $line = WhatsAppLine::query()
@@ -70,11 +77,11 @@ class AgentContextLoader
     }
 
     /**
-     * @return array<int, TenantToolConfig>
+     * @return array<int, EnabledTool>
      */
     protected function resolveEnabledTools(Conversation $conversation, WhatsAppLine $line): array
     {
-        return TenantToolConfig::query()
+        $configs = TenantToolConfig::query()
             ->forTenant($conversation->tenant_id)
             ->whereIn('scope_key', [
                 TenantScopeKey::forTenant($conversation->tenant_id),
@@ -90,5 +97,7 @@ class AgentContextLoader
             ->filter(static fn (TenantToolConfig $tool): bool => $tool->enabled)
             ->values()
             ->all();
+
+        return $this->toolRegistry->resolveEnabledTools($configs);
     }
 }

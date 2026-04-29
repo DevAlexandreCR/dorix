@@ -29,7 +29,7 @@ class AgentRuntime implements AgentRuntimeInterface
                 'prompt_version' => $context->agentConfig->prompt_version,
                 'recent_message_count' => count($context->recentMessages),
                 'enabled_tools' => array_map(
-                    static fn ($tool): string => $tool->tool_name,
+                    static fn ($tool): string => $tool->name(),
                     $context->enabledTools,
                 ),
             ],

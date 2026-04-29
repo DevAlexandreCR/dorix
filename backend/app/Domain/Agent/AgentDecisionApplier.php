@@ -6,6 +6,9 @@ use App\Domain\Agent\DTO\AgentContext;
 use App\Domain\Agent\DTO\AgentDecision;
 use App\Domain\Conversations\Contracts\ConversationStateRepository;
 use App\Domain\Conversations\Contracts\ConversationStatusTransitioner;
+use App\Domain\Tools\DTO\ToolResult;
+use App\Domain\Tools\ToolExecutionRunner;
+use App\Domain\Tools\ToolNextAction;
 use App\Domain\WhatsApp\Contracts\OutboundMessageSender;
 use App\Domain\WhatsApp\DTO\OutboundMessageData;
 use App\Enums\ConversationStatus;
@@ -21,6 +24,7 @@ class AgentDecisionApplier
         protected ConversationStateRepository $stateRepository,
         protected OutboundMessageSender $outboundMessageSender,
         protected AgentEventRecorder $events,
+        protected ToolExecutionRunner $toolExecutionRunner,
     ) {
     }
 
@@ -44,15 +48,7 @@ class AgentDecisionApplier
                     'decision' => $decision->toArray(),
                 ],
             ),
-            AgentDecisionOutcome::CallTool => $this->fallbackToHumanHandoff(
-                $conversation,
-                $context->line->getKey(),
-                $context->triggeringMessage->getKey(),
-                sprintf('The runtime requested tool "%s", but tool execution is not implemented in phase 4.', $decision->toolName),
-                [
-                    'decision' => $decision->toArray(),
-                ],
-            ),
+            AgentDecisionOutcome::CallTool => $this->applyToolDecision($context, $decision, $conversation),
             AgentDecisionOutcome::Error => $this->fallbackToHumanHandoff(
                 $conversation,
                 $context->line->getKey(),
@@ -111,27 +107,97 @@ class AgentDecisionApplier
         ]);
     }
 
+    protected function applyToolDecision(AgentContext $context, AgentDecision $decision, Conversation $conversation): void
+    {
+        $result = $this->toolExecutionRunner->run($context, $decision);
+
+        $conversation = $this->applyConversationUpdates($conversation, $result);
+        $this->applyToolStateUpdates($conversation, $result);
+
+        match ($result->nextAction) {
+            ToolNextAction::SendMessageAndWait => $this->sendToolReplyAndWait($context, $decision, $conversation, $result),
+            ToolNextAction::WaitForCustomer => $this->waitForCustomer($conversation),
+            ToolNextAction::RequestHandoff => $this->fallbackToHumanHandoff(
+                $conversation,
+                $context->line->getKey(),
+                $context->triggeringMessage->getKey(),
+                $result->handoffReason !== '' ? $result->handoffReason : sprintf('The tool "%s" requested a human handoff.', $decision->toolName),
+                [
+                    'decision' => $decision->toArray(),
+                    'tool_result' => $result->toArray(),
+                ],
+            ),
+            ToolNextAction::NoReply => null,
+        };
+    }
+
     protected function sendReplyAndWait(AgentContext $context, AgentDecision $decision, Conversation $conversation): void
     {
-        $this->outboundMessageSender->send(new OutboundMessageData(
-            tenantId: $context->tenant->getKey(),
-            conversationId: $conversation->getKey(),
-            whatsAppLineId: $context->line->getKey(),
-            recipientPhone: $conversation->contact_phone,
-            body: $decision->replyText,
-            idempotencyKey: sprintf(
+        $this->sendOutboundMessage(
+            $context,
+            $conversation,
+            $decision->replyText,
+            sprintf(
                 'agent-runtime:%d:%d:%s',
                 $conversation->getKey(),
                 $context->triggeringMessage->getKey(),
                 Str::slug($decision->outcome->value, '_'),
             ),
-            payload: [
+            [
                 'source' => 'agent_runtime',
                 'decision' => $decision->toArray(),
             ],
-        ));
+        );
 
         $this->waitForCustomer($conversation);
+    }
+
+    protected function sendToolReplyAndWait(
+        AgentContext $context,
+        AgentDecision $decision,
+        Conversation $conversation,
+        ToolResult $result,
+    ): void {
+        $this->sendOutboundMessage(
+            $context,
+            $conversation,
+            $result->replyText,
+            sprintf(
+                'agent-runtime:%d:%d:%s:%s',
+                $conversation->getKey(),
+                $context->triggeringMessage->getKey(),
+                Str::slug($decision->outcome->value, '_'),
+                Str::slug($decision->toolName, '_'),
+            ),
+            [
+                'source' => 'agent_runtime_tool',
+                'decision' => $decision->toArray(),
+                'tool_result' => $result->toArray(),
+            ],
+        );
+
+        $this->waitForCustomer($conversation);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    protected function sendOutboundMessage(
+        AgentContext $context,
+        Conversation $conversation,
+        string $body,
+        string $idempotencyKey,
+        array $payload,
+    ): void {
+        $this->outboundMessageSender->send(new OutboundMessageData(
+            tenantId: $context->tenant->getKey(),
+            conversationId: $conversation->getKey(),
+            whatsAppLineId: $context->line->getKey(),
+            recipientPhone: $conversation->contact_phone,
+            body: $body,
+            idempotencyKey: $idempotencyKey,
+            payload: $payload,
+        ));
     }
 
     protected function waitForCustomer(Conversation $conversation): void
@@ -150,5 +216,25 @@ class AgentDecisionApplier
         }
 
         $this->stateRepository->update($conversation, $attributes);
+    }
+
+    protected function applyToolStateUpdates(Conversation $conversation, ToolResult $result): void
+    {
+        if ($result->stateUpdates === []) {
+            return;
+        }
+
+        $this->stateRepository->update($conversation, $result->stateUpdates);
+    }
+
+    protected function applyConversationUpdates(Conversation $conversation, ToolResult $result): Conversation
+    {
+        if ($result->conversationUpdates === []) {
+            return $conversation->fresh();
+        }
+
+        $conversation->forceFill($result->conversationUpdates)->save();
+
+        return $conversation->fresh();
     }
 }
