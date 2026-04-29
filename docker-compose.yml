@@ -7,21 +7,21 @@ x-frontend-env-file: &frontend-env-file
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: gorda-postgres
+    container_name: dorix-postgres
     env_file: *backend-env-file
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gorda -d gorda_auto"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: gorda-redis
+    container_name: dorix-redis
     ports:
       - "6379:6379"
     volumes:
@@ -36,7 +36,7 @@ services:
     build:
       context: .
       dockerfile: infra/docker/backend/Dockerfile
-    container_name: gorda-backend-init
+    container_name: dorix-backend-init
     working_dir: /var/www/html/backend
     volumes:
       - ./backend:/var/www/html/backend
@@ -57,7 +57,7 @@ services:
     build:
       context: .
       dockerfile: infra/docker/backend/Dockerfile
-    container_name: gorda-php-fpm
+    container_name: dorix-php-fpm
     working_dir: /var/www/html/backend
     volumes:
       - ./backend:/var/www/html/backend
@@ -73,7 +73,7 @@ services:
     build:
       context: .
       dockerfile: infra/docker/backend/Dockerfile
-    container_name: gorda-queue-worker
+    container_name: dorix-queue-worker
     working_dir: /var/www/html/backend
     volumes:
       - ./backend:/var/www/html/backend
@@ -99,7 +99,7 @@ services:
     build:
       context: .
       dockerfile: infra/docker/backend/Dockerfile
-    container_name: gorda-horizon
+    container_name: dorix-horizon
     working_dir: /var/www/html/backend
     volumes:
       - ./backend:/var/www/html/backend
@@ -115,7 +115,7 @@ services:
 
   nginx:
     image: nginx:1.27-alpine
-    container_name: gorda-nginx
+    container_name: dorix-nginx
     depends_on:
       php-fpm:
         condition: service_started
@@ -130,7 +130,7 @@ services:
     build:
       context: .
       dockerfile: infra/docker/frontend/Dockerfile
-    container_name: gorda-frontend
+    container_name: dorix-frontend
     working_dir: /var/www/html/frontend
     depends_on:
       nginx:

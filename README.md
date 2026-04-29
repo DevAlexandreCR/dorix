@@ -1,4 +1,4 @@
-# Gorda Auto
+# Dorix
 
 Bootstrap inicial del MVP como monorepo con:
 
