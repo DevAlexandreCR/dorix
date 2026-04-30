@@ -205,6 +205,8 @@ Arquitectura base ya cerrada:
    - slice 8: panel admin, configuración, credenciales, prompts, toggles y logs básicos
 6. `Production Hardening`
    - auditoría, cifrado completo, retries/backoff verificados, observabilidad, smoke tests de despliegue
+7. `Agent Sandbox`
+   - fase post-MVP para probar el agente desde una SPA tipo chat usando conversaciones persistidas, runtime/tools/retrieval reales y outbound local sin envío a WhatsApp
 
 ## Mapeo entre macro-fases y fases operativas
 
@@ -214,6 +216,15 @@ Arquitectura base ya cerrada:
 - `Excel Slice` -> Fase 6
 - `Operations UI` -> Fases 7 y 8
 - `Production Hardening` -> Fase 9
+- `Agent Sandbox` -> Fase 10
+
+## Fase Post-MVP: Agent Sandbox
+
+- Objetivo: permitir que un `tenant_admin` pruebe el agente en una experiencia de chat persistida estilo ChatGPT/Claude sin tocar el canal WhatsApp real.
+- Backend: marcar conversaciones sandbox con `source = agent_sandbox`, exponer endpoints `/api/v1/agent-sandbox`, ejecutar turnos con el runtime real y persistir outbound mediante un sender local que no llama a Meta.
+- Frontend: agregar `frontend/src/modules/sandbox` con sesiones, thread, composer y metadata básica de ejecución, outcomes, tools y errores.
+- Trazabilidad: persistir mensajes, `conversation_state`, `tool_executions` y `agent_events` como en el flujo real, manteniendo las sesiones sandbox fuera del inbox operativo por defecto.
+- Validación: cubrir permisos, persistencia, aislamiento de Meta y trazabilidad con tests backend; validar también `docker compose exec frontend npm run build`.
 
 ## Plan de Pruebas
 

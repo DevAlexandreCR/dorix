@@ -62,6 +62,7 @@ El MVP se considera listo cuando:
 | 7 | `docs/phases/phase_7_handoff_internal_console_and_manual_reply.md` | Consola operativa autenticada, handoff y reply manual | UI + backend | Fase 6 | Pendiente |
 | 8 | `docs/phases/phase_8_admin_panel_and_tenant_configuration.md` | Panel admin, configuración y data sources | UI + backend | Fase 7 | Pendiente |
 | 9 | `docs/phases/phase_9_observability_security_and_production_hardening.md` | Hardening de producción | Infra + seguridad | Fase 8 | Pendiente |
+| 10 | `docs/phases/phase_10_agent_sandbox_chat.md` | Sandbox chat para probar el agente | UI + backend | Fase 9 | Pendiente |
 
 ## Relación con las macro-fases del master plan
 
@@ -71,6 +72,7 @@ El MVP se considera listo cuando:
 - `Excel Slice` corresponde a Fase 6.
 - `Operations UI` corresponde a Fases 7 y 8.
 - `Production Hardening` corresponde a Fase 9.
+- `Agent Sandbox` corresponde a Fase 10 y queda como mejora post-MVP.
 
 ## Orden oficial de ejecución
 
@@ -84,6 +86,7 @@ El MVP se considera listo cuando:
 8. [phase_7_handoff_internal_console_and_manual_reply.md](./phases/phase_7_handoff_internal_console_and_manual_reply.md)
 9. [phase_8_admin_panel_and_tenant_configuration.md](./phases/phase_8_admin_panel_and_tenant_configuration.md)
 10. [phase_9_observability_security_and_production_hardening.md](./phases/phase_9_observability_security_and_production_hardening.md)
+11. [phase_10_agent_sandbox_chat.md](./phases/phase_10_agent_sandbox_chat.md)
 
 ## Cómo usar estos documentos
 
