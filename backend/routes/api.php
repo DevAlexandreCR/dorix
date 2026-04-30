@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\AdminAgentConfigController;
 use App\Http\Controllers\Api\AdminCredentialController;
 use App\Http\Controllers\Api\AdminTenantController;
@@ -9,6 +8,7 @@ use App\Http\Controllers\Api\AdminToolConfigController;
 use App\Http\Controllers\Api\AdminWhatsAppLineController;
 use App\Http\Controllers\Api\AuthSessionController;
 use App\Http\Controllers\Api\DataSourceController;
+use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\OperationalConversationController;
 use App\Http\Controllers\Api\WhatsAppWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -33,6 +33,7 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/conversations/{conversation}/resume', [OperationalConversationController::class, 'resume']);
 
         Route::get('/data-sources', [DataSourceController::class, 'index']);
+        Route::post('/data-sources', [DataSourceController::class, 'store']);
         Route::post('/data-sources/excel', [DataSourceController::class, 'storeExcel']);
         Route::post('/data-sources/{dataSource}/imports/{import}/retry', [DataSourceController::class, 'retryImport']);
 

@@ -3,9 +3,9 @@
 namespace Tests\Feature\DataSources;
 
 use App\Domain\DataSources\Contracts\DataSourceImporter;
-use App\Jobs\ImportExcelDataSourceJob;
 use App\Domain\DataSources\Contracts\DataSourceReader;
 use App\Enums\TenantRole;
+use App\Jobs\ImportExcelDataSourceJob;
 use App\Models\DataSource;
 use App\Models\DataSourceChunk;
 use App\Models\DataSourceImport;
@@ -13,11 +13,11 @@ use App\Models\Tenant;
 use App\Models\TenantUser;
 use App\Models\UploadedFile;
 use App\Models\User;
+use App\Support\AgentEvents\AgentEventRecorder;
+use App\Support\Tenancy\TenantContextManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile as TestUploadedFile;
 use Illuminate\Support\Facades\Storage;
-use App\Support\AgentEvents\AgentEventRecorder;
-use App\Support\Tenancy\TenantContextManager;
 use Tests\Support\BuildsXlsxWorkbook;
 use Tests\TestCase;
 
@@ -172,6 +172,157 @@ class ExcelDataSourceTest extends TestCase
         ]);
     }
 
+    public function test_tenant_can_upload_txt_and_retrieve_knowledge_context(): void
+    {
+        Storage::fake('local');
+
+        $tenant = Tenant::query()->create([
+            'name' => 'Acme',
+            'slug' => 'acme',
+        ]);
+
+        $user = $this->tenantAdmin($tenant);
+
+        $response = $this->actingAs($user)
+            ->withCsrf()
+            ->withHeader('X-Tenant-Id', (string) $tenant->id)
+            ->post('/api/v1/data-sources', [
+                'name' => 'Politicas',
+                'file' => TestUploadedFile::fake()->createWithContent(
+                    'politicas.txt',
+                    "Envios nacionales\nHacemos envíos a todo Colombia desde la bodega principal.",
+                ),
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.type', 'txt')
+            ->assertJsonPath('data.status', 'pending');
+
+        $import = DataSourceImport::query()->firstOrFail();
+        $this->runImportJob($tenant, $import);
+
+        $dataSource = DataSource::query()->firstOrFail()->refresh();
+        $matches = app(DataSourceReader::class)->search($dataSource, [
+            'mode' => 'knowledge',
+            'question' => 'envios Colombia',
+            'limit' => 1,
+        ]);
+
+        $this->assertSame('ready', $dataSource->status);
+        $this->assertSame('txt', $dataSource->type);
+        $this->assertStringContainsString('envíos a todo Colombia', $matches[0]['content_text']);
+    }
+
+    public function test_tenant_can_upload_csv_and_retrieve_table_rows(): void
+    {
+        Storage::fake('local');
+
+        $tenant = Tenant::query()->create([
+            'name' => 'Acme',
+            'slug' => 'acme',
+        ]);
+
+        $user = $this->tenantAdmin($tenant);
+
+        $response = $this->actingAs($user)
+            ->withCsrf()
+            ->withHeader('X-Tenant-Id', (string) $tenant->id)
+            ->post('/api/v1/data-sources', [
+                'name' => 'Inventario CSV',
+                'file' => TestUploadedFile::fake()->createWithContent(
+                    'inventario.csv',
+                    "SKU,Nombre,Categoria,Precio,Disponibilidad\nSKU-777,Lampara solar,iluminacion,89900,Disponible\n",
+                ),
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.type', 'csv')
+            ->assertJsonPath('data.status', 'pending');
+
+        $import = DataSourceImport::query()->firstOrFail();
+        $this->runImportJob($tenant, $import);
+
+        $dataSource = DataSource::query()->firstOrFail()->refresh();
+        $matches = app(DataSourceReader::class)->search($dataSource, [
+            'mode' => 'inventory',
+            'query' => 'lampara solar',
+            'limit' => 1,
+        ]);
+
+        $this->assertSame('ready', $dataSource->status);
+        $this->assertDatabaseHas('data_source_chunks', [
+            'tenant_id' => $tenant->id,
+            'data_source_id' => $dataSource->id,
+            'chunk_type' => 'table_row',
+        ]);
+        $this->assertStringContainsString('Lampara solar', $matches[0]['content_text']);
+        $this->assertSame('SKU-777', $matches[0]['structured_payload']['sku']);
+    }
+
+    public function test_tenant_can_upload_pdf_and_retrieve_extracted_text(): void
+    {
+        Storage::fake('local');
+
+        $tenant = Tenant::query()->create([
+            'name' => 'Acme',
+            'slug' => 'acme',
+        ]);
+
+        $user = $this->tenantAdmin($tenant);
+
+        $response = $this->actingAs($user)
+            ->withCsrf()
+            ->withHeader('X-Tenant-Id', (string) $tenant->id)
+            ->post('/api/v1/data-sources', [
+                'name' => 'Manual PDF',
+                'file' => TestUploadedFile::fake()->createWithContent(
+                    'manual.pdf',
+                    $this->validPdfContent('Garantia extendida por doce meses para equipos comprados en tienda.'),
+                ),
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.type', 'pdf')
+            ->assertJsonPath('data.status', 'pending');
+
+        $import = DataSourceImport::query()->firstOrFail();
+        $this->runImportJob($tenant, $import);
+
+        $dataSource = DataSource::query()->firstOrFail()->refresh();
+        $matches = app(DataSourceReader::class)->search($dataSource, [
+            'mode' => 'knowledge',
+            'question' => 'garantia extendida',
+            'limit' => 1,
+        ]);
+
+        $this->assertSame('ready', $dataSource->status);
+        $this->assertStringContainsString('Garantia extendida', $matches[0]['content_text']);
+    }
+
+    public function test_upload_rejects_unsupported_source_extensions(): void
+    {
+        Storage::fake('local');
+
+        $tenant = Tenant::query()->create([
+            'name' => 'Acme',
+            'slug' => 'acme',
+        ]);
+
+        $user = $this->tenantAdmin($tenant);
+
+        $response = $this->actingAs($user)
+            ->withCsrf()
+            ->withHeader('Accept', 'application/json')
+            ->withHeader('X-Tenant-Id', (string) $tenant->id)
+            ->post('/api/v1/data-sources', [
+                'name' => 'Documento Word',
+                'file' => TestUploadedFile::fake()->create('manual.docx', 12),
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('file');
+    }
+
     protected function runImportJob(Tenant $tenant, DataSourceImport $import): void
     {
         $job = new ImportExcelDataSourceJob($tenant->id, $import->id);
@@ -208,6 +359,38 @@ class ExcelDataSourceTest extends TestCase
     protected function invalidWorkbookContent(): string
     {
         return 'this-is-not-a-valid-xlsx-workbook';
+    }
+
+    protected function validPdfContent(string $text): string
+    {
+        $escapedText = str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $text);
+        $stream = 'BT /F1 18 Tf 72 720 Td ('.$escapedText.') Tj ET';
+        $objects = [
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+            '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /MediaBox [0 0 612 792] /Contents 5 0 R >>',
+            '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+            '<< /Length '.strlen($stream)." >>\nstream\n".$stream."\nendstream",
+        ];
+
+        $pdf = "%PDF-1.4\n";
+        $offsets = [0];
+
+        foreach ($objects as $index => $object) {
+            $objectNumber = $index + 1;
+            $offsets[$objectNumber] = strlen($pdf);
+            $pdf .= $objectNumber." 0 obj\n".$object."\nendobj\n";
+        }
+
+        $xrefOffset = strlen($pdf);
+        $pdf .= "xref\n0 ".(count($objects) + 1)."\n";
+        $pdf .= "0000000000 65535 f \n";
+
+        for ($i = 1; $i <= count($objects); $i++) {
+            $pdf .= sprintf("%010d 00000 n \n", $offsets[$i]);
+        }
+
+        return $pdf."trailer\n<< /Size ".(count($objects) + 1)." /Root 1 0 R >>\nstartxref\n".$xrefOffset."\n%%EOF\n";
     }
 
     protected function tenantAdmin(Tenant $tenant): User

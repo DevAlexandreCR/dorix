@@ -11,6 +11,7 @@ use App\Domain\Tools\DTO\ToolInvocation;
 use App\Domain\Tools\DTO\ToolResult;
 use App\Domain\Tools\Exceptions\InvalidToolArgumentsException;
 use App\Domain\Tools\ToolNextAction;
+use App\Models\DataSource;
 use App\Support\AgentEvents\AgentEventRecorder;
 
 class SearchInventoryTool implements ToolInterface
@@ -19,14 +20,13 @@ class SearchInventoryTool implements ToolInterface
         protected DataSourceReader $reader,
         protected ToolBoundDataSourceResolver $dataSourceResolver,
         protected AgentEventRecorder $events,
-    ) {
-    }
+    ) {}
 
     public function definition(): ToolDefinition
     {
         return new ToolDefinition(
             name: 'search_inventory',
-            description: 'Retrieve inventory-related rows or table fragments from the tenant Excel source so the conversational model can answer from source material.',
+            description: 'Retrieve inventory-related rows or table fragments from the tenant knowledge source so the conversational model can answer from source material.',
             inputSchema: [
                 'type' => 'object',
                 'additionalProperties' => false,
@@ -144,7 +144,7 @@ class SearchInventoryTool implements ToolInterface
     /**
      * @param  array<int, array<string, mixed>>  $matches
      */
-    protected function recordSearchCompleted(ToolInvocation $invocation, \App\Models\DataSource $dataSource, string $query, array $matches): void
+    protected function recordSearchCompleted(ToolInvocation $invocation, DataSource $dataSource, string $query, array $matches): void
     {
         $this->events->record($invocation->context->tenant->getKey(), 'data_source_search_completed', [
             'whatsapp_line_id' => $invocation->context->line->getKey(),

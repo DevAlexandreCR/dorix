@@ -3,10 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\Permission;
-use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Concerns\ResolvesTenantFromRequest;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\UploadDataSourceRequest;
 use App\Http\Requests\Api\UploadExcelDataSourceRequest;
-use App\Jobs\ImportExcelDataSourceJob;
+use App\Jobs\ImportDataSourceJob;
 use App\Models\DataSource;
 use App\Models\DataSourceImport;
 use App\Models\UploadedFile;
@@ -29,8 +30,7 @@ class DataSourceController extends Controller
         protected AdminPanelDataBuilder $builder,
         protected AuditEventRecorder $audit,
         protected AgentEventRecorder $events,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request, TenantContextManager $tenantContextManager): JsonResponse
     {
@@ -45,7 +45,17 @@ class DataSourceController extends Controller
         ]);
     }
 
+    public function store(UploadDataSourceRequest $request, TenantContextManager $tenantContextManager): JsonResponse
+    {
+        return $this->storeUploadedSource($request, $tenantContextManager);
+    }
+
     public function storeExcel(UploadExcelDataSourceRequest $request, TenantContextManager $tenantContextManager): JsonResponse
+    {
+        return $this->storeUploadedSource($request, $tenantContextManager, legacyExcelType: true);
+    }
+
+    protected function storeUploadedSource(UploadDataSourceRequest $request, TenantContextManager $tenantContextManager, bool $legacyExcelType = false): JsonResponse
     {
         $tenant = $this->tenantFromRequest($request);
         Gate::forUser($request->user())->authorize(Permission::ManageAgentConfig->value, $tenant);
@@ -53,19 +63,22 @@ class DataSourceController extends Controller
         $tenantId = $tenantContextManager->require()->tenantId();
         /** @var HttpUploadedFile $file */
         $file = $request->file('file');
+        $extension = strtolower((string) $file->getClientOriginalExtension());
+        $sourceType = $legacyExcelType ? 'excel' : $extension;
         $storagePath = $file->storeAs(
             'data-sources/tenant-'.$tenantId,
-            Str::uuid()->toString().'.'.$file->getClientOriginalExtension(),
+            Str::uuid()->toString().'.'.$extension,
             'local',
         );
 
         $dataSource = DataSource::query()->create([
             'tenant_id' => $tenantId,
             'name' => trim((string) ($request->string('name')->value() ?: pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME))),
-            'type' => 'excel',
+            'type' => $sourceType,
             'status' => 'pending',
             'metadata' => [
-                'source_kind' => 'excel_upload',
+                'source_kind' => 'document_upload',
+                'file_extension' => $extension,
             ],
         ]);
 
@@ -80,7 +93,7 @@ class DataSourceController extends Controller
             'size_bytes' => $file->getSize(),
             'checksum' => hash_file('sha256', $file->getRealPath()),
             'metadata' => [
-                'extension' => strtolower((string) $file->getClientOriginalExtension()),
+                'extension' => $extension,
             ],
         ]);
 
@@ -90,21 +103,23 @@ class DataSourceController extends Controller
             'uploaded_file_id' => $uploadedFile->getKey(),
             'status' => 'pending',
             'metadata' => [
-                'queue' => ImportExcelDataSourceJob::QUEUE,
+                'queue' => ImportDataSourceJob::QUEUE,
                 'request_type' => 'initial_upload',
                 'requested_by_user_id' => $request->user()?->getKey(),
+                'source_type' => $sourceType,
             ],
         ]);
 
-        ImportExcelDataSourceJob::dispatch($tenantId, $import->getKey());
+        ImportDataSourceJob::dispatch($tenantId, $import->getKey());
 
         $this->events->record($tenantId, 'data_source_import_queued', [
             'payload' => [
                 'data_source_id' => $dataSource->getKey(),
                 'import_id' => $import->getKey(),
                 'uploaded_file_id' => $uploadedFile->getKey(),
-                'queue' => ImportExcelDataSourceJob::QUEUE,
+                'queue' => ImportDataSourceJob::QUEUE,
                 'request_type' => 'initial_upload',
+                'source_type' => $sourceType,
             ],
         ]);
 
@@ -117,6 +132,7 @@ class DataSourceController extends Controller
                 'data_source_id' => $dataSource->getKey(),
                 'uploaded_file_id' => $uploadedFile->getKey(),
                 'import_id' => $import->getKey(),
+                'source_type' => $sourceType,
             ],
         );
 
@@ -155,7 +171,7 @@ class DataSourceController extends Controller
             'error_message' => null,
             'finished_at' => null,
             'metadata' => array_merge($import->metadata ?? [], [
-                'queue' => ImportExcelDataSourceJob::QUEUE,
+                'queue' => ImportDataSourceJob::QUEUE,
                 'request_type' => 'manual_retry',
                 'requested_by_user_id' => $request->user()?->getKey(),
             ]),
@@ -165,15 +181,16 @@ class DataSourceController extends Controller
             'status' => 'pending',
         ])->save();
 
-        ImportExcelDataSourceJob::dispatch($tenantId, $import->getKey());
+        ImportDataSourceJob::dispatch($tenantId, $import->getKey());
 
         $this->events->record($tenantId, 'data_source_import_queued', [
             'payload' => [
                 'data_source_id' => $dataSource->getKey(),
                 'import_id' => $import->getKey(),
                 'uploaded_file_id' => $import->uploaded_file_id,
-                'queue' => ImportExcelDataSourceJob::QUEUE,
+                'queue' => ImportDataSourceJob::QUEUE,
                 'request_type' => 'manual_retry',
+                'source_type' => $dataSource->type,
             ],
         ]);
 

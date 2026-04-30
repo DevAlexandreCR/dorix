@@ -2,15 +2,8 @@
 
 namespace App\Http\Requests\Api;
 
-use Illuminate\Foundation\Http\FormRequest;
-
-class UploadExcelDataSourceRequest extends FormRequest
+class UploadExcelDataSourceRequest extends UploadDataSourceRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     /**
      * @return array<string, mixed>
      */

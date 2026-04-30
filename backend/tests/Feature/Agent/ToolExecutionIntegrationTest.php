@@ -11,8 +11,8 @@ use App\Domain\Tools\Contracts\ToolInterface;
 use App\Domain\Tools\DTO\ToolDefinition;
 use App\Domain\Tools\DTO\ToolInvocation;
 use App\Domain\Tools\DTO\ToolResult;
-use App\Domain\Tools\ToolRegistry;
 use App\Domain\Tools\ToolNextAction;
+use App\Domain\Tools\ToolRegistry;
 use App\Enums\ConversationStatus;
 use App\Enums\MessageDirection;
 use App\Jobs\ProcessIncomingMessageJob;
@@ -179,7 +179,7 @@ class ToolExecutionIntegrationTest extends TestCase
         [$tenant, $line, $conversation, $message] = $this->conversationFixtures();
 
         app()->instance(ToolRegistry::class, new ToolRegistry([
-            new SlowTimeoutTool(),
+            new SlowTimeoutTool,
         ]));
 
         $this->enableTool($tenant, $line, 'slow_timeout_tool', timeoutSeconds: 1);
@@ -411,6 +411,88 @@ class ToolExecutionIntegrationTest extends TestCase
         ]);
     }
 
+    public function test_processing_job_executes_search_knowledge_using_a_bound_text_data_source(): void
+    {
+        [$tenant, $line, $conversation, $message] = $this->conversationFixtures();
+
+        $this->createWhatsappCredential($tenant);
+        [$dataSource, $import] = $this->createReadyExcelDataSource($tenant, 'txt');
+
+        DataSourceChunk::query()->create([
+            'tenant_id' => $tenant->id,
+            'data_source_id' => $dataSource->id,
+            'data_source_import_id' => $import->id,
+            'chunk_type' => 'text_block',
+            'sheet_name' => 'Politicas',
+            'section_key' => 'politicas-txt-1',
+            'content_text' => 'Garantia extendida por doce meses para equipos comprados en tienda.',
+            'structured_payload' => [
+                'source_name' => 'Politicas',
+                'chunk_index' => 1,
+            ],
+            'metadata' => [
+                'datasets' => ['knowledge'],
+                'source_type' => 'txt',
+            ],
+        ]);
+
+        $this->enableTool($tenant, $line, 'search_knowledge', bindings: [
+            'data_source_id' => $dataSource->id,
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/v1/responses' => Http::sequence()
+                ->push([
+                    'output_text' => json_encode([
+                        'outcome' => 'call_tool',
+                        'reply_text' => '',
+                        'handoff_reason' => '',
+                        'tool_name' => 'search_knowledge',
+                        'tool_arguments_json' => json_encode([
+                            'question' => 'garantia extendida',
+                        ], JSON_THROW_ON_ERROR),
+                        'missing_information_fields' => [],
+                        'current_intent' => 'knowledge_lookup',
+                        'internal_notes' => 'Retrieve documentary context first.',
+                    ], JSON_THROW_ON_ERROR),
+                ], 200)
+                ->push([
+                    'output_text' => json_encode([
+                        'outcome' => 'send_message',
+                        'reply_text' => 'La garantía extendida es de doce meses para equipos comprados en tienda.',
+                        'handoff_reason' => '',
+                        'tool_name' => '',
+                        'tool_arguments_json' => '{}',
+                        'missing_information_fields' => [],
+                        'current_intent' => 'knowledge_lookup',
+                        'internal_notes' => 'Answer from retrieved context only.',
+                    ], JSON_THROW_ON_ERROR),
+                ], 200),
+            'https://graph.facebook.com/*' => Http::response([
+                'messages' => [
+                    ['id' => 'wamid.outbound.txt.300'],
+                ],
+            ], 200),
+        ]);
+
+        config()->set('services.openai.api_key', 'test-openai-key');
+
+        $this->runProcessingJob($tenant, $conversation, $message);
+
+        $execution = ToolExecution::query()->firstOrFail();
+        $outboundMessage = ConversationMessage::query()
+            ->where('conversation_id', $conversation->id)
+            ->where('direction', MessageDirection::Outbound)
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame('succeeded', $execution->status);
+        $this->assertSame('search_knowledge', $execution->tool_name);
+        $this->assertSame(1, $execution->output_summary['match_count']);
+        $this->assertStringContainsString('Garantia extendida', $execution->output_summary['matches'][0]['preview']);
+        $this->assertStringContainsString('garantía extendida', $outboundMessage->body ?? '');
+    }
+
     protected function runProcessingJob(Tenant $tenant, Conversation $conversation, ConversationMessage $message): void
     {
         $job = new ProcessIncomingMessageJob($tenant->id, $conversation->id, $message->id);
@@ -431,8 +513,7 @@ class ToolExecutionIntegrationTest extends TestCase
         string $toolName,
         ?int $timeoutSeconds = null,
         array $bindings = [],
-    ): void
-    {
+    ): void {
         TenantToolConfig::query()->create([
             'tenant_id' => $tenant->id,
             'whatsapp_line_id' => $line->id,
@@ -517,12 +598,12 @@ class ToolExecutionIntegrationTest extends TestCase
     /**
      * @return array{0: DataSource, 1: DataSourceImport}
      */
-    protected function createReadyExcelDataSource(Tenant $tenant): array
+    protected function createReadyExcelDataSource(Tenant $tenant, string $type = 'excel'): array
     {
         $dataSource = DataSource::query()->create([
             'tenant_id' => $tenant->id,
             'name' => 'Catalogo principal',
-            'type' => 'excel',
+            'type' => $type,
             'status' => 'ready',
             'last_synced_at' => now(),
             'metadata' => [

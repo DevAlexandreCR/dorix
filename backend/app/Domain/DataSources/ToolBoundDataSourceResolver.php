@@ -11,8 +11,7 @@ class ToolBoundDataSourceResolver
 {
     public function __construct(
         protected AgentEventRecorder $events,
-    ) {
-    }
+    ) {}
 
     public function resolveForTool(ToolInvocation $invocation): DataSource
     {
@@ -46,7 +45,7 @@ class ToolBoundDataSourceResolver
 
         $fallback = DataSource::query()
             ->forTenant($tenantId)
-            ->where('type', 'excel')
+            ->whereIn('type', ['excel', 'xlsx', 'csv', 'txt', 'pdf'])
             ->where('status', 'ready')
             ->orderByDesc('last_synced_at')
             ->orderByDesc('id')
@@ -54,7 +53,7 @@ class ToolBoundDataSourceResolver
 
         if (! $fallback) {
             throw new DataSourceUnavailableException(sprintf(
-                'No ready Excel knowledge source is available for tool "%s" in the current tenant.',
+                'No ready knowledge source is available for tool "%s" in the current tenant.',
                 $invocation->tool->name(),
             ));
         }

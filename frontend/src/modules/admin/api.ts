@@ -274,7 +274,7 @@ export async function upsertCredential(
   );
 }
 
-export async function uploadExcelDataSource(
+export async function uploadDataSource(
   tenantId: number,
   payload: {
     name: string;
@@ -288,13 +288,15 @@ export async function uploadExcelDataSource(
   formData.set('file', payload.file);
 
   return postForm<ResourceResponse<DataSourceRecord>>(
-    `${appConfig.dataSourcesUrl}/excel`,
+    appConfig.dataSourcesUrl,
     formData,
     {
       headers: tenantHeaders(tenantId),
     },
   );
 }
+
+export const uploadExcelDataSource = uploadDataSource;
 
 export async function retryDataSourceImport(
   tenantId: number,

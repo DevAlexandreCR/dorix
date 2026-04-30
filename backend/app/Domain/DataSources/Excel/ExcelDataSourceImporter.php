@@ -11,6 +11,7 @@ use App\Models\DataSourceImport;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Smalot\PdfParser\Parser as PdfParser;
 
 class ExcelDataSourceImporter implements DataSourceImporter
 {
@@ -29,8 +30,8 @@ class ExcelDataSourceImporter implements DataSourceImporter
 
     public function __construct(
         protected NativeXlsxParser $parser,
-    ) {
-    }
+        protected PdfParser $pdfParser,
+    ) {}
 
     public function sync(DataSourceImport $import): DataSourceImportResult
     {
@@ -45,8 +46,10 @@ class ExcelDataSourceImporter implements DataSourceImporter
         $filePath = Storage::disk($uploadedFile->disk)->path($uploadedFile->path);
 
         if (! is_file($filePath)) {
-            throw new DataSourceImportException('The uploaded Excel file is no longer available in storage.');
+            throw new DataSourceImportException('The uploaded knowledge source file is no longer available in storage.');
         }
+
+        $sourceType = $this->sourceType($dataSource, $uploadedFile->metadata['extension'] ?? null);
 
         $import->forceFill([
             'status' => 'processing',
@@ -60,6 +63,7 @@ class ExcelDataSourceImporter implements DataSourceImporter
                     'original_name' => $uploadedFile->original_name,
                     'size_bytes' => $uploadedFile->size_bytes,
                     'checksum_prefix' => $uploadedFile->checksum ? substr($uploadedFile->checksum, 0, 12) : null,
+                    'source_type' => $sourceType,
                 ],
             ]),
         ])->save();
@@ -69,11 +73,11 @@ class ExcelDataSourceImporter implements DataSourceImporter
         ])->save();
 
         try {
-            $workbook = $this->parser->parse($filePath);
-            $chunks = $this->buildChunks($dataSource, $import, $workbook);
+            $indexed = $this->indexFile($dataSource, $import, $filePath, $sourceType, (string) $uploadedFile->original_name);
+            $chunks = $indexed['chunks'];
 
             if ($chunks === []) {
-                throw new DataSourceImportException('The workbook did not produce any retrievable content chunks.');
+                throw new DataSourceImportException('The uploaded knowledge source did not produce any retrievable content chunks.');
             }
 
             DB::transaction(function () use ($dataSource, $chunks): void {
@@ -93,21 +97,27 @@ class ExcelDataSourceImporter implements DataSourceImporter
                 ->values()
                 ->all();
 
-            $sheetSummaries = $this->sheetSummaries($chunks);
+            $sourceSummaries = $this->sheetSummaries($chunks);
+            $resultMetadata = [
+                'source_type' => $sourceType,
+                'source_names' => $indexed['source_names'],
+                'datasets' => $datasets,
+                'chunk_types' => array_values(array_unique(array_map(
+                    static fn (array $chunk): string => $chunk['chunk_type'],
+                    $chunks,
+                ))),
+                'sheets' => $sourceSummaries,
+            ];
+
+            if ($indexed['sheet_names'] !== []) {
+                $resultMetadata['sheet_names'] = $indexed['sheet_names'];
+            }
 
             $result = new DataSourceImportResult(
-                processedSheetCount: count($workbook),
+                processedSheetCount: $indexed['processed_section_count'],
                 generatedChunkCount: count($chunks),
                 datasets: $datasets,
-                metadata: [
-                    'sheet_names' => array_keys($workbook),
-                    'datasets' => $datasets,
-                    'chunk_types' => array_values(array_unique(array_map(
-                        static fn (array $chunk): string => $chunk['chunk_type'],
-                        $chunks,
-                    ))),
-                    'sheets' => $sheetSummaries,
-                ],
+                metadata: $resultMetadata,
             );
 
             $import->forceFill([
@@ -125,10 +135,12 @@ class ExcelDataSourceImporter implements DataSourceImporter
                 'last_synced_at' => now(),
                 'metadata' => array_merge($dataSource->metadata ?? [], [
                     'datasets' => $datasets,
+                    'source_type' => $sourceType,
                     'retrieval_mode' => 'document_chunks',
                     'last_import_id' => $import->getKey(),
                     'last_imported_at' => now()->toIso8601String(),
-                    'sheet_names' => array_keys($workbook),
+                    'sheet_names' => $indexed['sheet_names'],
+                    'source_names' => $indexed['source_names'],
                     'last_import_summary' => [
                         'processed_sheet_count' => $result->processedSheetCount,
                         'generated_chunk_count' => $result->generatedChunkCount,
@@ -166,6 +178,164 @@ class ExcelDataSourceImporter implements DataSourceImporter
     }
 
     /**
+     * @return array{
+     *     chunks: array<int, array<string, mixed>>,
+     *     processed_section_count: int,
+     *     sheet_names: array<int, string>,
+     *     source_names: array<int, string>
+     * }
+     */
+    protected function indexFile(
+        DataSource $dataSource,
+        DataSourceImport $import,
+        string $filePath,
+        string $sourceType,
+        string $originalName,
+    ): array {
+        return match ($sourceType) {
+            'excel', 'xlsx' => $this->indexWorkbook($dataSource, $import, $filePath),
+            'csv' => $this->indexCsv($dataSource, $import, $filePath, $originalName),
+            'txt' => $this->indexText($dataSource, $import, $filePath, $originalName, 'txt'),
+            'pdf' => $this->indexPdf($dataSource, $import, $filePath, $originalName),
+            default => throw new DataSourceImportException(sprintf('Unsupported knowledge source type "%s".', $sourceType)),
+        };
+    }
+
+    /**
+     * @return array{
+     *     chunks: array<int, array<string, mixed>>,
+     *     processed_section_count: int,
+     *     sheet_names: array<int, string>,
+     *     source_names: array<int, string>
+     * }
+     */
+    protected function indexWorkbook(DataSource $dataSource, DataSourceImport $import, string $filePath): array
+    {
+        $workbook = $this->parser->parse($filePath);
+
+        return [
+            'chunks' => $this->buildChunks($dataSource, $import, $workbook),
+            'processed_section_count' => count($workbook),
+            'sheet_names' => array_keys($workbook),
+            'source_names' => array_keys($workbook),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     chunks: array<int, array<string, mixed>>,
+     *     processed_section_count: int,
+     *     sheet_names: array<int, string>,
+     *     source_names: array<int, string>
+     * }
+     */
+    protected function indexCsv(DataSource $dataSource, DataSourceImport $import, string $filePath, string $originalName): array
+    {
+        $handle = fopen($filePath, 'rb');
+
+        if ($handle === false) {
+            throw new DataSourceImportException('The uploaded CSV file could not be opened.');
+        }
+
+        try {
+            $rows = [];
+
+            while (($row = fgetcsv($handle)) !== false) {
+                $rows[] = array_map(static fn (mixed $value): string => trim((string) $value), $row);
+            }
+        } finally {
+            fclose($handle);
+        }
+
+        $sourceName = pathinfo($originalName, PATHINFO_FILENAME) ?: 'CSV';
+
+        return [
+            'chunks' => $this->buildTableChunks($dataSource, $import, $sourceName, $rows),
+            'processed_section_count' => 1,
+            'sheet_names' => [],
+            'source_names' => [$sourceName],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     chunks: array<int, array<string, mixed>>,
+     *     processed_section_count: int,
+     *     sheet_names: array<int, string>,
+     *     source_names: array<int, string>
+     * }
+     */
+    protected function indexText(
+        DataSource $dataSource,
+        DataSourceImport $import,
+        string $filePath,
+        string $originalName,
+        string $sourceType,
+    ): array {
+        $content = file_get_contents($filePath);
+
+        if (! is_string($content)) {
+            throw new DataSourceImportException('The uploaded text file could not be read.');
+        }
+
+        $sourceName = pathinfo($originalName, PATHINFO_FILENAME) ?: Str::upper($sourceType);
+
+        return [
+            'chunks' => $this->buildTextFileChunks($dataSource, $import, $sourceName, $content, $sourceType),
+            'processed_section_count' => 1,
+            'sheet_names' => [],
+            'source_names' => [$sourceName],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     chunks: array<int, array<string, mixed>>,
+     *     processed_section_count: int,
+     *     sheet_names: array<int, string>,
+     *     source_names: array<int, string>
+     * }
+     */
+    protected function indexPdf(DataSource $dataSource, DataSourceImport $import, string $filePath, string $originalName): array
+    {
+        $content = trim($this->pdfParser->parseFile($filePath)->getText());
+
+        if ($content === '') {
+            throw new DataSourceImportException('The uploaded PDF did not contain extractable text.');
+        }
+
+        $sourceName = pathinfo($originalName, PATHINFO_FILENAME) ?: 'PDF';
+
+        return [
+            'chunks' => $this->buildTextFileChunks($dataSource, $import, $sourceName, $content, 'pdf'),
+            'processed_section_count' => 1,
+            'sheet_names' => [],
+            'source_names' => [$sourceName],
+        ];
+    }
+
+    protected function sourceType(DataSource $dataSource, mixed $extension): string
+    {
+        $type = strtolower(trim((string) $dataSource->type));
+
+        if ($type === 'excel') {
+            return 'excel';
+        }
+
+        if (in_array($type, ['xlsx', 'csv', 'txt', 'pdf'], true)) {
+            return $type;
+        }
+
+        $extension = strtolower(trim((string) $extension));
+
+        if (in_array($extension, ['xlsx', 'csv', 'txt', 'pdf'], true)) {
+            return $extension;
+        }
+
+        return $type;
+    }
+
+    /**
      * @param  array<string, array<int, array<int, string>>>  $workbook
      * @return array<int, array<string, mixed>>
      */
@@ -180,6 +350,7 @@ class ExcelDataSourceImporter implements DataSourceImporter
 
             if ($this->isTabularSheet($rows)) {
                 $chunks = [...$chunks, ...$this->buildTableChunks($dataSource, $import, $sheetName, $rows)];
+
                 continue;
             }
 
@@ -200,6 +371,11 @@ class ExcelDataSourceImporter implements DataSourceImporter
     protected function buildTableChunks(DataSource $dataSource, DataSourceImport $import, string $sheetName, array $rows): array
     {
         $header = array_shift($rows);
+
+        if (! is_array($header) || count(array_filter($header, static fn (string $value): bool => trim($value) !== '')) < 2) {
+            return [];
+        }
+
         $normalizedHeader = array_map(
             fn (string $value): string => $this->normalizeKey($value),
             $header,
@@ -303,6 +479,110 @@ class ExcelDataSourceImporter implements DataSourceImporter
                 'sheet_kind' => 'knowledge_text',
             ],
         ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    protected function buildTextFileChunks(
+        DataSource $dataSource,
+        DataSourceImport $import,
+        string $sourceName,
+        string $content,
+        string $sourceType,
+    ): array {
+        $content = $this->normalizeTextContent($content);
+
+        if ($content === '') {
+            return [];
+        }
+
+        $chunks = [];
+        $maxLength = 2400;
+        $paragraphs = preg_split("/\n{2,}/", $content) ?: [];
+        $buffer = '';
+        $chunkIndex = 1;
+
+        foreach ($paragraphs as $paragraph) {
+            $paragraph = trim($paragraph);
+
+            if ($paragraph === '') {
+                continue;
+            }
+
+            if ($buffer !== '' && mb_strlen($buffer."\n\n".$paragraph) > $maxLength) {
+                $chunks[] = $this->textFileChunk($dataSource, $import, $sourceName, $buffer, $sourceType, $chunkIndex++);
+                $buffer = '';
+            }
+
+            if (mb_strlen($paragraph) > $maxLength) {
+                $remaining = $paragraph;
+
+                while ($remaining !== '') {
+                    $part = trim(mb_substr($remaining, 0, $maxLength));
+                    $remaining = mb_substr($remaining, $maxLength);
+
+                    $part = trim($part);
+
+                    if ($part !== '') {
+                        $chunks[] = $this->textFileChunk($dataSource, $import, $sourceName, $part, $sourceType, $chunkIndex++);
+                    }
+                }
+
+                continue;
+            }
+
+            $buffer = $buffer === '' ? $paragraph : $buffer."\n\n".$paragraph;
+        }
+
+        if (trim($buffer) !== '') {
+            $chunks[] = $this->textFileChunk($dataSource, $import, $sourceName, $buffer, $sourceType, $chunkIndex);
+        }
+
+        return $chunks;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function textFileChunk(
+        DataSource $dataSource,
+        DataSourceImport $import,
+        string $sourceName,
+        string $content,
+        string $sourceType,
+        int $chunkIndex,
+    ): array {
+        return [
+            'tenant_id' => $dataSource->tenant_id,
+            'data_source_id' => $dataSource->getKey(),
+            'data_source_import_id' => $import->getKey(),
+            'chunk_type' => 'text_block',
+            'sheet_name' => $sourceName,
+            'row_start' => null,
+            'row_end' => null,
+            'section_key' => sprintf('%s-%s-%d', Str::slug($sourceName), $sourceType, $chunkIndex),
+            'content_text' => $content,
+            'structured_payload' => [
+                'source_name' => $sourceName,
+                'chunk_index' => $chunkIndex,
+            ],
+            'metadata' => [
+                'datasets' => ['knowledge'],
+                'source_type' => $sourceType,
+                'sheet_kind' => 'knowledge_text',
+                'chunk_index' => $chunkIndex,
+            ],
+        ];
+    }
+
+    protected function normalizeTextContent(string $content): string
+    {
+        $content = str_replace(["\r\n", "\r"], "\n", $content);
+        $content = preg_replace("/[ \t]+/", ' ', $content) ?? $content;
+        $content = preg_replace("/\n{3,}/", "\n\n", $content) ?? $content;
+
+        return trim($content);
     }
 
     /**

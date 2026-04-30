@@ -150,7 +150,7 @@ TEXT;
                     fn (EnabledTool $tool): array => $this->serializeTool($tool),
                     $context->enabledTools,
                 ),
-                'retrieval_context' => [
+                'retrieved_context' => [
                     'matches' => $context->retrievedContext,
                     'metadata' => $context->retrievalMetadata,
                 ],

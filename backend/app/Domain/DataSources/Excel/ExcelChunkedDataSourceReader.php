@@ -51,11 +51,20 @@ class ExcelChunkedDataSourceReader implements DataSourceReader
             ->whereIn('chunk_type', ['table_row', 'table_block'])
             ->where(function (Builder $builder) use ($tokens): void {
                 foreach ($tokens as $token) {
-                    $builder->orWhere('content_text', 'like', '%'.$token.'%');
+                    $builder->orWhereRaw('LOWER(content_text) LIKE ?', ['%'.$token.'%']);
                 }
             })
             ->limit(60)
             ->get();
+
+        if ($records->isEmpty() && $tokens !== []) {
+            $records = DataSourceChunk::query()
+                ->forTenant($dataSource->tenant_id)
+                ->where('data_source_id', $dataSource->getKey())
+                ->whereIn('chunk_type', ['table_row', 'table_block'])
+                ->limit(60)
+                ->get();
+        }
 
         return $records
             ->map(fn (DataSourceChunk $chunk): array => $this->mapChunk(
@@ -85,11 +94,19 @@ class ExcelChunkedDataSourceReader implements DataSourceReader
             ->where('data_source_id', $dataSource->getKey())
             ->where(function (Builder $builder) use ($tokens): void {
                 foreach ($tokens as $token) {
-                    $builder->orWhere('content_text', 'like', '%'.$token.'%');
+                    $builder->orWhereRaw('LOWER(content_text) LIKE ?', ['%'.$token.'%']);
                 }
             })
             ->limit(60)
             ->get();
+
+        if ($records->isEmpty() && $tokens !== []) {
+            $records = DataSourceChunk::query()
+                ->forTenant($dataSource->tenant_id)
+                ->where('data_source_id', $dataSource->getKey())
+                ->limit(60)
+                ->get();
+        }
 
         return $records
             ->map(fn (DataSourceChunk $chunk): array => $this->mapChunk(
@@ -126,8 +143,8 @@ class ExcelChunkedDataSourceReader implements DataSourceReader
 
     protected function scoreChunk(string $contentText, array $tokens, string $fullQuery): int
     {
-        $content = Str::lower($contentText);
-        $normalizedQuery = Str::lower(trim($fullQuery));
+        $content = $this->normalizeSearchText($contentText);
+        $normalizedQuery = $this->normalizeSearchText(trim($fullQuery));
         $score = 0;
 
         if ($normalizedQuery !== '' && str_contains($content, $normalizedQuery)) {
@@ -178,9 +195,14 @@ class ExcelChunkedDataSourceReader implements DataSourceReader
      */
     protected function tokens(string $value): array
     {
-        $normalized = Str::lower($value);
+        $normalized = $this->normalizeSearchText($value);
         $parts = preg_split('/[^[:alnum:]]+/u', $normalized) ?: [];
 
         return array_values(array_filter($parts, static fn (string $token): bool => mb_strlen($token) >= 2));
+    }
+
+    protected function normalizeSearchText(string $value): string
+    {
+        return Str::lower(Str::ascii($value));
     }
 }

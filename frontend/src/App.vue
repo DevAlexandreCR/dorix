@@ -17,7 +17,7 @@ import {
   updateTenantToolConfig,
   updateTenantUser,
   updateWhatsAppLine,
-  uploadExcelDataSource,
+  uploadDataSource as uploadKnowledgeSource,
   upsertCredential,
 } from './modules/admin/api';
 import type {
@@ -968,8 +968,8 @@ async function uploadDataSource(): Promise<void> {
     return;
   }
 
-  await withAdminAction('Fuente Excel cargada.', async () => {
-    await uploadExcelDataSource(selectedTenantId.value!, {
+  await withAdminAction('Fuente de conocimiento cargada.', async () => {
+    await uploadKnowledgeSource(selectedTenantId.value!, {
       name: uploadDataSourceName.value.trim(),
       file: uploadDataSourceFile.value!,
     });
@@ -1040,7 +1040,7 @@ onMounted(async () => {
         <h1>{{ appConfig.appName }}</h1>
         <p class="lede">
           Consola unificada para operar conversaciones, tenants, líneas,
-          prompts, fuentes Excel y bindings del runtime.
+          prompts, fuentes de conocimiento y bindings del runtime.
         </p>
       </div>
 
@@ -1429,7 +1429,7 @@ onMounted(async () => {
             </article>
 
             <article class="surface summary-card">
-              <p class="detail-label">Fuentes Excel</p>
+              <p class="detail-label">Fuentes conocimiento</p>
               <strong>{{ adminOverview.data_sources.length }}</strong>
               <span>{{ adminOverview.data_sources.filter((source) => source.status === 'ready').length }} listas</span>
             </article>
@@ -1845,7 +1845,7 @@ onMounted(async () => {
             <article class="surface admin-panel">
               <div class="panel-topline">
                 <div>
-                  <p class="eyebrow">Excel Sources</p>
+                  <p class="eyebrow">Knowledge Sources</p>
                   <h3>Uploads e indexación</h3>
                 </div>
                 <span class="status-pill">{{ adminOverview.data_sources.length }} fuentes</span>
@@ -1859,8 +1859,8 @@ onMounted(async () => {
                   </label>
 
                   <label>
-                    <span>Archivo .xlsx</span>
-                    <input type="file" accept=".xlsx" :disabled="!canManageAgentConfig || adminSaving" @change="onDataSourceFileChange" />
+                    <span>Archivo .pdf, .txt, .csv o .xlsx</span>
+                    <input type="file" accept=".pdf,.txt,.csv,.xlsx" :disabled="!canManageAgentConfig || adminSaving" @change="onDataSourceFileChange" />
                   </label>
                 </div>
 
@@ -1869,7 +1869,7 @@ onMounted(async () => {
                   type="submit"
                   :disabled="!canManageAgentConfig || adminSaving || !uploadDataSourceFile"
                 >
-                  Cargar Excel
+                  Cargar fuente
                 </button>
               </form>
 
