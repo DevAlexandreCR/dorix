@@ -1,6 +1,6 @@
 export interface JsonRequestOptions {
   method?: string;
-  body?: unknown;
+  body?: FormData | unknown;
   headers?: HeadersInit;
 }
 
@@ -18,17 +18,20 @@ function readCookie(name: string): string | null {
 
 function buildHeaders(options: JsonRequestOptions): Headers {
   const headers = new Headers(options.headers ?? {});
+  const method = (options.method ?? 'GET').toUpperCase();
 
   headers.set('Accept', 'application/json');
 
-  if (options.body !== undefined) {
-    headers.set('Content-Type', 'application/json');
-
+  if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
     const csrfToken = readCookie('XSRF-TOKEN');
 
     if (csrfToken) {
       headers.set('X-XSRF-TOKEN', csrfToken);
     }
+  }
+
+  if (options.body !== undefined && !(options.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json');
   }
 
   return headers;
@@ -59,7 +62,12 @@ export async function requestJson<T>(url: string, options: JsonRequestOptions = 
     method: options.method ?? 'GET',
     credentials: 'include',
     headers: buildHeaders(options),
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    body:
+      options.body === undefined
+        ? undefined
+        : options.body instanceof FormData
+          ? options.body
+          : JSON.stringify(options.body),
   });
 
   if (!response.ok) {
@@ -80,6 +88,52 @@ export function getJson<T>(url: string, options: Omit<JsonRequestOptions, 'metho
 export function postJson<T>(
   url: string,
   body: unknown,
+  options: Omit<JsonRequestOptions, 'method' | 'body'> = {},
+): Promise<T> {
+  return requestJson<T>(url, {
+    ...options,
+    method: 'POST',
+    body,
+  });
+}
+
+export function putJson<T>(
+  url: string,
+  body: unknown,
+  options: Omit<JsonRequestOptions, 'method' | 'body'> = {},
+): Promise<T> {
+  return requestJson<T>(url, {
+    ...options,
+    method: 'PUT',
+    body,
+  });
+}
+
+export function patchJson<T>(
+  url: string,
+  body: unknown,
+  options: Omit<JsonRequestOptions, 'method' | 'body'> = {},
+): Promise<T> {
+  return requestJson<T>(url, {
+    ...options,
+    method: 'PATCH',
+    body,
+  });
+}
+
+export function deleteJson<T>(
+  url: string,
+  options: Omit<JsonRequestOptions, 'method' | 'body'> = {},
+): Promise<T> {
+  return requestJson<T>(url, {
+    ...options,
+    method: 'DELETE',
+  });
+}
+
+export function postForm<T>(
+  url: string,
+  body: FormData,
   options: Omit<JsonRequestOptions, 'method' | 'body'> = {},
 ): Promise<T> {
   return requestJson<T>(url, {

@@ -5,14 +5,18 @@ namespace Tests\Feature\DataSources;
 use App\Domain\DataSources\Contracts\DataSourceImporter;
 use App\Jobs\ImportExcelDataSourceJob;
 use App\Domain\DataSources\Contracts\DataSourceReader;
+use App\Enums\TenantRole;
 use App\Models\DataSource;
 use App\Models\DataSourceChunk;
 use App\Models\DataSourceImport;
 use App\Models\Tenant;
+use App\Models\TenantUser;
 use App\Models\UploadedFile;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile as TestUploadedFile;
 use Illuminate\Support\Facades\Storage;
+use App\Support\AgentEvents\AgentEventRecorder;
 use App\Support\Tenancy\TenantContextManager;
 use Tests\Support\BuildsXlsxWorkbook;
 use Tests\TestCase;
@@ -31,7 +35,11 @@ class ExcelDataSourceTest extends TestCase
             'slug' => 'acme',
         ]);
 
-        $response = $this->withHeader('X-Tenant-Id', (string) $tenant->id)
+        $user = $this->tenantAdmin($tenant);
+
+        $response = $this->actingAs($user)
+            ->withCsrf()
+            ->withHeader('X-Tenant-Id', (string) $tenant->id)
             ->post('/api/v1/data-sources/excel', [
                 'name' => 'Catalogo Abril',
                 'file' => TestUploadedFile::fake()->createWithContent(
@@ -55,6 +63,9 @@ class ExcelDataSourceTest extends TestCase
 
         $this->assertSame('ready', $dataSource->status);
         $this->assertGreaterThanOrEqual(4, $dataSource->chunks()->count());
+        $this->assertSame('imports', $import->fresh()->metadata['queue']);
+        $this->assertEqualsCanonicalizing(['inventory', 'knowledge'], $import->fresh()->metadata['datasets']);
+        $this->assertNotEmpty($import->fresh()->metadata['sheets']);
         $this->assertDatabaseHas('data_source_chunks', [
             'tenant_id' => $tenant->id,
             'data_source_id' => $dataSource->id,
@@ -80,6 +91,14 @@ class ExcelDataSourceTest extends TestCase
 
         $this->assertStringContainsString('Mesa plegable', $matches[0]['content_text']);
         $this->assertStringContainsString('Sí, hacemos envíos a todo Colombia.', $knowledgeMatches[0]['content_text']);
+        $this->assertDatabaseHas('agent_events', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'data_source_import_started',
+        ]);
+        $this->assertDatabaseHas('agent_events', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'data_source_import_succeeded',
+        ]);
     }
 
     public function test_failed_import_can_be_retried_after_fixing_the_uploaded_file(): void
@@ -91,7 +110,11 @@ class ExcelDataSourceTest extends TestCase
             'slug' => 'acme',
         ]);
 
-        $uploadResponse = $this->withHeader('X-Tenant-Id', (string) $tenant->id)
+        $user = $this->tenantAdmin($tenant);
+
+        $uploadResponse = $this->actingAs($user)
+            ->withCsrf()
+            ->withHeader('X-Tenant-Id', (string) $tenant->id)
             ->post('/api/v1/data-sources/excel', [
                 'name' => 'Catalogo Invalido',
                 'file' => TestUploadedFile::fake()->createWithContent(
@@ -122,7 +145,9 @@ class ExcelDataSourceTest extends TestCase
 
         Storage::disk('local')->put($storedFile->path, $this->validWorkbookContent());
 
-        $retryResponse = $this->withHeader('X-Tenant-Id', (string) $tenant->id)
+        $retryResponse = $this->actingAs($user)
+            ->withCsrf()
+            ->withHeader('X-Tenant-Id', (string) $tenant->id)
             ->post(sprintf('/api/v1/data-sources/%d/imports/%d/retry', $dataSource->id, $import->id));
 
         $retryResponse->assertOk()
@@ -137,15 +162,31 @@ class ExcelDataSourceTest extends TestCase
         $this->assertSame('succeeded', $import->status);
         $this->assertSame(2, $import->attempts_count);
         $this->assertGreaterThan(0, DataSourceChunk::query()->count());
+        $this->assertDatabaseHas('agent_events', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'data_source_import_failed',
+        ]);
+        $this->assertDatabaseHas('agent_events', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'data_source_import_queued',
+        ]);
     }
 
     protected function runImportJob(Tenant $tenant, DataSourceImport $import): void
     {
         $job = new ImportExcelDataSourceJob($tenant->id, $import->id);
-        $job->handle(
-            app(TenantContextManager::class),
-            app(DataSourceImporter::class),
-        );
+
+        try {
+            $job->handle(
+                app(TenantContextManager::class),
+                app(DataSourceImporter::class),
+                app(AgentEventRecorder::class),
+            );
+        } catch (\Throwable $exception) {
+            $job->failed($exception);
+
+            throw $exception;
+        }
     }
 
     protected function validWorkbookContent(): string
@@ -167,5 +208,18 @@ class ExcelDataSourceTest extends TestCase
     protected function invalidWorkbookContent(): string
     {
         return 'this-is-not-a-valid-xlsx-workbook';
+    }
+
+    protected function tenantAdmin(Tenant $tenant): User
+    {
+        $user = User::factory()->create();
+
+        TenantUser::query()->create([
+            'tenant_id' => $tenant->id,
+            'user_id' => $user->id,
+            'role' => TenantRole::TenantAdmin,
+        ]);
+
+        return $user;
     }
 }

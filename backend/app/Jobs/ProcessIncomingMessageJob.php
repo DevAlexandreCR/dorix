@@ -28,7 +28,11 @@ class ProcessIncomingMessageJob implements ShouldQueue, TenantAwareJob
     use RunsInTenantContext;
     use SerializesModels;
 
+    public const QUEUE = 'messages';
+
     public int $tries = 3;
+
+    public int $timeout = 120;
 
     /**
      * @var array<int, int>
@@ -42,6 +46,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, TenantAwareJob
         public int $conversationId,
         public int $messageId,
     ) {
+        $this->onQueue(self::QUEUE);
     }
 
     public function tenantId(): int
@@ -70,6 +75,8 @@ class ProcessIncomingMessageJob implements ShouldQueue, TenantAwareJob
 
                 $payload = [
                     'job' => static::class,
+                    'queue' => self::QUEUE,
+                    'attempt' => $this->job?->attempts() ?? 1,
                     'conversation_status' => $conversation->status->value,
                     'conversation_state_id' => $state->getKey(),
                 ];
@@ -95,9 +102,26 @@ class ProcessIncomingMessageJob implements ShouldQueue, TenantAwareJob
                 } else {
                     try {
                         $context = $contextLoader->load($conversation, $this->messageId, $state);
-                        $decision = $agentRuntime->run($context);
-                        $decisionApplier->apply($context, $decision);
-                        $runtimeOutcome = $decision->outcome->value;
+                        $automationEnabled = (bool) (($context->agentConfig->settings ?? [])['automation_enabled'] ?? true);
+
+                        if (! $context->line->is_enabled || ! $automationEnabled) {
+                            $runtimeOutcome = 'skipped_due_to_configuration';
+
+                            $events->record($this->tenantId, 'agent_runtime_skipped_due_to_configuration', [
+                                'conversation_id' => $this->conversationId,
+                                'conversation_message_id' => $this->messageId,
+                                'whatsapp_line_id' => $context->line->getKey(),
+                                'payload' => [
+                                    'line_enabled' => $context->line->is_enabled,
+                                    'automation_enabled' => $automationEnabled,
+                                    'scope_key' => $context->agentConfig->scope_key,
+                                ],
+                            ]);
+                        } else {
+                            $decision = $agentRuntime->run($context);
+                            $decisionApplier->apply($context, $decision);
+                            $runtimeOutcome = $decision->outcome->value;
+                        }
                     } catch (Throwable $exception) {
                         $decisionApplier->fallbackToHumanHandoff(
                             $conversation,
@@ -131,10 +155,11 @@ class ProcessIncomingMessageJob implements ShouldQueue, TenantAwareJob
             $events->record($this->tenantId, 'processing_job_released_due_to_lock', [
                 'conversation_id' => $this->conversationId,
                 'conversation_message_id' => $this->messageId,
-                'payload' => [
-                    'job' => static::class,
-                ],
-            ]);
+                    'payload' => [
+                        'job' => static::class,
+                        'queue' => self::QUEUE,
+                    ],
+                ]);
 
             $this->job?->release($this->lockReleaseSeconds);
         });
@@ -147,8 +172,23 @@ class ProcessIncomingMessageJob implements ShouldQueue, TenantAwareJob
             'conversation_message_id' => $this->messageId,
             'payload' => [
                 'job' => static::class,
+                'queue' => self::QUEUE,
+                'attempt' => $this->job?->attempts() ?? $this->tries,
                 'exception' => $exception->getMessage(),
             ],
         ]);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function tags(): array
+    {
+        return [
+            'tenant:'.$this->tenantId,
+            'conversation:'.$this->conversationId,
+            'message:'.$this->messageId,
+            'queue:'.self::QUEUE,
+        ];
     }
 }

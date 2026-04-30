@@ -54,6 +54,14 @@ class ExcelDataSourceImporter implements DataSourceImporter
             'error_message' => null,
             'started_at' => now(),
             'finished_at' => null,
+            'metadata' => array_merge($import->metadata ?? [], [
+                'source_file' => [
+                    'uploaded_file_id' => $uploadedFile->getKey(),
+                    'original_name' => $uploadedFile->original_name,
+                    'size_bytes' => $uploadedFile->size_bytes,
+                    'checksum_prefix' => $uploadedFile->checksum ? substr($uploadedFile->checksum, 0, 12) : null,
+                ],
+            ]),
         ])->save();
 
         $dataSource->forceFill([
@@ -85,16 +93,20 @@ class ExcelDataSourceImporter implements DataSourceImporter
                 ->values()
                 ->all();
 
+            $sheetSummaries = $this->sheetSummaries($chunks);
+
             $result = new DataSourceImportResult(
                 processedSheetCount: count($workbook),
                 generatedChunkCount: count($chunks),
                 datasets: $datasets,
                 metadata: [
                     'sheet_names' => array_keys($workbook),
+                    'datasets' => $datasets,
                     'chunk_types' => array_values(array_unique(array_map(
                         static fn (array $chunk): string => $chunk['chunk_type'],
                         $chunks,
                     ))),
+                    'sheets' => $sheetSummaries,
                 ],
             );
 
@@ -102,7 +114,9 @@ class ExcelDataSourceImporter implements DataSourceImporter
                 'status' => 'succeeded',
                 'processed_sheet_count' => $result->processedSheetCount,
                 'generated_chunk_count' => $result->generatedChunkCount,
-                'metadata' => $result->metadata,
+                'metadata' => array_merge($import->metadata ?? [], $result->metadata, [
+                    'completed_at' => now()->toIso8601String(),
+                ]),
                 'finished_at' => now(),
             ])->save();
 
@@ -115,6 +129,11 @@ class ExcelDataSourceImporter implements DataSourceImporter
                     'last_import_id' => $import->getKey(),
                     'last_imported_at' => now()->toIso8601String(),
                     'sheet_names' => array_keys($workbook),
+                    'last_import_summary' => [
+                        'processed_sheet_count' => $result->processedSheetCount,
+                        'generated_chunk_count' => $result->generatedChunkCount,
+                        'datasets' => $datasets,
+                    ],
                 ]),
             ])->save();
 
@@ -123,6 +142,13 @@ class ExcelDataSourceImporter implements DataSourceImporter
             $import->forceFill([
                 'status' => 'failed',
                 'error_message' => $exception->getMessage(),
+                'metadata' => array_merge($import->metadata ?? [], [
+                    'failed_at' => now()->toIso8601String(),
+                    'failure' => [
+                        'exception' => $exception::class,
+                        'message' => $exception->getMessage(),
+                    ],
+                ]),
                 'finished_at' => now(),
             ])->save();
 
@@ -131,6 +157,7 @@ class ExcelDataSourceImporter implements DataSourceImporter
                 'metadata' => array_merge($dataSource->metadata ?? [], [
                     'last_import_error' => $exception->getMessage(),
                     'last_import_id' => $import->getKey(),
+                    'last_import_error_class' => $exception::class,
                 ]),
             ])->save();
 
@@ -323,5 +350,41 @@ class ExcelDataSourceImporter implements DataSourceImporter
     protected function labelForKey(string $key): string
     {
         return Str::headline(str_replace('_', ' ', $key));
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $chunks
+     * @return array<int, array<string, mixed>>
+     */
+    protected function sheetSummaries(array $chunks): array
+    {
+        return collect($chunks)
+            ->groupBy('sheet_name')
+            ->map(function ($sheetChunks, $sheetName): array {
+                $rows = $sheetChunks
+                    ->flatMap(static fn (array $chunk): array => array_filter([
+                        $chunk['row_start'] ?? null,
+                        $chunk['row_end'] ?? null,
+                    ], static fn (mixed $value): bool => is_numeric($value)))
+                    ->map(static fn (mixed $value): int => (int) $value)
+                    ->values();
+
+                return [
+                    'sheet_name' => $sheetName,
+                    'chunk_count' => $sheetChunks->count(),
+                    'chunk_types' => $sheetChunks->pluck('chunk_type')->unique()->values()->all(),
+                    'datasets' => $sheetChunks
+                        ->flatMap(static fn (array $chunk): array => $chunk['metadata']['datasets'] ?? [])
+                        ->unique()
+                        ->values()
+                        ->all(),
+                    'row_span' => [
+                        'start' => $rows->min(),
+                        'end' => $rows->max(),
+                    ],
+                ];
+            })
+            ->values()
+            ->all();
     }
 }

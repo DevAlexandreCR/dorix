@@ -300,9 +300,20 @@ class ToolExecutionIntegrationTest extends TestCase
         $this->assertSame('succeeded', $execution->status);
         $this->assertSame('search_inventory', $execution->tool_name);
         $this->assertSame(1, $execution->output_summary['match_count']);
-        $this->assertStringContainsString('Mesa auxiliar', $execution->output_summary['matches'][0]['content_text']);
+        $this->assertStringContainsString('Mesa auxiliar', $execution->output_summary['matches'][0]['preview']);
+        $this->assertArrayNotHasKey('structured_payload', $execution->output_summary['matches'][0]);
         $this->assertStringContainsString('Mesa auxiliar', $outboundMessage->body ?? '');
         $this->assertStringContainsString('SKU-100', $outboundMessage->body ?? '');
+        $this->assertDatabaseHas('agent_events', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'tool_data_source_resolved',
+            'conversation_message_id' => $message->id,
+        ]);
+        $this->assertDatabaseHas('agent_events', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'data_source_search_completed',
+            'conversation_message_id' => $message->id,
+        ]);
     }
 
     public function test_processing_job_executes_search_knowledge_using_the_bound_excel_data_source(): void
@@ -385,8 +396,19 @@ class ToolExecutionIntegrationTest extends TestCase
         $this->assertSame('succeeded', $execution->status);
         $this->assertSame('search_knowledge', $execution->tool_name);
         $this->assertSame(1, $execution->output_summary['match_count']);
-        $this->assertStringContainsString('envíos a todo Colombia', $execution->output_summary['matches'][0]['content_text']);
+        $this->assertStringContainsString('envíos a todo Colombia', $execution->output_summary['matches'][0]['preview']);
+        $this->assertArrayNotHasKey('structured_payload', $execution->output_summary['matches'][0]);
         $this->assertStringContainsString('envíos a todo Colombia', $outboundMessage->body ?? '');
+        $this->assertDatabaseHas('agent_events', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'tool_data_source_resolved',
+            'conversation_message_id' => $message->id,
+        ]);
+        $this->assertDatabaseHas('agent_events', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'data_source_search_completed',
+            'conversation_message_id' => $message->id,
+        ]);
     }
 
     protected function runProcessingJob(Tenant $tenant, Conversation $conversation, ConversationMessage $message): void

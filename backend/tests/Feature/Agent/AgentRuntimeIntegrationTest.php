@@ -223,6 +223,50 @@ class AgentRuntimeIntegrationTest extends TestCase
         ]);
     }
 
+    public function test_processing_job_skips_runtime_when_automation_is_disabled_in_the_agent_config(): void
+    {
+        [$tenant, $line, $conversation, $message] = $this->conversationFixtures();
+
+        AgentConfig::query()
+            ->forTenant($tenant->id)
+            ->where('scope_key', TenantScopeKey::forTenant($tenant))
+            ->firstOrFail()
+            ->forceFill([
+                'settings' => [
+                    'automation_enabled' => false,
+                ],
+            ])
+            ->save();
+
+        Http::fake();
+
+        $job = new ProcessIncomingMessageJob($tenant->id, $conversation->id, $message->id);
+        $job->handle(
+            app(TenantContextManager::class),
+            app(AgentEventRecorder::class),
+            app(ConversationLockManager::class),
+            app(ConversationStateRepository::class),
+            app(AgentContextLoader::class),
+            app(AgentRuntimeInterface::class),
+            app(AgentDecisionApplier::class),
+        );
+
+        $conversation->refresh();
+
+        $this->assertSame(ConversationStatus::BotActive, $conversation->status);
+        $this->assertDatabaseCount('conversation_messages', 1);
+        $this->assertDatabaseHas('agent_events', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'agent_runtime_skipped_due_to_configuration',
+            'conversation_message_id' => $message->id,
+        ]);
+        $this->assertDatabaseMissing('agent_events', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'agent_started',
+            'conversation_message_id' => $message->id,
+        ]);
+    }
+
     public function test_processing_job_falls_back_to_human_handoff_when_the_provider_fails(): void
     {
         [$tenant, $line, $conversation, $message] = $this->conversationFixtures();

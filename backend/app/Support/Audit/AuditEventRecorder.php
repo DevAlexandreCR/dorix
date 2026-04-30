@@ -3,11 +3,17 @@
 namespace App\Support\Audit;
 
 use App\Models\AuditEvent;
+use App\Support\Observability\ObservabilityPayloadSanitizer;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 
 class AuditEventRecorder
 {
+    public function __construct(
+        protected ObservabilityPayloadSanitizer $sanitizer,
+    ) {
+    }
+
     /**
      * @param  array<string, mixed>  $payload
      */
@@ -25,7 +31,7 @@ class AuditEventRecorder
             'event_type' => $eventType,
             'target_type' => $target?->getMorphClass(),
             'target_id' => $target?->getKey(),
-            'payload' => $payload,
+            'payload' => $this->sanitizer->sanitizeForStorage($payload),
             'occurred_at' => $occurredAt ?? now(),
         ]);
     }

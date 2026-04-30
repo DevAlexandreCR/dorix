@@ -38,6 +38,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Support\Auth\TenantAccess;
 use App\Support\Audit\AuditEventRecorder;
+use App\Support\Observability\ObservabilityPayloadSanitizer;
 use App\Support\Tenancy\Contracts\TenantContextResolver;
 use App\Support\Tenancy\RequestTenantContextResolver;
 use App\Support\Tenancy\TenantContextManager;
@@ -62,6 +63,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(ConversationStateRepository::class, EloquentConversationStateRepository::class);
         $this->app->bind(ConversationLockManager::class, CacheConversationLockManager::class);
         $this->app->bind(ConversationStatusTransitioner::class, ConversationStatusManager::class);
+        $this->app->singleton(ObservabilityPayloadSanitizer::class);
         $this->app->singleton(AuditEventRecorder::class);
         $this->app->singleton(OperationalConversationService::class);
         $this->app->bind(TenantContextResolver::class, RequestTenantContextResolver::class);

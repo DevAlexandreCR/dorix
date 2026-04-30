@@ -2,40 +2,54 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\Permission;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\Concerns\ResolvesTenantFromRequest;
 use App\Http\Requests\Api\UploadExcelDataSourceRequest;
 use App\Jobs\ImportExcelDataSourceJob;
 use App\Models\DataSource;
 use App\Models\DataSourceImport;
 use App\Models\UploadedFile;
+use App\Support\Admin\AdminPanelDataBuilder;
+use App\Support\AgentEvents\AgentEventRecorder;
+use App\Support\Audit\AuditEventRecorder;
 use App\Support\Tenancy\TenantContextManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile as HttpUploadedFile;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class DataSourceController extends Controller
 {
-    public function index(TenantContextManager $tenantContextManager): JsonResponse
+    use ResolvesTenantFromRequest;
+
+    public function __construct(
+        protected AdminPanelDataBuilder $builder,
+        protected AuditEventRecorder $audit,
+        protected AgentEventRecorder $events,
+    ) {
+    }
+
+    public function index(Request $request, TenantContextManager $tenantContextManager): JsonResponse
     {
+        $tenant = $this->tenantFromRequest($request);
+        Gate::forUser($request->user())->authorize(Permission::ManageAgentConfig->value, $tenant);
+
         $tenantId = $tenantContextManager->require()->tenantId();
-        $sources = DataSource::query()
-            ->forTenant($tenantId)
-            ->with(['uploadedFiles' => fn ($query) => $query->latest('id')->limit(1)])
-            ->with(['imports' => fn ($query) => $query->latest('id')->limit(1)])
-            ->withCount(['chunks'])
-            ->orderByDesc('updated_at')
-            ->get();
+        $sources = $this->builder->dataSourcesForTenant($tenantId);
 
         return response()->json([
-            'data' => $sources->map(fn (DataSource $source): array => $this->serializeDataSource($source))->all(),
+            'data' => $sources->map(fn (DataSource $source): array => $this->builder->serializeDataSource($source))->all(),
         ]);
     }
 
     public function storeExcel(UploadExcelDataSourceRequest $request, TenantContextManager $tenantContextManager): JsonResponse
     {
+        $tenant = $this->tenantFromRequest($request);
+        Gate::forUser($request->user())->authorize(Permission::ManageAgentConfig->value, $tenant);
+
         $tenantId = $tenantContextManager->require()->tenantId();
         /** @var HttpUploadedFile $file */
         $file = $request->file('file');
@@ -58,6 +72,7 @@ class DataSourceController extends Controller
         $uploadedFile = UploadedFile::query()->create([
             'tenant_id' => $tenantId,
             'data_source_id' => $dataSource->getKey(),
+            'uploaded_by_user_id' => $request->user()?->getKey(),
             'disk' => 'local',
             'path' => $storagePath,
             'original_name' => $file->getClientOriginalName(),
@@ -74,17 +89,42 @@ class DataSourceController extends Controller
             'data_source_id' => $dataSource->getKey(),
             'uploaded_file_id' => $uploadedFile->getKey(),
             'status' => 'pending',
+            'metadata' => [
+                'queue' => ImportExcelDataSourceJob::QUEUE,
+                'request_type' => 'initial_upload',
+                'requested_by_user_id' => $request->user()?->getKey(),
+            ],
         ]);
 
         ImportExcelDataSourceJob::dispatch($tenantId, $import->getKey());
 
-        $dataSource->refresh()->load([
-            'uploadedFiles' => fn ($query) => $query->latest('id')->limit(1),
-            'imports' => fn ($query) => $query->latest('id')->limit(1),
-        ])->loadCount(['chunks']);
+        $this->events->record($tenantId, 'data_source_import_queued', [
+            'payload' => [
+                'data_source_id' => $dataSource->getKey(),
+                'import_id' => $import->getKey(),
+                'uploaded_file_id' => $uploadedFile->getKey(),
+                'queue' => ImportExcelDataSourceJob::QUEUE,
+                'request_type' => 'initial_upload',
+            ],
+        ]);
+
+        $this->audit->record(
+            tenantId: $tenantId,
+            eventType: 'data_source_uploaded',
+            actorUserId: $request->user()?->getKey(),
+            target: $dataSource,
+            payload: [
+                'data_source_id' => $dataSource->getKey(),
+                'uploaded_file_id' => $uploadedFile->getKey(),
+                'import_id' => $import->getKey(),
+            ],
+        );
+
+        $dataSource = $this->builder->dataSourcesForTenant($tenantId)
+            ->firstWhere('id', $dataSource->getKey());
 
         return response()->json([
-            'data' => $this->serializeDataSource($dataSource),
+            'data' => $this->builder->serializeDataSource($dataSource),
         ], Response::HTTP_CREATED);
     }
 
@@ -94,6 +134,9 @@ class DataSourceController extends Controller
         DataSource $dataSource,
         DataSourceImport $import,
     ): JsonResponse {
+        $tenant = $this->tenantFromRequest($request);
+        Gate::forUser($request->user())->authorize(Permission::ManageAgentConfig->value, $tenant);
+
         $tenantId = $tenantContextManager->require()->tenantId();
         $dataSource = DataSource::query()->forTenant($tenantId)->findOrFail($dataSource->getKey());
         $import = DataSourceImport::query()
@@ -111,6 +154,11 @@ class DataSourceController extends Controller
             'status' => 'pending',
             'error_message' => null,
             'finished_at' => null,
+            'metadata' => array_merge($import->metadata ?? [], [
+                'queue' => ImportExcelDataSourceJob::QUEUE,
+                'request_type' => 'manual_retry',
+                'requested_by_user_id' => $request->user()?->getKey(),
+            ]),
         ])->save();
 
         $dataSource->forceFill([
@@ -119,51 +167,32 @@ class DataSourceController extends Controller
 
         ImportExcelDataSourceJob::dispatch($tenantId, $import->getKey());
 
-        $dataSource->refresh()->load([
-            'uploadedFiles' => fn ($query) => $query->latest('id')->limit(1),
-            'imports' => fn ($query) => $query->latest('id')->limit(1),
-        ])->loadCount(['chunks']);
+        $this->events->record($tenantId, 'data_source_import_queued', [
+            'payload' => [
+                'data_source_id' => $dataSource->getKey(),
+                'import_id' => $import->getKey(),
+                'uploaded_file_id' => $import->uploaded_file_id,
+                'queue' => ImportExcelDataSourceJob::QUEUE,
+                'request_type' => 'manual_retry',
+            ],
+        ]);
+
+        $this->audit->record(
+            tenantId: $tenantId,
+            eventType: 'data_source_import_retried',
+            actorUserId: $request->user()?->getKey(),
+            target: $dataSource,
+            payload: [
+                'data_source_id' => $dataSource->getKey(),
+                'import_id' => $import->getKey(),
+            ],
+        );
+
+        $dataSource = $this->builder->dataSourcesForTenant($tenantId)
+            ->firstWhere('id', $dataSource->getKey());
 
         return response()->json([
-            'data' => $this->serializeDataSource($dataSource),
+            'data' => $this->builder->serializeDataSource($dataSource),
         ]);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    protected function serializeDataSource(DataSource $dataSource): array
-    {
-        $latestImport = $dataSource->imports->first();
-        $latestFile = $dataSource->uploadedFiles->first();
-
-        return [
-            'id' => $dataSource->getKey(),
-            'name' => $dataSource->name,
-            'type' => $dataSource->type,
-            'status' => $dataSource->status,
-            'last_synced_at' => $dataSource->last_synced_at?->toIso8601String(),
-            'metadata' => $dataSource->metadata ?? [],
-            'chunk_count' => $dataSource->chunks_count ?? 0,
-            'latest_upload' => $latestFile ? [
-                'id' => $latestFile->getKey(),
-                'original_name' => $latestFile->original_name,
-                'mime_type' => $latestFile->mime_type,
-                'size_bytes' => $latestFile->size_bytes,
-                'checksum' => $latestFile->checksum,
-                'created_at' => $latestFile->created_at?->toIso8601String(),
-            ] : null,
-            'latest_import' => $latestImport ? [
-                'id' => $latestImport->getKey(),
-                'status' => $latestImport->status,
-                'attempts_count' => $latestImport->attempts_count,
-                'processed_sheet_count' => $latestImport->processed_sheet_count,
-                'generated_chunk_count' => $latestImport->generated_chunk_count,
-                'error_message' => $latestImport->error_message,
-                'started_at' => $latestImport->started_at?->toIso8601String(),
-                'finished_at' => $latestImport->finished_at?->toIso8601String(),
-                'metadata' => $latestImport->metadata ?? [],
-            ] : null,
-        ];
     }
 }

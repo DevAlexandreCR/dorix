@@ -115,14 +115,23 @@ button {
 .thread-card-meta,
 .thread-card-header,
 .panel-topline,
-.thread-top-actions {
+.thread-top-actions,
+.segmented-control,
+.mini-card-header,
+.metrics-row,
+.subsection-header,
+.inline-form {
   display: flex;
   gap: 0.8rem;
 }
 
 .hero-meta,
 .topbar-controls,
-.thread-top-actions {
+.thread-top-actions,
+.mini-card-header,
+.metrics-row,
+.subsection-header,
+.inline-form {
   align-items: flex-start;
   flex-wrap: wrap;
 }
@@ -230,14 +239,18 @@ button {
 .form-stack,
 .operator-tools,
 .messages-panel,
-.composer-panel {
+.composer-panel,
+.table-stack,
+.logs-grid,
+.log-column {
   display: grid;
   gap: 0.95rem;
 }
 
 .filters-stack,
 .messages-panel,
-.composer-panel {
+.composer-panel,
+.table-stack {
   margin-top: 1rem;
 }
 
@@ -274,6 +287,13 @@ textarea {
   align-items: center;
   gap: 0.6rem;
   min-height: 100%;
+}
+
+.checkbox-field-surface {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface-strong);
 }
 
 .checkbox-field input {
@@ -428,6 +448,166 @@ textarea {
   margin: 0;
 }
 
+.success-copy {
+  margin: 0;
+  color: var(--ok);
+}
+
+.section-copy {
+  margin-top: 1rem;
+}
+
+.segmented-control {
+  padding: 0.28rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.segment-button {
+  min-height: 2.7rem;
+  padding: 0.72rem 1rem;
+  border: 0;
+  border-radius: 999px;
+  color: var(--copy-muted);
+  background: transparent;
+}
+
+.segment-button-active {
+  color: #201108;
+  background: linear-gradient(135deg, #ffcb77, #ff9052);
+}
+
+.admin-shell {
+  margin-top: 1rem;
+}
+
+.admin-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.summary-card,
+.admin-panel,
+.mini-card,
+.log-card {
+  padding: 1.1rem;
+}
+
+.summary-card {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.summary-card strong {
+  font-size: 1.55rem;
+}
+
+.summary-card span:last-child {
+  color: var(--copy-muted);
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.admin-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-panel-wide {
+  grid-column: 1 / -1;
+}
+
+.subsection {
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.subsection-header {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.subsection-header strong,
+.log-column strong {
+  font-size: 0.95rem;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.mini-card,
+.log-card,
+.embedded-section {
+  border-radius: 22px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.embedded-section {
+  margin-top: 0.9rem;
+  padding: 0.9rem;
+}
+
+.mini-card-header {
+  justify-content: space-between;
+}
+
+.mini-card-header p {
+  margin: 0.3rem 0 0;
+}
+
+.inline-form {
+  align-items: end;
+}
+
+.metrics-row {
+  justify-content: space-between;
+  color: var(--copy-soft);
+  font-size: 0.84rem;
+}
+
+.logs-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+}
+
+.log-column {
+  align-content: start;
+}
+
+.log-card {
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.log-card p {
+  margin: 0.55rem 0 0;
+  word-break: break-word;
+}
+
+.danger-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.9rem;
+  padding: 0.78rem 1.05rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 143, 143, 0.35);
+  color: #fff2f2;
+  background: linear-gradient(135deg, rgba(255, 143, 143, 0.18), rgba(255, 95, 95, 0.28));
+}
+
 .centered-state {
   display: grid;
   place-items: center;
@@ -447,6 +627,13 @@ textarea {
   }
 
   .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-summary-grid,
+  .admin-grid,
+  .logs-grid,
+  .field-grid {
     grid-template-columns: 1fr;
   }
 
@@ -475,12 +662,24 @@ textarea {
   .operator-toolset,
   .inline-filters,
   .thread-card-meta,
-  .panel-topline {
+  .panel-topline,
+  .segmented-control,
+  .mini-card-header,
+  .metrics-row,
+  .subsection-header,
+  .inline-form {
     flex-direction: column;
   }
 
   .topbar-controls {
     width: 100%;
     flex-direction: column;
+  }
+
+  .summary-card,
+  .admin-panel,
+  .mini-card,
+  .log-card {
+    padding: 1rem;
   }
 }

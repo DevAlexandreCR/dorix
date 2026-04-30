@@ -11,12 +11,14 @@ use App\Domain\Tools\DTO\ToolInvocation;
 use App\Domain\Tools\DTO\ToolResult;
 use App\Domain\Tools\Exceptions\InvalidToolArgumentsException;
 use App\Domain\Tools\ToolNextAction;
+use App\Support\AgentEvents\AgentEventRecorder;
 
 class SearchKnowledgeTool implements ToolInterface
 {
     public function __construct(
         protected DataSourceReader $reader,
         protected ToolBoundDataSourceResolver $dataSourceResolver,
+        protected AgentEventRecorder $events,
     ) {
     }
 
@@ -71,6 +73,8 @@ class SearchKnowledgeTool implements ToolInterface
         try {
             $dataSource = $this->dataSourceResolver->resolveForTool($invocation);
         } catch (DataSourceUnavailableException $exception) {
+            $this->recordUnavailableSearch($invocation, $question, $topic, $exception->getMessage());
+
             return new ToolResult(
                 nextAction: ToolNextAction::RequestHandoff,
                 handoffReason: $exception->getMessage(),
@@ -91,6 +95,8 @@ class SearchKnowledgeTool implements ToolInterface
             'topic' => $topic,
             'limit' => $limit,
         ]);
+
+        $this->recordSearchCompleted($invocation, $dataSource, $question, $topic, $matches);
 
         return new ToolResult(
             nextAction: ToolNextAction::ContinueWithRetrievedContext,
@@ -130,5 +136,49 @@ class SearchKnowledgeTool implements ToolInterface
         }
 
         return max(1, min(5, (int) $value));
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $matches
+     */
+    protected function recordSearchCompleted(ToolInvocation $invocation, \App\Models\DataSource $dataSource, string $question, string $topic, array $matches): void
+    {
+        $this->events->record($invocation->context->tenant->getKey(), 'data_source_search_completed', [
+            'whatsapp_line_id' => $invocation->context->line->getKey(),
+            'conversation_id' => $invocation->context->conversation->getKey(),
+            'conversation_message_id' => $invocation->context->triggeringMessage->getKey(),
+            'payload' => [
+                'tool_name' => 'search_knowledge',
+                'data_source_id' => $dataSource->getKey(),
+                'retrieval_mode' => 'knowledge',
+                'question' => $question,
+                'topic' => $topic,
+                'match_count' => count($matches),
+                'matched_chunk_ids' => array_values(array_map(
+                    static fn (array $match): mixed => $match['id'] ?? null,
+                    $matches,
+                )),
+                'sheet_names' => array_values(array_unique(array_filter(array_map(
+                    static fn (array $match): mixed => data_get($match, 'source_ref.sheet_name'),
+                    $matches,
+                )))),
+            ],
+        ]);
+    }
+
+    protected function recordUnavailableSearch(ToolInvocation $invocation, string $question, string $topic, string $reason): void
+    {
+        $this->events->record($invocation->context->tenant->getKey(), 'data_source_search_unavailable', [
+            'whatsapp_line_id' => $invocation->context->line->getKey(),
+            'conversation_id' => $invocation->context->conversation->getKey(),
+            'conversation_message_id' => $invocation->context->triggeringMessage->getKey(),
+            'payload' => [
+                'tool_name' => 'search_knowledge',
+                'retrieval_mode' => 'knowledge',
+                'question' => $question,
+                'topic' => $topic,
+                'reason' => $reason,
+            ],
+        ]);
     }
 }

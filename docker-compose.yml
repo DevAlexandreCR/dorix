@@ -90,6 +90,7 @@ services:
         "php",
         "artisan",
         "queue:work",
+        "--queue=messages,imports,default",
         "--tries=3",
         "--backoff=5",
         "--timeout=120"
@@ -112,6 +113,11 @@ services:
       redis:
         condition: service_healthy
     command: ["php", "artisan", "horizon"]
+    healthcheck:
+      test: ["CMD", "php", "artisan", "horizon:status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   nginx:
     image: nginx:1.27-alpine

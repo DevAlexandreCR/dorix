@@ -14,10 +14,17 @@ class PromptBuilder
      */
     public function build(AgentContext $context): array
     {
+        $developerInstructions = $this->developerInstructions();
+        $customSystemPrompt = trim((string) (($context->agentConfig->settings ?? [])['system_prompt'] ?? ''));
+
+        if ($customSystemPrompt !== '') {
+            $developerInstructions .= "\n\nTenant-specific instructions:\n".$customSystemPrompt;
+        }
+
         return [
             [
                 'role' => 'developer',
-                'content' => $this->developerInstructions(),
+                'content' => $developerInstructions,
             ],
             [
                 'role' => 'user',

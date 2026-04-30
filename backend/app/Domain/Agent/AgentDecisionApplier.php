@@ -16,6 +16,7 @@ use App\Enums\ConversationStatus;
 use App\Models\Conversation;
 use App\Models\HandoffRequest;
 use App\Support\AgentEvents\AgentEventRecorder;
+use App\Support\Observability\ObservabilityPayloadSanitizer;
 use Illuminate\Support\Str;
 
 class AgentDecisionApplier
@@ -27,6 +28,7 @@ class AgentDecisionApplier
         protected AgentEventRecorder $events,
         protected ToolExecutionRunner $toolExecutionRunner,
         protected AgentRuntimeInterface $agentRuntime,
+        protected ObservabilityPayloadSanitizer $sanitizer,
     ) {
     }
 
@@ -93,7 +95,7 @@ class AgentDecisionApplier
                 'requested_by_type' => 'runtime',
                 'status' => 'requested',
                 'reason' => $reason,
-                'payload' => $payload,
+                'payload' => $this->safePayload($payload),
             ]);
         }
 
@@ -296,5 +298,16 @@ class AgentDecisionApplier
             $retrievedContext,
             static fn (mixed $item): bool => is_array($item),
         )) : [];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    protected function safePayload(array $payload): array
+    {
+        $sanitized = $this->sanitizer->sanitizeForStorage($payload);
+
+        return is_array($sanitized) ? $sanitized : ['value' => $sanitized];
     }
 }

@@ -5,9 +5,15 @@ namespace App\Domain\DataSources;
 use App\Domain\DataSources\Exceptions\DataSourceUnavailableException;
 use App\Domain\Tools\DTO\ToolInvocation;
 use App\Models\DataSource;
+use App\Support\AgentEvents\AgentEventRecorder;
 
 class ToolBoundDataSourceResolver
 {
+    public function __construct(
+        protected AgentEventRecorder $events,
+    ) {
+    }
+
     public function resolveForTool(ToolInvocation $invocation): DataSource
     {
         $tenantId = $invocation->context->tenant->getKey();
@@ -33,6 +39,8 @@ class ToolBoundDataSourceResolver
                 ));
             }
 
+            $this->recordResolutionEvent($invocation, $boundSource, 'binding');
+
             return $boundSource;
         }
 
@@ -51,6 +59,24 @@ class ToolBoundDataSourceResolver
             ));
         }
 
+        $this->recordResolutionEvent($invocation, $fallback, 'fallback');
+
         return $fallback;
+    }
+
+    protected function recordResolutionEvent(ToolInvocation $invocation, DataSource $dataSource, string $strategy): void
+    {
+        $this->events->record($invocation->context->tenant->getKey(), 'tool_data_source_resolved', [
+            'whatsapp_line_id' => $invocation->context->line->getKey(),
+            'conversation_id' => $invocation->context->conversation->getKey(),
+            'conversation_message_id' => $invocation->context->triggeringMessage->getKey(),
+            'payload' => [
+                'tool_name' => $invocation->tool->name(),
+                'data_source_id' => $dataSource->getKey(),
+                'strategy' => $strategy,
+                'status' => $dataSource->status,
+                'last_import_id' => $dataSource->metadata['last_import_id'] ?? null,
+            ],
+        ]);
     }
 }

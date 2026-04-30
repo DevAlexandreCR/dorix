@@ -13,6 +13,8 @@ return [
     'middleware' => ['web'],
 
     'waits' => [
+        'redis:messages' => 60,
+        'redis:imports' => 300,
         'redis:default' => 60,
     ],
 
@@ -39,9 +41,9 @@ return [
     'memory_limit' => 256,
 
     'defaults' => [
-        'supervisor-1' => [
+        'app-supervisor' => [
             'connection' => 'redis',
-            'queue' => ['default'],
+            'queue' => ['messages', 'imports', 'default'],
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
             'maxProcesses' => 1,
@@ -56,7 +58,7 @@ return [
 
     'environments' => [
         'production' => [
-            'supervisor-1' => [
+            'app-supervisor' => [
                 'maxProcesses' => 10,
                 'balanceMaxShift' => 1,
                 'balanceCooldown' => 3,
@@ -64,10 +66,9 @@ return [
         ],
 
         'local' => [
-            'supervisor-1' => [
+            'app-supervisor' => [
                 'maxProcesses' => 3,
             ],
         ],
     ],
 ];
-

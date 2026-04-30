@@ -11,12 +11,14 @@ use App\Domain\Tools\DTO\ToolInvocation;
 use App\Domain\Tools\DTO\ToolResult;
 use App\Domain\Tools\Exceptions\InvalidToolArgumentsException;
 use App\Domain\Tools\ToolNextAction;
+use App\Support\AgentEvents\AgentEventRecorder;
 
 class SearchInventoryTool implements ToolInterface
 {
     public function __construct(
         protected DataSourceReader $reader,
         protected ToolBoundDataSourceResolver $dataSourceResolver,
+        protected AgentEventRecorder $events,
     ) {
     }
 
@@ -80,6 +82,8 @@ class SearchInventoryTool implements ToolInterface
         try {
             $dataSource = $this->dataSourceResolver->resolveForTool($invocation);
         } catch (DataSourceUnavailableException $exception) {
+            $this->recordUnavailableSearch($invocation, $query, $exception->getMessage());
+
             return new ToolResult(
                 nextAction: ToolNextAction::RequestHandoff,
                 handoffReason: $exception->getMessage(),
@@ -100,6 +104,8 @@ class SearchInventoryTool implements ToolInterface
             'filters' => $filters,
             'limit' => $limit,
         ]);
+
+        $this->recordSearchCompleted($invocation, $dataSource, $query, $matches);
 
         return new ToolResult(
             nextAction: ToolNextAction::ContinueWithRetrievedContext,
@@ -133,5 +139,47 @@ class SearchInventoryTool implements ToolInterface
         }
 
         return max(1, min(5, (int) $value));
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $matches
+     */
+    protected function recordSearchCompleted(ToolInvocation $invocation, \App\Models\DataSource $dataSource, string $query, array $matches): void
+    {
+        $this->events->record($invocation->context->tenant->getKey(), 'data_source_search_completed', [
+            'whatsapp_line_id' => $invocation->context->line->getKey(),
+            'conversation_id' => $invocation->context->conversation->getKey(),
+            'conversation_message_id' => $invocation->context->triggeringMessage->getKey(),
+            'payload' => [
+                'tool_name' => 'search_inventory',
+                'data_source_id' => $dataSource->getKey(),
+                'retrieval_mode' => 'inventory',
+                'query' => $query,
+                'match_count' => count($matches),
+                'matched_chunk_ids' => array_values(array_map(
+                    static fn (array $match): mixed => $match['id'] ?? null,
+                    $matches,
+                )),
+                'sheet_names' => array_values(array_unique(array_filter(array_map(
+                    static fn (array $match): mixed => data_get($match, 'source_ref.sheet_name'),
+                    $matches,
+                )))),
+            ],
+        ]);
+    }
+
+    protected function recordUnavailableSearch(ToolInvocation $invocation, string $query, string $reason): void
+    {
+        $this->events->record($invocation->context->tenant->getKey(), 'data_source_search_unavailable', [
+            'whatsapp_line_id' => $invocation->context->line->getKey(),
+            'conversation_id' => $invocation->context->conversation->getKey(),
+            'conversation_message_id' => $invocation->context->triggeringMessage->getKey(),
+            'payload' => [
+                'tool_name' => 'search_inventory',
+                'retrieval_mode' => 'inventory',
+                'query' => $query,
+                'reason' => $reason,
+            ],
+        ]);
     }
 }

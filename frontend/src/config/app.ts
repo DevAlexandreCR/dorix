@@ -9,4 +9,6 @@ export const appConfig = {
   authLoginUrl: `${apiBaseUrl}/v1/auth/login`,
   authLogoutUrl: `${apiBaseUrl}/v1/auth/logout`,
   conversationsUrl: `${apiBaseUrl}/v1/conversations`,
+  dataSourcesUrl: `${apiBaseUrl}/v1/data-sources`,
+  adminBaseUrl: `${apiBaseUrl}/v1/admin`,
 } as const;

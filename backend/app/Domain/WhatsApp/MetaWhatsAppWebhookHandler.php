@@ -165,6 +165,8 @@ class MetaWhatsAppWebhookHandler implements WhatsAppWebhookHandler
             'conversation_message_id' => $conversationMessage->getKey(),
             'payload' => [
                 'job' => ProcessIncomingMessageJob::class,
+                'queue' => ProcessIncomingMessageJob::QUEUE,
+                'tries' => 3,
             ],
             'occurred_at' => $message->receivedAt,
         ]);

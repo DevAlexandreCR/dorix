@@ -14,6 +14,7 @@ use App\Domain\Tools\Exceptions\ToolNotImplementedException;
 use App\Domain\Tools\Exceptions\ToolTimeoutException;
 use App\Models\ToolExecution;
 use App\Support\AgentEvents\AgentEventRecorder;
+use App\Support\Observability\ObservabilityPayloadSanitizer;
 use Throwable;
 
 class ToolExecutionRunner
@@ -21,6 +22,7 @@ class ToolExecutionRunner
     public function __construct(
         protected ToolRegistry $registry,
         protected AgentEventRecorder $events,
+        protected ObservabilityPayloadSanitizer $sanitizer,
     ) {
     }
 
@@ -37,13 +39,14 @@ class ToolExecutionRunner
             'conversation_message_id' => $context->triggeringMessage->getKey(),
             'tool_name' => $decision->toolName,
             'status' => 'started',
-            'input_summary' => $this->summarizeArray([
+            'input_summary' => $this->safeArray([
                 'arguments' => $decision->toolArguments,
             ]),
             'metadata' => [
-                'decision' => $decision->toArray(),
+                'decision' => $this->safeArray($decision->toArray()),
                 'tool_definition' => $definition?->toArray(),
                 'enabled' => $enabledTool !== null,
+                'bindings' => $this->safeArray($enabledTool?->config->bindings ?? []),
             ],
             'executed_at' => now(),
         ]);
@@ -77,12 +80,12 @@ class ToolExecutionRunner
 
             $execution->forceFill([
                 'status' => 'succeeded',
-                'output_summary' => $this->summarizeArray(array_merge($result->outputSummary, [
+                'output_summary' => $this->safeArray(array_merge($result->outputSummary, [
                     'next_action' => $result->nextAction->value,
                 ])),
                 'duration_ms' => $durationMs,
                 'metadata' => array_merge($execution->metadata ?? [], [
-                    'tool_result' => $this->summarizeArray($result->toArray()),
+                    'tool_result' => $this->safeArray($result->toArray()),
                 ]),
             ])->save();
 
@@ -108,10 +111,10 @@ class ToolExecutionRunner
                 'duration_ms' => $durationMs,
                 'error_message' => $exception->getMessage(),
                 'metadata' => array_merge($execution->metadata ?? [], [
-                    'error' => [
+                    'error' => $this->safeArray([
                         'message' => $exception->getMessage(),
                         'exception' => $exception::class,
-                    ],
+                    ]),
                 ]),
             ])->save();
 
@@ -189,41 +192,10 @@ class ToolExecutionRunner
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
-    protected function summarizeArray(array $payload): array
+    protected function safeArray(array $payload): array
     {
-        $summary = [];
+        $sanitized = $this->sanitizer->sanitizeForStorage($payload);
 
-        foreach ($payload as $key => $value) {
-            $summary[$key] = $this->summarizeValue($value);
-        }
-
-        return $summary;
-    }
-
-    protected function summarizeValue(mixed $value, int $depth = 0): mixed
-    {
-        if ($depth >= 3) {
-            return is_array($value) ? '[truncated]' : $value;
-        }
-
-        if (is_array($value)) {
-            $summary = [];
-
-            foreach (array_slice($value, 0, 20, true) as $key => $item) {
-                $summary[$key] = $this->summarizeValue($item, $depth + 1);
-            }
-
-            if (count($value) > 20) {
-                $summary['_truncated_items'] = count($value) - 20;
-            }
-
-            return $summary;
-        }
-
-        if (is_string($value) && mb_strlen($value) > 250) {
-            return mb_substr($value, 0, 250).'...';
-        }
-
-        return $value;
+        return is_array($sanitized) ? $sanitized : ['value' => $sanitized];
     }
 }
