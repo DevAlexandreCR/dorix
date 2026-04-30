@@ -1,6 +1,6 @@
 <template>
   <AppShell>
-    <div class="flex min-h-screen flex-col py-5 lg:py-8">
+    <div class="flex min-h-0 flex-1 flex-col py-5 lg:py-8">
       <div class="flex justify-end gap-2">
         <LocaleSwitch />
         <ThemeSwitch />
