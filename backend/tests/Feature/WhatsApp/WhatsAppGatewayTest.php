@@ -41,6 +41,38 @@ class WhatsAppGatewayTest extends TestCase
             ->assertSeeText('12345');
     }
 
+    public function test_it_returns_a_localized_error_for_invalid_webhook_verification_requests(): void
+    {
+        $this->getJson('/api/webhooks/meta/whatsapp?hub.mode=subscribe&hub.verify_token=bad-token&hub.challenge=12345', [
+            'Accept-Language' => 'en',
+        ])
+            ->assertForbidden()
+            ->assertJsonPath('code', 'webhook_verification_request_invalid')
+            ->assertJsonPath('message', 'The webhook verification request is invalid.');
+    }
+
+    public function test_it_returns_a_localized_error_for_invalid_webhook_payloads(): void
+    {
+        $this->postJson('/api/webhooks/meta/whatsapp', [
+            'object' => 'whatsapp_business_account',
+            'entry' => [
+                [
+                    'changes' => [
+                        [
+                            'field' => 'messages',
+                            'value' => null,
+                        ],
+                    ],
+                ],
+            ],
+        ], [
+            'Accept-Language' => 'es-CO',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'invalid_whatsapp_webhook_payload')
+            ->assertJsonPath('message', 'Al payload del webhook le falta el valor del cambio de mensajes.');
+    }
+
     public function test_it_persists_an_inbound_message_deduplicates_replays_and_dispatches_the_processing_job(): void
     {
         Queue::fake();

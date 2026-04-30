@@ -70,7 +70,7 @@ class AgentContextLoader
             ->first();
 
         if (! $agentConfig) {
-            throw new MissingAgentConfigurationException('No active agent configuration was found for the conversation tenant or WhatsApp line.');
+            throw new MissingAgentConfigurationException(__('api.agent.missing_configuration'));
         }
 
         return $agentConfig;

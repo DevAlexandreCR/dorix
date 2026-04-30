@@ -300,7 +300,7 @@ class AgentRuntimeIntegrationTest extends TestCase
             'conversation_id' => $conversation->id,
             'requested_by_type' => 'runtime',
             'status' => 'requested',
-            'reason' => 'OpenAI runtime request failed with status 500.',
+            'reason' => 'The OpenAI runtime request failed with status 500.',
         ]);
         $this->assertDatabaseHas('agent_events', [
             'tenant_id' => $tenant->id,

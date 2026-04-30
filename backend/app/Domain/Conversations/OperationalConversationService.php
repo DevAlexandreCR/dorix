@@ -189,7 +189,10 @@ class OperationalConversationService
         $body = trim($body);
 
         if ($body === '') {
-            throw new ConversationOperationException('The manual reply body is required.');
+            throw new ConversationOperationException(
+                'manual_reply_required',
+                'api.conversations.manual_reply_required',
+            );
         }
 
         $conversation = DB::transaction(function () use ($conversation, $actor): Conversation {
@@ -197,15 +200,17 @@ class OperationalConversationService
 
             if ($conversation->status !== ConversationStatus::HumanHandoff) {
                 throw new ConversationOperationException(
-                    'Conversation must be in HUMAN_HANDOFF before sending a manual reply.',
-                    409,
+                    'manual_reply_requires_handoff',
+                    'api.conversations.manual_reply_requires_handoff',
+                    status: 409,
                 );
             }
 
             if ($conversation->assigned_to_user_id !== null && $conversation->assigned_to_user_id !== $actor->getKey()) {
                 throw new ConversationOperationException(
-                    'Conversation is currently assigned to another operator.',
-                    409,
+                    'manual_reply_assigned_elsewhere',
+                    'api.conversations.manual_reply_assigned_elsewhere',
+                    status: 409,
                 );
             }
 
@@ -265,7 +270,10 @@ class OperationalConversationService
         ConversationStatus $targetStatus,
     ): Conversation {
         if (! in_array($targetStatus, [ConversationStatus::BotActive, ConversationStatus::WaitingCustomer], true)) {
-            throw new ConversationOperationException('The target status must be BOT_ACTIVE or WAITING_CUSTOMER.');
+            throw new ConversationOperationException(
+                'resume_target_invalid',
+                'api.conversations.resume_target_invalid',
+            );
         }
 
         return DB::transaction(function () use ($conversation, $actor, $targetStatus): Conversation {
@@ -273,8 +281,9 @@ class OperationalConversationService
 
             if ($conversation->status !== ConversationStatus::HumanHandoff) {
                 throw new ConversationOperationException(
-                    'Conversation must be in HUMAN_HANDOFF before bot resume.',
-                    409,
+                    'resume_requires_handoff',
+                    'api.conversations.resume_requires_handoff',
+                    status: 409,
                 );
             }
 

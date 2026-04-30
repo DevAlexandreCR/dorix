@@ -118,7 +118,9 @@ class SearchKnowledgeTool implements ToolInterface
     protected function requireString(mixed $value, string $field): string
     {
         if (! is_string($value) || trim($value) === '') {
-            throw new InvalidToolArgumentsException(sprintf('The tool argument "%s" must be a non-empty string.', $field));
+            throw new InvalidToolArgumentsException(__('api.tools.field_non_empty_string', [
+                'field' => $field,
+            ]));
         }
 
         return trim($value);

@@ -27,7 +27,7 @@ class SandboxOutboundMessageSender implements OutboundMessageSender
     public function send(OutboundMessageData $outboundMessage): ConversationMessage
     {
         if ($outboundMessage->messageType !== 'text') {
-            throw new WhatsAppSendFailedException('Only outbound text messages are supported in the sandbox.');
+            throw new WhatsAppSendFailedException(__('api.whatsapp.outbound_text_only_sandbox'));
         }
 
         $existingMessage = ConversationMessage::query()
@@ -48,7 +48,7 @@ class SandboxOutboundMessageSender implements OutboundMessageSender
             || (int) $conversation->whatsapp_line_id !== $line->getKey()
             || $conversation->source !== ConversationSource::AgentSandbox
         ) {
-            throw new WhatsAppSendFailedException('Sandbox outbound message context is inconsistent.');
+            throw new WhatsAppSendFailedException(__('api.whatsapp.sandbox_outbound_context_invalid'));
         }
 
         if (
@@ -65,7 +65,7 @@ class SandboxOutboundMessageSender implements OutboundMessageSender
             ]);
 
             throw new WhatsAppSendFailedException(
-                'Automated sandbox outbound messages are blocked while the conversation is in HUMAN_HANDOFF.',
+                __('api.whatsapp.outbound_blocked_handoff'),
             );
         }
 

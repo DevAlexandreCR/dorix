@@ -3,8 +3,9 @@
 namespace App\Logging;
 
 use App\Support\Observability\ObservabilityPayloadSanitizer;
-use Monolog\Logger;
+use Illuminate\Log\Logger as IlluminateLogger;
 use Monolog\LogRecord;
+use Monolog\Logger as MonologLogger;
 
 class SanitizeContextTap
 {
@@ -13,9 +14,13 @@ class SanitizeContextTap
     ) {
     }
 
-    public function __invoke(Logger $logger): void
+    public function __invoke(IlluminateLogger|MonologLogger $logger): void
     {
-        $logger->pushProcessor(function (LogRecord $record): LogRecord {
+        $monolog = $logger instanceof IlluminateLogger
+            ? $logger->getLogger()
+            : $logger;
+
+        $monolog->pushProcessor(function (LogRecord $record): LogRecord {
             return $record->with(
                 message: $this->sanitizedMessage($record->message),
                 context: $this->sanitizeRecordSection($record->context),

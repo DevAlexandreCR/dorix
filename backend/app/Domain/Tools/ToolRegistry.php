@@ -40,7 +40,9 @@ class ToolRegistry
     public function get(string $name): ToolInterface
     {
         if (! $this->has($name)) {
-            throw new ToolNotFoundException(sprintf('The tool "%s" is not registered.', $name));
+            throw new ToolNotFoundException(__('api.tools.not_registered', [
+                'tool_name' => $name,
+            ]));
         }
 
         return $this->tools[$name];

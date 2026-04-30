@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Domain\WhatsApp\Contracts\WhatsAppWebhookHandler;
 use App\Domain\WhatsApp\Exceptions\InvalidWhatsAppWebhookPayloadException;
 use App\Domain\WhatsApp\Exceptions\WhatsAppLineNotFoundException;
+use App\Support\Http\ApiException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -26,15 +27,19 @@ class WhatsAppWebhookController
         $challenge = $query['hub.challenge'] ?? $query['hub_challenge'] ?? null;
 
         if ($mode !== 'subscribe' || ! is_string($token) || $token !== config('services.whatsapp.meta.webhook_verify_token')) {
-            return response()->json([
-                'message' => 'Invalid webhook verification request.',
-            ], Response::HTTP_FORBIDDEN);
+            throw new ApiException(
+                'webhook_verification_request_invalid',
+                'api.webhook.verification_request_invalid',
+                status: Response::HTTP_FORBIDDEN,
+            );
         }
 
         if (! is_scalar($challenge) || (string) $challenge === '') {
-            return response()->json([
-                'message' => 'The webhook challenge is required.',
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            throw new ApiException(
+                'webhook_challenge_required',
+                'api.webhook.challenge_required',
+                status: Response::HTTP_UNPROCESSABLE_ENTITY,
+            );
         }
 
         return response((string) $challenge, Response::HTTP_OK)
@@ -47,20 +52,14 @@ class WhatsAppWebhookController
             $result = $this->handler->handle($request->all());
         } catch (InvalidWhatsAppWebhookPayloadException $exception) {
             Log::warning('Rejected WhatsApp webhook payload.', [
-                'reason' => $exception->getMessage(),
+                'reason' => $exception->translatedMessage(),
             ]);
-
-            return response()->json([
-                'message' => $exception->getMessage(),
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            throw $exception;
         } catch (WhatsAppLineNotFoundException $exception) {
             Log::warning('Rejected WhatsApp webhook because line resolution failed.', [
-                'reason' => $exception->getMessage(),
+                'reason' => $exception->translatedMessage(),
             ]);
-
-            return response()->json([
-                'message' => $exception->getMessage(),
-            ], Response::HTTP_NOT_FOUND);
+            throw $exception;
         }
 
         return response()->json([

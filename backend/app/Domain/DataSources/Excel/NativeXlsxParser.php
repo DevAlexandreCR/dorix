@@ -16,7 +16,7 @@ class NativeXlsxParser
         $archive = new ZipArchive();
 
         if ($archive->open($path) !== true) {
-            throw new DataSourceImportException('The uploaded Excel file could not be opened as a valid .xlsx workbook.');
+            throw new DataSourceImportException(__('api.data_sources.import.xlsx_open_failed'));
         }
 
         try {
@@ -51,7 +51,7 @@ class NativeXlsxParser
             return [];
         }
 
-        $root = $this->parseXml($xml, 'The workbook shared strings could not be parsed.');
+        $root = $this->parseXml($xml, __('api.data_sources.import.invalid_xml'));
         $strings = [];
 
         foreach ($root->si as $item) {
@@ -80,11 +80,11 @@ class NativeXlsxParser
         $relationshipsXml = $archive->getFromName('xl/_rels/workbook.xml.rels');
 
         if (! is_string($workbookXml) || ! is_string($relationshipsXml)) {
-            throw new DataSourceImportException('The workbook is missing required relationship metadata.');
+            throw new DataSourceImportException(__('api.data_sources.import.xlsx_missing_relationships'));
         }
 
-        $workbook = $this->parseXml($workbookXml, 'The workbook manifest could not be parsed.');
-        $relationships = $this->parseXml($relationshipsXml, 'The workbook relationships could not be parsed.');
+        $workbook = $this->parseXml($workbookXml, __('api.data_sources.import.invalid_xml'));
+        $relationships = $this->parseXml($relationshipsXml, __('api.data_sources.import.invalid_xml'));
         $relationships->registerXPathNamespace('r', 'http://schemas.openxmlformats.org/package/2006/relationships');
         $workbook->registerXPathNamespace('main', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
         $workbook->registerXPathNamespace('r', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships');
@@ -113,7 +113,7 @@ class NativeXlsxParser
         }
 
         if ($sheetMap === []) {
-            throw new DataSourceImportException('The workbook does not contain readable worksheets.');
+            throw new DataSourceImportException(__('api.data_sources.import.xlsx_missing_worksheets'));
         }
 
         return $sheetMap;
@@ -125,7 +125,7 @@ class NativeXlsxParser
      */
     protected function parseWorksheet(string $xml, array $sharedStrings): array
     {
-        $worksheet = $this->parseXml($xml, 'A worksheet inside the workbook could not be parsed.');
+        $worksheet = $this->parseXml($xml, __('api.data_sources.import.invalid_xml'));
         $worksheet->registerXPathNamespace('main', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
         $rows = [];
 

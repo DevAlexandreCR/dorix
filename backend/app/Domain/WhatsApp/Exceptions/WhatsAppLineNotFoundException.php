@@ -2,8 +2,8 @@
 
 namespace App\Domain\WhatsApp\Exceptions;
 
-use RuntimeException;
+use App\Support\Http\ApiException;
 
-class WhatsAppLineNotFoundException extends RuntimeException
+class WhatsAppLineNotFoundException extends ApiException
 {
 }

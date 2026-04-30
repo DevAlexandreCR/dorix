@@ -25,17 +25,15 @@ class ToolBoundDataSourceResolver
                 ->first();
 
             if (! $boundSource) {
-                throw new DataSourceUnavailableException(sprintf(
-                    'The tool "%s" is bound to a data source that does not exist for the current tenant.',
-                    $invocation->tool->name(),
-                ));
+                throw new DataSourceUnavailableException(__('api.data_sources.import.line_binding_missing', [
+                    'tool_name' => $invocation->tool->name(),
+                ]));
             }
 
             if ($boundSource->status !== 'ready') {
-                throw new DataSourceUnavailableException(sprintf(
-                    'The bound knowledge source for tool "%s" is not ready yet.',
-                    $invocation->tool->name(),
-                ));
+                throw new DataSourceUnavailableException(__('api.data_sources.import.tenant_binding_missing', [
+                    'tool_name' => $invocation->tool->name(),
+                ]));
             }
 
             $this->recordResolutionEvent($invocation, $boundSource, 'binding');
@@ -52,10 +50,9 @@ class ToolBoundDataSourceResolver
             ->first();
 
         if (! $fallback) {
-            throw new DataSourceUnavailableException(sprintf(
-                'No ready knowledge source is available for tool "%s" in the current tenant.',
-                $invocation->tool->name(),
-            ));
+            throw new DataSourceUnavailableException(__('api.data_sources.import.fallback_missing', [
+                'tool_name' => $invocation->tool->name(),
+            ]));
         }
 
         $this->recordResolutionEvent($invocation, $fallback, 'fallback');

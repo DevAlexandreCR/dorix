@@ -109,7 +109,7 @@ class AdminToolConfigController
         }
 
         throw ValidationException::withMessages([
-            'tool_name' => ['The selected tool is not registered.'],
+            'tool_name' => [__('api.admin.tool_not_registered')],
         ]);
     }
 
@@ -129,7 +129,7 @@ class AdminToolConfigController
 
             if (! $exists) {
                 throw ValidationException::withMessages([
-                    'data_source_id' => ['The selected data source does not belong to the current tenant.'],
+                    'data_source_id' => [__('api.admin.data_source_wrong_tenant')],
                 ]);
             }
         }

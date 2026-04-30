@@ -104,7 +104,9 @@ class CreateLeadTool implements ToolInterface
     protected function requireObject(mixed $value, string $field): array
     {
         if (! is_array($value) || $value === []) {
-            throw new InvalidToolArgumentsException(sprintf('The tool argument "%s" must be a non-empty object.', $field));
+            throw new InvalidToolArgumentsException(__('api.tools.field_non_empty_object', [
+                'field' => $field,
+            ]));
         }
 
         return $value;

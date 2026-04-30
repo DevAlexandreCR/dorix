@@ -41,7 +41,7 @@ class AdminTenantUserController
         if (! $user) {
             if (! is_string($password) || trim($password) === '') {
                 throw ValidationException::withMessages([
-                    'password' => ['Password is required when creating a new tenant user.'],
+                    'password' => [__('api.admin.password_required_new_user')],
                 ]);
             }
 
@@ -59,7 +59,7 @@ class AdminTenantUserController
 
         if ($existingMembership) {
             throw ValidationException::withMessages([
-                'email' => ['The user already belongs to this tenant.'],
+                'email' => [__('api.admin.tenant_user_exists')],
             ]);
         }
 

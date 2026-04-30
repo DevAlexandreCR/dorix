@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { appConfig } from './config/app';
 import {
   createTenant,
@@ -59,6 +60,7 @@ import type {
   SandboxSessionPayload,
   SandboxSessionSummary,
 } from './modules/sandbox/types';
+import type { TranslationValues } from './i18n';
 
 type TenantMembership = SessionMembership & {
   tenant_id: number;
@@ -170,6 +172,7 @@ const credentialForm = ref({
 });
 const uploadDataSourceName = ref('');
 const uploadDataSourceFile = ref<File | null>(null);
+const { t, locale } = useI18n();
 
 const statusOptions = [
   'ALL',
@@ -322,10 +325,10 @@ function agentConfigFormFromRecord(
 
 function formatTimestamp(value: string | null): string {
   if (!value) {
-    return 'Sin fecha';
+    return t('common.noDate');
   }
 
-  return new Intl.DateTimeFormat('es-CO', {
+  return new Intl.DateTimeFormat(locale.value, {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value));
@@ -467,10 +470,48 @@ function lineLabel(
   line: Pick<WhatsAppLineRecord, 'name' | 'display_phone_number'> | null,
 ): string {
   if (!line) {
-    return 'Tenant';
+    return t('common.scopes.tenant');
   }
 
   return `${line.name}${line.display_phone_number ? ` · ${line.display_phone_number}` : ''}`;
+}
+
+function resolveErrorMessage(error: unknown, fallbackKey: string): string {
+  return error instanceof Error && error.message !== ''
+    ? error.message
+    : t(fallbackKey);
+}
+
+function translateRole(role: string | null | undefined): string {
+  return t(`common.roles.${role ?? 'unknown'}`);
+}
+
+function translateConversationStatus(status: string): string {
+  return t(`common.conversationStatuses.${status}`);
+}
+
+function translateHandoffStatus(status: string | null | undefined): string {
+  return status ? t(`common.handoffStatuses.${status}`) : t('operations.noRecord');
+}
+
+function translateLineStatus(isEnabled: boolean): string {
+  return t(`common.lineStatus.${isEnabled ? 'enabled' : 'disabled'}`);
+}
+
+function translateCredentialStatus(hasSecret: boolean): string {
+  return t(`common.credentialStatus.${hasSecret ? 'configured' : 'empty'}`);
+}
+
+function translateDataSourceStatus(status: string): string {
+  return t(`common.dataSourceStatuses.${status}`);
+}
+
+function translateScope(scope: 'tenant' | 'whatsapp_line'): string {
+  return t(`common.scopes.${scope}`);
+}
+
+function translateMessage(key: string, values: TranslationValues = {}): string {
+  return t(key, values);
 }
 
 function eventPreview(payload: Record<string, unknown>): string {
@@ -505,8 +546,7 @@ async function refreshSession(): Promise<void> {
       selectedTenantId.value = payload.memberships[0]?.tenant_id ?? null;
     }
   } catch (error) {
-    authError.value =
-      error instanceof Error ? error.message : 'No fue posible cargar la sesión.';
+    authError.value = resolveErrorMessage(error, 'auth.loadFailed');
   } finally {
     authLoading.value = false;
   }
@@ -521,8 +561,7 @@ async function submitLogin(): Promise<void> {
     loginPassword.value = '';
     selectedTenantId.value = session.value.memberships[0]?.tenant_id ?? null;
   } catch (error) {
-    authError.value =
-      error instanceof Error ? error.message : 'No fue posible iniciar sesión.';
+    authError.value = resolveErrorMessage(error, 'auth.loginFailed');
   } finally {
     authLoading.value = false;
   }
@@ -542,8 +581,7 @@ async function submitLogout(): Promise<void> {
     adminTenants.value = [];
     manualReplyBody.value = '';
   } catch (error) {
-    authError.value =
-      error instanceof Error ? error.message : 'No fue posible cerrar sesión.';
+    authError.value = resolveErrorMessage(error, 'auth.logoutFailed');
   } finally {
     authLoading.value = false;
   }
@@ -581,10 +619,7 @@ async function loadInbox(): Promise<void> {
       selectedConversationId.value = payload.data[0]?.id ?? null;
     }
   } catch (error) {
-    inboxError.value =
-      error instanceof Error
-        ? error.message
-        : 'No fue posible cargar el inbox.';
+    inboxError.value = resolveErrorMessage(error, 'operations.loadInboxFailed');
   } finally {
     inboxLoading.value = false;
   }
@@ -605,8 +640,7 @@ async function loadConversation(conversationId: number | null): Promise<void> {
     thread.value = payload.data;
     selectedAssigneeId.value = initialAssigneeFromThread(payload.data);
   } catch (error) {
-    threadError.value =
-      error instanceof Error ? error.message : 'No fue posible cargar el thread.';
+    threadError.value = resolveErrorMessage(error, 'operations.loadThreadFailed');
   } finally {
     threadLoading.value = false;
   }
@@ -625,10 +659,7 @@ async function withConversationAction(action: () => Promise<void>): Promise<void
     await action();
     await reloadOperationsWorkspace();
   } catch (error) {
-    actionError.value =
-      error instanceof Error
-        ? error.message
-        : 'La operación no se pudo completar.';
+    actionError.value = resolveErrorMessage(error, 'operations.loadActionFailed');
   } finally {
     actionLoading.value = false;
   }
@@ -714,10 +745,7 @@ async function loadAdminWorkspace(): Promise<void> {
       adminTenants.value = [];
     }
   } catch (error) {
-    adminError.value =
-      error instanceof Error
-        ? error.message
-        : 'No fue posible cargar la configuración administrativa.';
+    adminError.value = resolveErrorMessage(error, 'admin.loadFailed');
   } finally {
     adminLoading.value = false;
   }
@@ -757,8 +785,7 @@ async function loadSandboxSessions(): Promise<void> {
       sandboxLineId.value = sandboxAvailableLines.value[0]?.id ?? null;
     }
   } catch (error) {
-    sandboxError.value =
-      error instanceof Error ? error.message : 'No fue posible cargar las sesiones sandbox.';
+    sandboxError.value = resolveErrorMessage(error, 'sandbox.loadSessionsFailed');
   } finally {
     sandboxLoading.value = false;
   }
@@ -777,8 +804,7 @@ async function loadSandboxConversation(conversationId: number | null): Promise<v
     const payload = await fetchSandboxSession(selectedTenantId.value, conversationId);
     sandboxThread.value = payload.data;
   } catch (error) {
-    sandboxThreadError.value =
-      error instanceof Error ? error.message : 'No fue posible cargar la sesión sandbox.';
+    sandboxThreadError.value = resolveErrorMessage(error, 'sandbox.loadSessionFailed');
   } finally {
     sandboxThreadLoading.value = false;
   }
@@ -803,8 +829,7 @@ async function createSandboxChat(): Promise<void> {
     sandboxThread.value = response.data;
     await loadSandboxSessions();
   } catch (error) {
-    sandboxActionError.value =
-      error instanceof Error ? error.message : 'No fue posible crear la sesión sandbox.';
+    sandboxActionError.value = resolveErrorMessage(error, 'sandbox.createFailed');
   } finally {
     sandboxActionLoading.value = false;
   }
@@ -829,8 +854,7 @@ async function submitSandboxMessage(): Promise<void> {
     sandboxThread.value = response.data;
     await loadSandboxSessions();
   } catch (error) {
-    sandboxActionError.value =
-      error instanceof Error ? error.message : 'No fue posible ejecutar el turno sandbox.';
+    sandboxActionError.value = resolveErrorMessage(error, 'sandbox.turnFailed');
   } finally {
     sandboxActionLoading.value = false;
   }
@@ -853,8 +877,7 @@ async function closeSandboxChat(): Promise<void> {
     sandboxThread.value = response.data;
     await loadSandboxSessions();
   } catch (error) {
-    sandboxActionError.value =
-      error instanceof Error ? error.message : 'No fue posible cerrar la sesión sandbox.';
+    sandboxActionError.value = resolveErrorMessage(error, 'sandbox.closeFailed');
   } finally {
     sandboxActionLoading.value = false;
   }
@@ -872,10 +895,7 @@ async function withAdminAction(
     await action();
     adminSuccess.value = successMessage;
   } catch (error) {
-    adminError.value =
-      error instanceof Error
-        ? error.message
-        : 'La operación administrativa no se pudo completar.';
+    adminError.value = resolveErrorMessage(error, 'admin.actionFailed');
   } finally {
     adminSaving.value = false;
   }
@@ -886,7 +906,7 @@ async function saveTenantSettings(): Promise<void> {
     return;
   }
 
-  await withAdminAction('Tenant actualizado.', async () => {
+  await withAdminAction(t('admin.success.tenantUpdated'), async () => {
     await updateTenant(selectedTenantId.value!, {
       name: tenantForm.value.name.trim(),
       slug: tenantForm.value.slug.trim(),
@@ -899,7 +919,7 @@ async function saveTenantSettings(): Promise<void> {
 }
 
 async function createNewTenant(): Promise<void> {
-  await withAdminAction('Tenant creado.', async () => {
+  await withAdminAction(t('admin.success.tenantCreated'), async () => {
     const response = await createTenant({
       name: createTenantForm.value.name.trim(),
       slug: createTenantForm.value.slug.trim(),
@@ -924,7 +944,7 @@ async function addTenantUser(): Promise<void> {
     return;
   }
 
-  await withAdminAction('Usuario agregado al tenant.', async () => {
+  await withAdminAction(t('admin.success.tenantUserAdded'), async () => {
     await createTenantUser(selectedTenantId.value!, {
       name: newTenantUserForm.value.name.trim(),
       email: newTenantUserForm.value.email.trim(),
@@ -948,7 +968,7 @@ async function saveTenantUserRole(tenantUserId: number): Promise<void> {
     return;
   }
 
-  await withAdminAction('Rol actualizado.', async () => {
+  await withAdminAction(t('admin.success.roleUpdated'), async () => {
     await updateTenantUser(selectedTenantId.value!, tenantUserId, {
       role: tenantUserRoles.value[tenantUserId] ?? 'viewer',
     });
@@ -962,7 +982,7 @@ async function removeTenantUser(tenantUserId: number): Promise<void> {
     return;
   }
 
-  await withAdminAction('Usuario removido del tenant.', async () => {
+  await withAdminAction(t('admin.success.tenantUserRemoved'), async () => {
     await deleteTenantUser(selectedTenantId.value!, tenantUserId);
     await loadAdminWorkspace();
   });
@@ -973,7 +993,7 @@ async function createLine(): Promise<void> {
     return;
   }
 
-  await withAdminAction('Línea creada.', async () => {
+  await withAdminAction(t('admin.success.lineCreated'), async () => {
     await createWhatsAppLine(selectedTenantId.value!, {
       name: newLineForm.value.name.trim(),
       phone_number_id: newLineForm.value.phoneNumberId.trim(),
@@ -999,7 +1019,7 @@ async function saveLine(lineId: number): Promise<void> {
     return;
   }
 
-  await withAdminAction('Línea actualizada.', async () => {
+  await withAdminAction(t('admin.success.lineUpdated'), async () => {
     await updateWhatsAppLine(selectedTenantId.value!, lineId, {
       name: draft.name.trim(),
       phone_number_id: draft.phoneNumberId.trim(),
@@ -1018,7 +1038,7 @@ async function removeLine(lineId: number): Promise<void> {
     return;
   }
 
-  await withAdminAction('Línea eliminada.', async () => {
+  await withAdminAction(t('admin.success.lineDeleted'), async () => {
     await deleteWhatsAppLine(selectedTenantId.value!, lineId);
     await loadAdminWorkspace();
   });
@@ -1029,7 +1049,7 @@ async function saveTenantAgentSettings(): Promise<void> {
     return;
   }
 
-  await withAdminAction('Configuración tenant actualizada.', async () => {
+  await withAdminAction(t('admin.success.tenantConfigUpdated'), async () => {
     await updateTenantAgentConfig(selectedTenantId.value!, {
       name: tenantAgentConfigForm.value.name.trim(),
       model: tenantAgentConfigForm.value.model.trim() || undefined,
@@ -1054,7 +1074,7 @@ async function saveLineAgentSettings(lineId: number): Promise<void> {
     return;
   }
 
-  await withAdminAction('Override de línea actualizado.', async () => {
+  await withAdminAction(t('admin.success.lineOverrideUpdated'), async () => {
     await updateLineAgentConfig(selectedTenantId.value!, lineId, {
       name: draft.name.trim(),
       model: draft.model.trim() || undefined,
@@ -1079,7 +1099,7 @@ async function saveTenantToolBinding(toolName: string): Promise<void> {
     return;
   }
 
-  await withAdminAction(`Binding ${toolName} actualizado.`, async () => {
+  await withAdminAction(t('admin.success.tenantBindingUpdated', { toolName }), async () => {
     await updateTenantToolConfig(selectedTenantId.value!, toolName, {
       enabled: draft.enabled,
       timeout_seconds: draft.timeoutSeconds ? Number(draft.timeoutSeconds) : null,
@@ -1101,7 +1121,7 @@ async function saveLineToolBinding(lineId: number, toolName: string): Promise<vo
     return;
   }
 
-  await withAdminAction(`Binding ${toolName} por línea actualizado.`, async () => {
+  await withAdminAction(t('admin.success.lineBindingUpdated', { toolName }), async () => {
     await updateLineToolConfig(selectedTenantId.value!, lineId, toolName, {
       enabled: draft.enabled,
       timeout_seconds: draft.timeoutSeconds ? Number(draft.timeoutSeconds) : null,
@@ -1117,7 +1137,7 @@ async function saveCredential(): Promise<void> {
     return;
   }
 
-  await withAdminAction('Credencial almacenada.', async () => {
+  await withAdminAction(t('admin.success.credentialSaved'), async () => {
     await upsertCredential(selectedTenantId.value!, {
       scope_type: credentialForm.value.scopeType as 'tenant' | 'whatsapp_line',
       whatsapp_line_id:
@@ -1144,7 +1164,7 @@ async function uploadDataSource(): Promise<void> {
     return;
   }
 
-  await withAdminAction('Fuente de conocimiento cargada.', async () => {
+  await withAdminAction(t('admin.success.dataSourceUploaded'), async () => {
     await uploadKnowledgeSource(selectedTenantId.value!, {
       name: uploadDataSourceName.value.trim(),
       file: uploadDataSourceFile.value!,
@@ -1161,7 +1181,7 @@ async function retryImport(source: DataSourceRecord): Promise<void> {
     return;
   }
 
-  await withAdminAction('Importación reintentada.', async () => {
+  await withAdminAction(t('admin.success.importRetried'), async () => {
     await retryDataSourceImport(
       selectedTenantId.value!,
       source.id,
@@ -1235,41 +1255,40 @@ onMounted(async () => {
   <main class="ops-app">
     <section class="hero-band">
       <div>
-        <p class="eyebrow">Control Plane + Operations</p>
+        <p class="eyebrow">{{ t('common.appEyebrow') }}</p>
         <h1>{{ appConfig.appName }}</h1>
         <p class="lede">
-          Consola unificada para operar conversaciones, tenants, líneas,
-          prompts, fuentes de conocimiento y bindings del runtime.
+          {{ t('common.appLede') }}
         </p>
       </div>
 
       <div class="hero-meta">
         <a :href="appConfig.backendHealthUrl" target="_blank" rel="noreferrer">
-          API health
+          {{ t('common.apiHealth') }}
         </a>
       </div>
     </section>
 
     <section v-if="authLoading && !session" class="surface centered-state">
-      <p>Cargando sesión operativa…</p>
+      <p>{{ t('auth.loadingSession') }}</p>
     </section>
 
     <section v-else-if="!session?.authenticated" class="login-layout">
       <article class="surface login-card">
-        <p class="eyebrow">Operator Access</p>
-        <h2>Iniciar sesión</h2>
+        <p class="eyebrow">{{ t('auth.accessEyebrow') }}</p>
+        <h2>{{ t('auth.title') }}</h2>
         <p class="muted-copy">
-          Usa la sesión mínima con Sanctum para entrar al panel.
+          {{ t('auth.subtitle') }}
         </p>
 
         <form class="form-stack" @submit.prevent="submitLogin">
           <label>
-            <span>Email</span>
+            <span>{{ t('auth.email') }}</span>
             <input v-model="loginEmail" type="email" autocomplete="email" required />
           </label>
 
           <label>
-            <span>Password</span>
+            <span>{{ t('auth.password') }}</span>
             <input
               v-model="loginPassword"
               type="password"
@@ -1281,7 +1300,7 @@ onMounted(async () => {
           <p v-if="authError" class="error-copy">{{ authError }}</p>
 
           <button class="primary-button" type="submit" :disabled="authLoading">
-            {{ authLoading ? 'Entrando…' : 'Entrar al panel' }}
+            {{ authLoading ? t('auth.submitting') : t('auth.submit') }}
           </button>
         </form>
       </article>
@@ -1290,21 +1309,21 @@ onMounted(async () => {
     <section v-else class="workspace-shell">
       <header class="surface topbar">
         <div class="identity-block">
-          <p class="eyebrow">Authenticated Session</p>
+          <p class="eyebrow">{{ t('auth.authenticatedSession') }}</p>
           <h2>{{ currentUser?.name }}</h2>
           <p class="muted-copy">{{ currentUser?.email }}</p>
         </div>
 
         <div class="topbar-controls">
           <label class="compact-field">
-            <span>Tenant</span>
+            <span>{{ t('common.scopes.tenant') }}</span>
             <select v-model.number="selectedTenantId">
               <option
                 v-for="membership in memberships"
                 :key="membership.tenant_id"
                 :value="membership.tenant_id ?? undefined"
               >
-                {{ membership.tenant_name }} · {{ membership.role }}
+                {{ membership.tenant_name }} · {{ translateRole(membership.role) }}
               </option>
             </select>
           </label>
@@ -1316,7 +1335,7 @@ onMounted(async () => {
               :class="{ 'segment-button-active': workspaceSection === 'operations' }"
               @click="workspaceSection = 'operations'"
             >
-              Operaciones
+              {{ t('operations.tab') }}
             </button>
             <button
               v-if="selectedMembership && canAccessSandbox"
@@ -1325,7 +1344,7 @@ onMounted(async () => {
               :class="{ 'segment-button-active': workspaceSection === 'sandbox' }"
               @click="workspaceSection = 'sandbox'"
             >
-              Sandbox
+              {{ t('sandbox.tab') }}
             </button>
             <button
               type="button"
@@ -1333,12 +1352,12 @@ onMounted(async () => {
               :class="{ 'segment-button-active': workspaceSection === 'admin' }"
               @click="workspaceSection = 'admin'"
             >
-              Admin
+              {{ t('admin.tab') }}
             </button>
           </div>
 
           <button class="ghost-button" type="button" :disabled="authLoading" @click="submitLogout">
-            {{ authLoading ? 'Saliendo…' : 'Cerrar sesión' }}
+            {{ authLoading ? t('auth.loggingOut') : t('auth.logout') }}
           </button>
         </div>
       </header>
@@ -1348,31 +1367,31 @@ onMounted(async () => {
           <aside class="surface inbox-panel">
             <div class="panel-topline">
               <div>
-                <p class="eyebrow">Inbox</p>
+                <p class="eyebrow">{{ t('operations.eyebrow') }}</p>
                 <h3>{{ selectedMembership.tenant_name }}</h3>
               </div>
               <span class="status-pill">
-                {{ conversations.length }} threads
+                {{ t('operations.threadsCount', { count: conversations.length }) }}
               </span>
             </div>
 
             <div class="filters-stack">
               <label>
-                <span>Buscar</span>
+                <span>{{ t('operations.search') }}</span>
                 <input
                   v-model="search"
                   type="search"
-                  placeholder="Nombre o teléfono"
+                  :placeholder="t('operations.searchPlaceholder')"
                   @change="loadInbox"
                 />
               </label>
 
               <div class="inline-filters">
                 <label>
-                  <span>Estado</span>
+                  <span>{{ t('operations.status') }}</span>
                   <select v-model="statusFilter" @change="loadInbox">
                     <option v-for="option in statusOptions" :key="option" :value="option">
-                      {{ option }}
+                      {{ translateConversationStatus(option) }}
                     </option>
                   </select>
                 </label>
@@ -1383,15 +1402,15 @@ onMounted(async () => {
                     type="checkbox"
                     @change="loadInbox"
                   />
-                  <span>Solo mías</span>
+                  <span>{{ t('operations.assignedToMe') }}</span>
                 </label>
               </div>
             </div>
 
             <p v-if="inboxError" class="error-copy">{{ inboxError }}</p>
-            <p v-else-if="inboxLoading" class="muted-copy">Actualizando inbox…</p>
+            <p v-else-if="inboxLoading" class="muted-copy">{{ t('operations.loadingInbox') }}</p>
             <p v-else-if="!canViewConversations" class="muted-copy">
-              Este rol no puede ver conversaciones en este tenant.
+              {{ t('operations.noAccess') }}
             </p>
 
             <ul v-else class="thread-list">
@@ -1405,18 +1424,18 @@ onMounted(async () => {
                   <div class="thread-card-header">
                     <strong>{{ conversation.contact_name || conversation.contact_phone }}</strong>
                     <span class="status-chip" :data-status="conversation.status">
-                      {{ conversation.status }}
+                      {{ translateConversationStatus(conversation.status) }}
                     </span>
                   </div>
                   <p class="thread-preview">
-                    {{ conversation.last_message_preview || 'Sin mensajes visibles' }}
+                    {{ conversation.last_message_preview || t('operations.noMessagesVisible') }}
                   </p>
                   <div class="thread-card-meta">
                     <span>
                       {{
                         conversation.assigned_to_user
-                          ? `Owner: ${conversation.assigned_to_user.name}`
-                          : 'Sin owner'
+                          ? translateMessage('operations.ownerLabel', { name: conversation.assigned_to_user.name })
+                          : t('operations.noOwner')
                       }}
                     </span>
                     <span>{{ formatTimestamp(conversation.last_message_at) }}</span>
@@ -1430,7 +1449,7 @@ onMounted(async () => {
             <template v-if="selectedConversation && thread">
               <div class="panel-topline">
                 <div>
-                  <p class="eyebrow">Thread</p>
+                  <p class="eyebrow">{{ t('operations.threadEyebrow') }}</p>
                   <h3>{{ selectedConversation.contact_name || selectedConversation.contact_phone }}</h3>
                   <p class="muted-copy">
                     {{ selectedConversation.contact_phone }}
@@ -1441,38 +1460,38 @@ onMounted(async () => {
                 </div>
                 <div class="thread-top-actions">
                   <span class="status-chip status-chip-large" :data-status="selectedConversation.status">
-                    {{ selectedConversation.status }}
+                    {{ translateConversationStatus(selectedConversation.status) }}
                   </span>
                 </div>
               </div>
 
               <div class="detail-grid">
                 <article class="detail-card">
-                  <p class="detail-label">Owner actual</p>
+                  <p class="detail-label">{{ t('operations.currentOwner') }}</p>
                   <strong>
                     {{
                       selectedConversation.assigned_to_user?.name ??
-                      'Sin asignación'
+                      t('operations.noAssignment')
                     }}
                   </strong>
                   <p class="muted-copy">
-                    Último mensaje: {{ formatTimestamp(selectedConversation.last_message_at) }}
+                    {{ t('operations.lastMessage', { value: formatTimestamp(selectedConversation.last_message_at) }) }}
                   </p>
                 </article>
 
                 <article class="detail-card">
-                  <p class="detail-label">Último handoff</p>
-                  <strong>{{ selectedConversation.latest_handoff?.status ?? 'Sin registro' }}</strong>
+                  <p class="detail-label">{{ t('operations.latestHandoff') }}</p>
+                  <strong>{{ translateHandoffStatus(selectedConversation.latest_handoff?.status) }}</strong>
                   <p class="muted-copy">
-                    {{ selectedConversation.latest_handoff?.reason || 'Sin motivo registrado.' }}
+                    {{ selectedConversation.latest_handoff?.reason || t('operations.noReason') }}
                   </p>
                 </article>
 
                 <article class="detail-card">
-                  <p class="detail-label">Estado runtime</p>
-                  <strong>{{ selectedConversation.state?.last_agent_action ?? 'Sin snapshot' }}</strong>
+                  <p class="detail-label">{{ t('operations.runtimeState') }}</p>
+                  <strong>{{ selectedConversation.state?.last_agent_action ?? t('operations.noSnapshot') }}</strong>
                   <p class="muted-copy">
-                    {{ selectedConversation.state?.current_intent ?? 'Sin intent actual.' }}
+                    {{ selectedConversation.state?.current_intent ?? t('operations.noIntent') }}
                   </p>
                 </article>
               </div>
@@ -1480,11 +1499,11 @@ onMounted(async () => {
               <div class="operator-tools">
                 <div class="operator-toolset">
                   <label class="wide-field">
-                    <span>Motivo handoff</span>
+                    <span>{{ t('operations.handoffReason') }}</span>
                     <input
                       v-model="handoffReason"
                       type="text"
-                      placeholder="Contexto breve para el takeover"
+                      :placeholder="t('operations.handoffPlaceholder')"
                       :disabled="!canManageHandoffs || actionLoading"
                     />
                   </label>
@@ -1495,13 +1514,13 @@ onMounted(async () => {
                     :disabled="!canManageHandoffs || actionLoading"
                     @click="takeConversation"
                   >
-                    {{ actionLoading ? 'Procesando…' : 'Tomar conversación' }}
+                    {{ actionLoading ? t('operations.processing') : t('operations.takeConversation') }}
                   </button>
                 </div>
 
                 <div class="operator-toolset">
                   <label class="wide-field">
-                    <span>Asignar operador</span>
+                    <span>{{ t('operations.assignOperator') }}</span>
                     <select
                       v-model.number="selectedAssigneeId"
                       :disabled="!canManageHandoffs || actionLoading"
@@ -1511,7 +1530,7 @@ onMounted(async () => {
                         :key="operator.user_id"
                         :value="operator.user_id"
                       >
-                        {{ operator.name }} · {{ operator.role }}
+                        {{ operator.name }} · {{ translateRole(operator.role) }}
                       </option>
                     </select>
                   </label>
@@ -1522,14 +1541,14 @@ onMounted(async () => {
                     :disabled="!canManageHandoffs || !selectedAssigneeId || actionLoading"
                     @click="reassignConversation"
                   >
-                    Reasignar
+                    {{ t('operations.reassign') }}
                   </button>
                 </div>
               </div>
 
               <p v-if="actionError" class="error-copy">{{ actionError }}</p>
               <p v-if="threadError" class="error-copy">{{ threadError }}</p>
-              <p v-else-if="threadLoading" class="muted-copy">Cargando thread…</p>
+              <p v-else-if="threadLoading" class="muted-copy">{{ t('operations.loadingThread') }}</p>
 
               <div class="messages-panel">
                 <article
@@ -1540,13 +1559,13 @@ onMounted(async () => {
                 >
                   <header>
                     <strong>
-                      {{ message.direction === 'outbound' ? 'Outbound' : 'Inbound' }}
+                      {{ message.direction === 'outbound' ? t('operations.outbound') : t('operations.inbound') }}
                     </strong>
-                    <span>{{ message.source || 'unknown' }}</span>
+                    <span>{{ message.source || t('common.unknown') }}</span>
                   </header>
-                  <p>{{ message.body || '[mensaje sin body]' }}</p>
+                  <p>{{ message.body || t('common.messageWithoutBody') }}</p>
                   <footer>
-                    <span>{{ message.status || 'n/a' }}</span>
+                    <span>{{ message.status || t('common.notAvailable') }}</span>
                     <span>{{ formatTimestamp(message.created_at) }}</span>
                   </footer>
                 </article>
@@ -1554,11 +1573,11 @@ onMounted(async () => {
 
               <form class="composer-panel" @submit.prevent="submitManualReply">
                 <label class="wide-field">
-                  <span>Reply manual</span>
+                  <span>{{ t('operations.manualReply') }}</span>
                   <textarea
                     v-model="manualReplyBody"
                     rows="4"
-                    placeholder="Responder manualmente en texto…"
+                    :placeholder="t('operations.manualReplyPlaceholder')"
                     :disabled="!canManuallyReply || actionLoading"
                   />
                 </label>
@@ -1569,7 +1588,7 @@ onMounted(async () => {
                     type="submit"
                     :disabled="!canManuallyReply || manualReplyBody.trim() === '' || actionLoading"
                   >
-                    Enviar reply manual
+                    {{ t('operations.sendManualReply') }}
                   </button>
 
                   <button
@@ -1578,7 +1597,7 @@ onMounted(async () => {
                     :disabled="!canManageHandoffs || actionLoading"
                     @click="resumeBot('BOT_ACTIVE')"
                   >
-                    Reactivar bot
+                    {{ t('operations.resumeBot') }}
                   </button>
 
                   <button
@@ -1587,52 +1606,51 @@ onMounted(async () => {
                     :disabled="!canManageHandoffs || actionLoading"
                     @click="resumeBot('WAITING_CUSTOMER')"
                   >
-                    Reanudar en espera
+                    {{ t('operations.resumeWaiting') }}
                   </button>
                 </div>
 
                 <p class="muted-copy helper-copy">
-                  El reply manual solo se habilita cuando la conversación está en
-                  `HUMAN_HANDOFF` y te pertenece o está libre.
+                  {{ t('operations.helper') }}
                 </p>
               </form>
             </template>
 
             <div v-else class="centered-state">
-              <p>Selecciona una conversación del inbox para abrir el thread.</p>
+              <p>{{ t('operations.noConversationSelected') }}</p>
             </div>
           </section>
         </section>
 
         <section v-else class="surface centered-state">
-          <p>La sesión autenticada no tiene memberships operativas disponibles.</p>
+          <p>{{ t('operations.noMemberships') }}</p>
         </section>
       </section>
 
       <section v-else-if="workspaceSection === 'sandbox'">
         <section v-if="!selectedMembership" class="surface centered-state">
-          <p>Selecciona un tenant para abrir el sandbox.</p>
+          <p>{{ t('sandbox.selectTenant') }}</p>
         </section>
 
         <section v-else-if="!canAccessSandbox" class="surface centered-state">
-          <p>Este rol no puede usar el sandbox del agente en este tenant.</p>
+          <p>{{ t('sandbox.noAccess') }}</p>
         </section>
 
         <section v-else class="workspace-grid">
           <aside class="surface inbox-panel">
             <div class="panel-topline">
               <div>
-                <p class="eyebrow">Agent Sandbox</p>
+                <p class="eyebrow">{{ t('sandbox.eyebrow') }}</p>
                 <h3>{{ selectedMembership.tenant_name }}</h3>
               </div>
               <span class="status-pill">
-                {{ sandboxSessions.length }} sesiones
+                {{ t('sandbox.sessionsCount', { count: sandboxSessions.length }) }}
               </span>
             </div>
 
             <form class="form-stack" @submit.prevent="createSandboxChat">
               <label>
-                <span>Línea</span>
+                <span>{{ t('sandbox.line') }}</span>
                 <select v-model.number="sandboxLineId" :disabled="sandboxActionLoading">
                   <option
                     v-for="line in sandboxAvailableLines"
@@ -1645,11 +1663,11 @@ onMounted(async () => {
               </label>
 
               <label>
-                <span>Etiqueta</span>
+                <span>{{ t('sandbox.label') }}</span>
                 <input
                   v-model="sandboxSessionLabel"
                   type="text"
-                  placeholder="Ej. pricing mayo"
+                  :placeholder="t('sandbox.labelPlaceholder')"
                   :disabled="sandboxActionLoading"
                 />
               </label>
@@ -1659,12 +1677,12 @@ onMounted(async () => {
                 type="submit"
                 :disabled="!sandboxLineId || sandboxActionLoading"
               >
-                {{ sandboxActionLoading ? 'Creando…' : 'Nueva sesión sandbox' }}
+                {{ sandboxActionLoading ? t('sandbox.creating') : t('sandbox.newSession') }}
               </button>
             </form>
 
             <p v-if="sandboxError" class="error-copy">{{ sandboxError }}</p>
-            <p v-else-if="sandboxLoading" class="muted-copy">Cargando sesiones sandbox…</p>
+            <p v-else-if="sandboxLoading" class="muted-copy">{{ t('sandbox.loadingSessions') }}</p>
 
             <ul v-else class="thread-list">
               <li v-for="conversation in sandboxSessions" :key="conversation.id">
@@ -1677,14 +1695,14 @@ onMounted(async () => {
                   <div class="thread-card-header">
                     <strong>{{ conversation.label }}</strong>
                     <span class="status-chip" :data-status="conversation.status">
-                      {{ conversation.status }}
+                      {{ translateConversationStatus(conversation.status) }}
                     </span>
                   </div>
                   <p class="thread-preview">
-                    {{ conversation.last_message_preview || 'Sin mensajes todavía' }}
+                    {{ conversation.last_message_preview || t('sandbox.noMessagesYet') }}
                   </p>
                   <div class="thread-card-meta">
-                    <span>{{ conversation.whatsapp_line?.name ?? 'Sin línea' }}</span>
+                    <span>{{ conversation.whatsapp_line?.name ?? t('sandbox.noLine') }}</span>
                     <span>{{ formatTimestamp(conversation.last_message_at || conversation.created_at) }}</span>
                   </div>
                 </button>
@@ -1696,10 +1714,10 @@ onMounted(async () => {
             <template v-if="selectedSandboxConversation && sandboxThread">
               <div class="panel-topline">
                 <div>
-                  <p class="eyebrow">Sandbox Thread</p>
+                  <p class="eyebrow">{{ t('sandbox.threadEyebrow') }}</p>
                   <h3>{{ selectedSandboxConversation.label }}</h3>
                   <p class="muted-copy">
-                    {{ selectedSandboxConversation.whatsapp_line?.name ?? 'Sin línea' }}
+                    {{ selectedSandboxConversation.whatsapp_line?.name ?? t('sandbox.noLine') }}
                     <template v-if="selectedSandboxConversation.whatsapp_line?.display_phone_number">
                       · {{ selectedSandboxConversation.whatsapp_line.display_phone_number }}
                     </template>
@@ -1707,44 +1725,44 @@ onMounted(async () => {
                 </div>
                 <div class="thread-top-actions">
                   <span class="status-chip status-chip-large" :data-status="selectedSandboxConversation.status">
-                    {{ selectedSandboxConversation.status }}
+                    {{ translateConversationStatus(selectedSandboxConversation.status) }}
                   </span>
                 </div>
               </div>
 
               <div class="detail-grid">
                 <article class="detail-card">
-                  <p class="detail-label">Último outcome</p>
-                  <strong>{{ sandboxLastTurn?.runtime_outcome ?? 'Sin turnos' }}</strong>
+                  <p class="detail-label">{{ t('sandbox.latestOutcome') }}</p>
+                  <strong>{{ sandboxLastTurn?.runtime_outcome ?? t('sandbox.noTurns') }}</strong>
                   <p class="muted-copy">
-                    {{ selectedSandboxConversation.state?.current_intent ?? 'Sin intent actual.' }}
+                    {{ selectedSandboxConversation.state?.current_intent ?? t('operations.noIntent') }}
                   </p>
                 </article>
 
                 <article class="detail-card">
-                  <p class="detail-label">Último handoff</p>
-                  <strong>{{ selectedSandboxConversation.latest_handoff?.status ?? 'Sin registro' }}</strong>
+                  <p class="detail-label">{{ t('sandbox.latestHandoff') }}</p>
+                  <strong>{{ translateHandoffStatus(selectedSandboxConversation.latest_handoff?.status) }}</strong>
                   <p class="muted-copy">
-                    {{ selectedSandboxConversation.latest_handoff?.reason || 'Sin motivo registrado.' }}
+                    {{ selectedSandboxConversation.latest_handoff?.reason || t('operations.noReason') }}
                   </p>
                 </article>
 
                 <article class="detail-card">
-                  <p class="detail-label">Tools último turno</p>
+                  <p class="detail-label">{{ t('sandbox.latestTurnTools') }}</p>
                   <strong>{{ sandboxLastTurn?.tool_executions.length ?? 0 }}</strong>
                   <p class="muted-copy">
-                    {{ sandboxLastTurn?.handoff_requested ? 'Escaló a handoff.' : 'Sin escalación.' }}
+                    {{ sandboxLastTurn?.handoff_requested ? t('sandbox.escalated') : t('sandbox.notEscalated') }}
                   </p>
                 </article>
               </div>
 
               <p v-if="sandboxActionError" class="error-copy">{{ sandboxActionError }}</p>
               <p v-if="sandboxThreadError" class="error-copy">{{ sandboxThreadError }}</p>
-              <p v-else-if="sandboxThreadLoading" class="muted-copy">Cargando sesión sandbox…</p>
+              <p v-else-if="sandboxThreadLoading" class="muted-copy">{{ t('sandbox.loadingSession') }}</p>
 
               <div v-if="sandboxLastTurn" class="detail-grid turn-metadata-grid">
                 <article class="detail-card">
-                  <p class="detail-label">Tool calls</p>
+                  <p class="detail-label">{{ t('sandbox.toolCalls') }}</p>
                   <div class="stack-list">
                     <p
                       v-for="toolExecution in sandboxLastTurn.tool_executions"
@@ -1757,13 +1775,13 @@ onMounted(async () => {
                       </template>
                     </p>
                     <p v-if="sandboxLastTurn.tool_executions.length === 0" class="muted-copy compact-copy">
-                      Sin tool calls en el último turno.
+                      {{ t('sandbox.noToolCalls') }}
                     </p>
                   </div>
                 </article>
 
                 <article class="detail-card">
-                  <p class="detail-label">Eventos turno</p>
+                  <p class="detail-label">{{ t('sandbox.turnEvents') }}</p>
                   <div class="stack-list">
                     <p
                       v-for="event in sandboxLastTurn.events"
@@ -1776,10 +1794,10 @@ onMounted(async () => {
                 </article>
 
                 <article class="detail-card">
-                  <p class="detail-label">Error visible</p>
-                  <strong>{{ sandboxLastTurn.error_message || 'Sin error' }}</strong>
+                  <p class="detail-label">{{ t('sandbox.visibleError') }}</p>
+                  <strong>{{ sandboxLastTurn.error_message || t('sandbox.noError') }}</strong>
                   <p class="muted-copy">
-                    Trigger message: #{{ sandboxLastTurn.triggering_message_id }}
+                    {{ t('sandbox.triggerMessage', { id: sandboxLastTurn.triggering_message_id }) }}
                   </p>
                 </article>
               </div>
@@ -1793,13 +1811,13 @@ onMounted(async () => {
                 >
                   <header>
                     <strong>
-                      {{ message.direction === 'outbound' ? 'Agent' : 'Tester' }}
+                      {{ message.direction === 'outbound' ? t('sandbox.agent') : t('sandbox.tester') }}
                     </strong>
-                    <span>{{ message.source || 'unknown' }}</span>
+                    <span>{{ message.source || t('common.unknown') }}</span>
                   </header>
-                  <p>{{ message.body || '[mensaje sin body]' }}</p>
+                  <p>{{ message.body || t('common.messageWithoutBody') }}</p>
                   <footer>
-                    <span>{{ message.status || 'n/a' }}</span>
+                    <span>{{ message.status || t('common.notAvailable') }}</span>
                     <span>{{ formatTimestamp(message.created_at) }}</span>
                   </footer>
                 </article>
@@ -1807,11 +1825,11 @@ onMounted(async () => {
 
               <form class="composer-panel" @submit.prevent="submitSandboxMessage">
                 <label class="wide-field">
-                  <span>Mensaje de prueba</span>
+                  <span>{{ t('sandbox.testMessage') }}</span>
                   <textarea
                     v-model="sandboxMessageBody"
                     rows="4"
-                    placeholder="Escribe un turno para el runtime real…"
+                    :placeholder="t('sandbox.testMessagePlaceholder')"
                     :disabled="!canSendSandboxMessage || sandboxActionLoading"
                   />
                 </label>
@@ -1822,7 +1840,7 @@ onMounted(async () => {
                     type="submit"
                     :disabled="!canSendSandboxMessage || sandboxMessageBody.trim() === '' || sandboxActionLoading"
                   >
-                    Ejecutar turno
+                    {{ t('sandbox.executeTurn') }}
                   </button>
 
                   <button
@@ -1831,18 +1849,18 @@ onMounted(async () => {
                     :disabled="selectedSandboxConversation.status === 'CLOSED' || sandboxActionLoading"
                     @click="closeSandboxChat"
                   >
-                    Cerrar sesión
+                    {{ t('sandbox.closeSession') }}
                   </button>
                 </div>
 
                 <p class="muted-copy helper-copy">
-                  Usa runtime, tools y retrieval reales. El outbound se persiste localmente y nunca sale por Meta.
+                  {{ t('sandbox.helper') }}
                 </p>
               </form>
             </template>
 
             <div v-else class="centered-state">
-              <p>Crea o selecciona una sesión sandbox para probar el agente.</p>
+              <p>{{ t('sandbox.emptyState') }}</p>
             </div>
           </section>
         </section>
@@ -1850,41 +1868,41 @@ onMounted(async () => {
 
       <section v-else class="admin-shell">
         <section v-if="!selectedMembership" class="surface centered-state">
-          <p>Selecciona un tenant para cargar la configuración administrativa.</p>
+          <p>{{ t('admin.selectTenant') }}</p>
         </section>
 
         <section v-else-if="!canAccessAdmin" class="surface centered-state">
-          <p>Este rol no tiene acceso al panel admin de este tenant.</p>
+          <p>{{ t('admin.noAccess') }}</p>
         </section>
 
         <section v-else-if="adminLoading && !adminOverview" class="surface centered-state">
-          <p>Cargando configuración administrativa…</p>
+          <p>{{ t('admin.loading') }}</p>
         </section>
 
         <template v-else-if="adminOverview">
           <section class="admin-summary-grid">
             <article class="surface summary-card">
-              <p class="detail-label">Tenant</p>
+              <p class="detail-label">{{ t('admin.summary.tenant') }}</p>
               <strong>{{ adminOverview.tenant.name }}</strong>
               <span>{{ adminOverview.tenant.status }}</span>
             </article>
 
             <article class="surface summary-card">
-              <p class="detail-label">Líneas</p>
+              <p class="detail-label">{{ t('admin.summary.lines') }}</p>
               <strong>{{ adminOverview.whatsapp_lines.length }}</strong>
-              <span>{{ adminOverview.whatsapp_lines.filter((line) => line.is_enabled).length }} habilitadas</span>
+              <span>{{ t('admin.summary.enabledLines', { count: adminOverview.whatsapp_lines.filter((line) => line.is_enabled).length }) }}</span>
             </article>
 
             <article class="surface summary-card">
-              <p class="detail-label">Fuentes conocimiento</p>
+              <p class="detail-label">{{ t('admin.summary.knowledgeSources') }}</p>
               <strong>{{ adminOverview.data_sources.length }}</strong>
-              <span>{{ adminOverview.data_sources.filter((source) => source.status === 'ready').length }} listas</span>
+              <span>{{ t('admin.summary.readySources', { count: adminOverview.data_sources.filter((source) => source.status === 'ready').length }) }}</span>
             </article>
 
             <article class="surface summary-card">
-              <p class="detail-label">Credenciales</p>
+              <p class="detail-label">{{ t('admin.summary.credentials') }}</p>
               <strong>{{ adminOverview.credential_metadata.length }}</strong>
-              <span>{{ adminOverview.credential_metadata.filter((item) => item.has_secret).length }} configuradas</span>
+              <span>{{ t('admin.summary.configuredCredentials', { count: adminOverview.credential_metadata.filter((item) => item.has_secret).length }) }}</span>
             </article>
           </section>
 
@@ -1895,8 +1913,8 @@ onMounted(async () => {
             <article class="surface admin-panel">
               <div class="panel-topline">
                 <div>
-                  <p class="eyebrow">Tenant</p>
-                  <h3>Configuración base</h3>
+                  <p class="eyebrow">{{ t('admin.tenant.eyebrow') }}</p>
+                  <h3>{{ t('admin.tenant.title') }}</h3>
                 </div>
                 <span class="status-pill">{{ adminOverview.tenant.slug }}</span>
               </div>
@@ -1904,52 +1922,52 @@ onMounted(async () => {
               <form class="form-stack" @submit.prevent="saveTenantSettings">
                 <div class="field-grid">
                   <label>
-                    <span>Nombre</span>
+                    <span>{{ t('admin.tenant.name') }}</span>
                     <input v-model="tenantForm.name" type="text" :disabled="!canManageTenant || adminSaving" />
                   </label>
 
                   <label>
-                    <span>Slug</span>
+                    <span>{{ t('admin.tenant.slug') }}</span>
                     <input v-model="tenantForm.slug" type="text" :disabled="!canManageTenant || adminSaving" />
                   </label>
 
                   <label>
-                    <span>Status</span>
+                    <span>{{ t('admin.tenant.status') }}</span>
                     <input v-model="tenantForm.status" type="text" :disabled="!canManageTenant || adminSaving" />
                   </label>
                 </div>
 
                 <button class="primary-button" type="submit" :disabled="!canManageTenant || adminSaving">
-                  Guardar tenant
+                  {{ t('admin.tenant.save') }}
                 </button>
               </form>
 
               <div v-if="canManagePlatform" class="subsection">
                 <div class="subsection-header">
-                  <strong>Crear tenant</strong>
-                  <span class="muted-copy">{{ adminTenants.length }} visibles</span>
+                  <strong>{{ t('admin.tenant.createTitle') }}</strong>
+                  <span class="muted-copy">{{ t('admin.tenant.visible', { count: adminTenants.length }) }}</span>
                 </div>
 
                 <form class="form-stack" @submit.prevent="createNewTenant">
                   <div class="field-grid">
                     <label>
-                      <span>Nombre</span>
+                      <span>{{ t('admin.tenant.name') }}</span>
                       <input v-model="createTenantForm.name" type="text" :disabled="adminSaving" />
                     </label>
 
                     <label>
-                      <span>Slug</span>
+                      <span>{{ t('admin.tenant.slug') }}</span>
                       <input v-model="createTenantForm.slug" type="text" :disabled="adminSaving" />
                     </label>
 
                     <label>
-                      <span>Status</span>
+                      <span>{{ t('admin.tenant.status') }}</span>
                       <input v-model="createTenantForm.status" type="text" :disabled="adminSaving" />
                     </label>
                   </div>
 
                   <button class="ghost-button" type="submit" :disabled="adminSaving">
-                    Crear tenant
+                    {{ t('admin.tenant.create') }}
                   </button>
                 </form>
               </div>
@@ -1958,10 +1976,10 @@ onMounted(async () => {
             <article class="surface admin-panel">
               <div class="panel-topline">
                 <div>
-                  <p class="eyebrow">Tenant Users</p>
-                  <h3>Roles y acceso</h3>
+                  <p class="eyebrow">{{ t('admin.tenantUsers.eyebrow') }}</p>
+                  <h3>{{ t('admin.tenantUsers.title') }}</h3>
                 </div>
-                <span class="status-pill">{{ adminOverview.tenant_users.length }} usuarios</span>
+                <span class="status-pill">{{ t('admin.tenantUsers.count', { count: adminOverview.tenant_users.length }) }}</span>
               </div>
 
               <div class="table-stack">
@@ -1972,16 +1990,16 @@ onMounted(async () => {
                 >
                   <div class="mini-card-header">
                     <div>
-                      <strong>{{ membership.user?.name || 'Usuario sin perfil' }}</strong>
+                      <strong>{{ membership.user?.name || t('admin.tenantUsers.noProfile') }}</strong>
                       <p class="muted-copy">{{ membership.user?.email }}</p>
                     </div>
 
-                    <span class="status-chip">{{ membership.role }}</span>
+                    <span class="status-chip">{{ translateRole(membership.role) }}</span>
                   </div>
 
                   <div class="inline-form">
                     <label class="wide-field">
-                      <span>Rol</span>
+                      <span>{{ t('admin.tenantUsers.role') }}</span>
                       <select
                         v-model="tenantUserRoles[membership.id]"
                         :disabled="!canManageTenantUsers || adminSaving"
@@ -1991,7 +2009,7 @@ onMounted(async () => {
                           :key="role"
                           :value="role"
                         >
-                          {{ role }}
+                          {{ translateRole(role) }}
                         </option>
                       </select>
                     </label>
@@ -2002,7 +2020,7 @@ onMounted(async () => {
                       :disabled="!canManageTenantUsers || adminSaving"
                       @click="saveTenantUserRole(membership.id)"
                     >
-                      Guardar rol
+                      {{ t('admin.tenantUsers.saveRole') }}
                     </button>
 
                     <button
@@ -2011,7 +2029,7 @@ onMounted(async () => {
                       :disabled="!canManageTenantUsers || adminSaving"
                       @click="removeTenantUser(membership.id)"
                     >
-                      Remover
+                      {{ t('admin.tenantUsers.remove') }}
                     </button>
                   </div>
                 </article>
@@ -2019,37 +2037,37 @@ onMounted(async () => {
 
               <form class="form-stack subsection" @submit.prevent="addTenantUser">
                 <div class="subsection-header">
-                  <strong>Agregar usuario</strong>
+                  <strong>{{ t('admin.tenantUsers.addTitle') }}</strong>
                 </div>
 
                 <div class="field-grid">
                   <label>
-                    <span>Nombre</span>
+                    <span>{{ t('admin.tenant.name') }}</span>
                     <input v-model="newTenantUserForm.name" type="text" :disabled="!canManageTenantUsers || adminSaving" />
                   </label>
 
                   <label>
-                    <span>Email</span>
+                    <span>{{ t('auth.email') }}</span>
                     <input v-model="newTenantUserForm.email" type="email" :disabled="!canManageTenantUsers || adminSaving" />
                   </label>
 
                   <label>
-                    <span>Password</span>
+                    <span>{{ t('auth.password') }}</span>
                     <input v-model="newTenantUserForm.password" type="password" :disabled="!canManageTenantUsers || adminSaving" />
                   </label>
 
                   <label>
-                    <span>Rol</span>
+                    <span>{{ t('admin.tenantUsers.role') }}</span>
                     <select v-model="newTenantUserForm.role" :disabled="!canManageTenantUsers || adminSaving">
                       <option v-for="role in adminOverview.available_roles" :key="role" :value="role">
-                        {{ role }}
+                        {{ translateRole(role) }}
                       </option>
                     </select>
                   </label>
                 </div>
 
                 <button class="primary-button" type="submit" :disabled="!canManageTenantUsers || adminSaving">
-                  Agregar al tenant
+                  {{ t('admin.tenantUsers.addToTenant') }}
                 </button>
               </form>
             </article>
@@ -2057,10 +2075,10 @@ onMounted(async () => {
             <article class="surface admin-panel">
               <div class="panel-topline">
                 <div>
-                  <p class="eyebrow">WhatsApp Lines</p>
-                  <h3>Líneas y enablement</h3>
+                  <p class="eyebrow">{{ t('admin.lines.eyebrow') }}</p>
+                  <h3>{{ t('admin.lines.title') }}</h3>
                 </div>
-                <span class="status-pill">{{ adminOverview.whatsapp_lines.length }} líneas</span>
+                <span class="status-pill">{{ t('admin.lines.count', { count: adminOverview.whatsapp_lines.length }) }}</span>
               </div>
 
               <div class="table-stack">
@@ -2075,39 +2093,39 @@ onMounted(async () => {
                       <p class="muted-copy">{{ line.display_phone_number || line.phone_number_id }}</p>
                     </div>
                     <span class="status-chip" :data-status="line.is_enabled ? 'BOT_ACTIVE' : 'CLOSED'">
-                      {{ line.is_enabled ? 'enabled' : 'disabled' }}
+                      {{ translateLineStatus(line.is_enabled) }}
                     </span>
                   </div>
 
                   <div v-if="lineDrafts[line.id]" class="field-grid">
                     <label>
-                      <span>Nombre</span>
+                      <span>{{ t('admin.tenant.name') }}</span>
                       <input v-model="lineDrafts[line.id].name" type="text" :disabled="!canManageTenant || adminSaving" />
                     </label>
 
                     <label>
-                      <span>Phone Number ID</span>
+                      <span>{{ t('admin.lines.phoneNumberId') }}</span>
                       <input v-model="lineDrafts[line.id].phoneNumberId" type="text" :disabled="!canManageTenant || adminSaving" />
                     </label>
 
                     <label>
-                      <span>Display Phone</span>
+                      <span>{{ t('admin.lines.displayPhone') }}</span>
                       <input v-model="lineDrafts[line.id].displayPhoneNumber" type="text" :disabled="!canManageTenant || adminSaving" />
                     </label>
 
                     <label>
-                      <span>WABA ID</span>
+                      <span>{{ t('admin.lines.wabaId') }}</span>
                       <input v-model="lineDrafts[line.id].wabaId" type="text" :disabled="!canManageTenant || adminSaving" />
                     </label>
 
                     <label>
-                      <span>Status</span>
+                      <span>{{ t('admin.tenant.status') }}</span>
                       <input v-model="lineDrafts[line.id].status" type="text" :disabled="!canManageTenant || adminSaving" />
                     </label>
 
                     <label class="checkbox-field checkbox-field-surface">
                       <input v-model="lineDrafts[line.id].isEnabled" type="checkbox" :disabled="!canManageTenant || adminSaving" />
-                      <span>Automation line enabled</span>
+                      <span>{{ t('admin.lines.automationEnabled') }}</span>
                     </label>
                   </div>
 
@@ -2115,19 +2133,19 @@ onMounted(async () => {
                     <button
                       class="ghost-button"
                       type="button"
-                      :disabled="!canManageTenant || adminSaving"
-                      @click="saveLine(line.id)"
-                    >
-                      Guardar línea
-                    </button>
+                    :disabled="!canManageTenant || adminSaving"
+                    @click="saveLine(line.id)"
+                  >
+                    {{ t('admin.lines.save') }}
+                  </button>
 
                     <button
                       class="danger-button"
                       type="button"
-                      :disabled="!canManageTenant || adminSaving"
-                      @click="removeLine(line.id)"
-                    >
-                      Eliminar
+                    :disabled="!canManageTenant || adminSaving"
+                    @click="removeLine(line.id)"
+                  >
+                      {{ t('admin.lines.delete') }}
                     </button>
                   </div>
                 </article>
@@ -2135,43 +2153,43 @@ onMounted(async () => {
 
               <form class="form-stack subsection" @submit.prevent="createLine">
                 <div class="subsection-header">
-                  <strong>Crear línea</strong>
+                  <strong>{{ t('admin.lines.createTitle') }}</strong>
                 </div>
 
                 <div class="field-grid">
                   <label>
-                    <span>Nombre</span>
+                    <span>{{ t('admin.tenant.name') }}</span>
                     <input v-model="newLineForm.name" type="text" :disabled="!canManageTenant || adminSaving" />
                   </label>
 
                   <label>
-                    <span>Phone Number ID</span>
+                    <span>{{ t('admin.lines.phoneNumberId') }}</span>
                     <input v-model="newLineForm.phoneNumberId" type="text" :disabled="!canManageTenant || adminSaving" />
                   </label>
 
                   <label>
-                    <span>Display Phone</span>
+                    <span>{{ t('admin.lines.displayPhone') }}</span>
                     <input v-model="newLineForm.displayPhoneNumber" type="text" :disabled="!canManageTenant || adminSaving" />
                   </label>
 
                   <label>
-                    <span>WABA ID</span>
+                    <span>{{ t('admin.lines.wabaId') }}</span>
                     <input v-model="newLineForm.wabaId" type="text" :disabled="!canManageTenant || adminSaving" />
                   </label>
 
                   <label>
-                    <span>Status</span>
+                    <span>{{ t('admin.tenant.status') }}</span>
                     <input v-model="newLineForm.status" type="text" :disabled="!canManageTenant || adminSaving" />
                   </label>
 
                   <label class="checkbox-field checkbox-field-surface">
                     <input v-model="newLineForm.isEnabled" type="checkbox" :disabled="!canManageTenant || adminSaving" />
-                    <span>Habilitada</span>
+                    <span>{{ t('admin.lines.enabled') }}</span>
                   </label>
                 </div>
 
                 <button class="primary-button" type="submit" :disabled="!canManageTenant || adminSaving">
-                  Crear línea
+                  {{ t('admin.lines.create') }}
                 </button>
               </form>
             </article>
@@ -2179,46 +2197,46 @@ onMounted(async () => {
             <article class="surface admin-panel">
               <div class="panel-topline">
                 <div>
-                  <p class="eyebrow">Prompts + Automation</p>
-                  <h3>Agent config</h3>
+                  <p class="eyebrow">{{ t('admin.agentConfig.eyebrow') }}</p>
+                  <h3>{{ t('admin.agentConfig.title') }}</h3>
                 </div>
-                <span class="status-pill">{{ adminOverview.agent_configs.length }} scopes</span>
+                <span class="status-pill">{{ t('admin.agentConfig.scopes', { count: adminOverview.agent_configs.length }) }}</span>
               </div>
 
               <form class="form-stack" @submit.prevent="saveTenantAgentSettings">
                 <div class="subsection-header">
-                  <strong>Tenant config</strong>
+                  <strong>{{ t('admin.agentConfig.tenantConfig') }}</strong>
                 </div>
 
                 <div class="field-grid">
                   <label>
-                    <span>Nombre</span>
+                    <span>{{ t('admin.tenant.name') }}</span>
                     <input v-model="tenantAgentConfigForm.name" type="text" :disabled="!canManageAgentConfig || adminSaving" />
                   </label>
 
                   <label>
-                    <span>Modelo</span>
+                    <span>{{ t('admin.agentConfig.model') }}</span>
                     <input v-model="tenantAgentConfigForm.model" type="text" :disabled="!canManageAgentConfig || adminSaving" />
                   </label>
 
                   <label>
-                    <span>Prompt version</span>
+                    <span>{{ t('admin.agentConfig.promptVersion') }}</span>
                     <input v-model="tenantAgentConfigForm.promptVersion" type="text" :disabled="!canManageAgentConfig || adminSaving" />
                   </label>
 
                   <label class="checkbox-field checkbox-field-surface">
                     <input v-model="tenantAgentConfigForm.isActive" type="checkbox" :disabled="!canManageAgentConfig || adminSaving" />
-                    <span>Config activa</span>
+                    <span>{{ t('admin.agentConfig.active') }}</span>
                   </label>
 
                   <label class="checkbox-field checkbox-field-surface">
                     <input v-model="tenantAgentConfigForm.automationEnabled" type="checkbox" :disabled="!canManageAgentConfig || adminSaving" />
-                    <span>Automation enabled</span>
+                    <span>{{ t('admin.agentConfig.automationEnabled') }}</span>
                   </label>
                 </div>
 
                 <label>
-                  <span>System prompt</span>
+                  <span>{{ t('admin.agentConfig.systemPrompt') }}</span>
                   <textarea
                     v-model="tenantAgentConfigForm.systemPrompt"
                     rows="5"
@@ -2227,7 +2245,7 @@ onMounted(async () => {
                 </label>
 
                 <button class="primary-button" type="submit" :disabled="!canManageAgentConfig || adminSaving">
-                  Guardar tenant config
+                  {{ t('admin.agentConfig.saveTenant') }}
                 </button>
               </form>
 
@@ -2243,33 +2261,33 @@ onMounted(async () => {
 
                   <div v-if="lineAgentConfigDrafts[line.id]" class="field-grid">
                     <label>
-                      <span>Nombre</span>
+                      <span>{{ t('admin.tenant.name') }}</span>
                       <input v-model="lineAgentConfigDrafts[line.id].name" type="text" :disabled="!canManageAgentConfig || adminSaving" />
                     </label>
 
                     <label>
-                      <span>Modelo</span>
+                      <span>{{ t('admin.agentConfig.model') }}</span>
                       <input v-model="lineAgentConfigDrafts[line.id].model" type="text" :disabled="!canManageAgentConfig || adminSaving" />
                     </label>
 
                     <label>
-                      <span>Prompt version</span>
+                      <span>{{ t('admin.agentConfig.promptVersion') }}</span>
                       <input v-model="lineAgentConfigDrafts[line.id].promptVersion" type="text" :disabled="!canManageAgentConfig || adminSaving" />
                     </label>
 
                     <label class="checkbox-field checkbox-field-surface">
                       <input v-model="lineAgentConfigDrafts[line.id].isActive" type="checkbox" :disabled="!canManageAgentConfig || adminSaving" />
-                      <span>Activa</span>
+                      <span>{{ t('admin.agentConfig.active') }}</span>
                     </label>
 
                     <label class="checkbox-field checkbox-field-surface">
                       <input v-model="lineAgentConfigDrafts[line.id].automationEnabled" type="checkbox" :disabled="!canManageAgentConfig || adminSaving" />
-                      <span>Automation enabled</span>
+                      <span>{{ t('admin.agentConfig.automationEnabled') }}</span>
                     </label>
                   </div>
 
                   <label v-if="lineAgentConfigDrafts[line.id]">
-                    <span>System prompt</span>
+                    <span>{{ t('admin.agentConfig.systemPrompt') }}</span>
                     <textarea
                       v-model="lineAgentConfigDrafts[line.id].systemPrompt"
                       rows="4"
@@ -2283,7 +2301,7 @@ onMounted(async () => {
                     :disabled="!canManageAgentConfig || adminSaving"
                     @click="saveLineAgentSettings(line.id)"
                   >
-                    Guardar override
+                    {{ t('admin.agentConfig.saveOverride') }}
                   </button>
                 </article>
               </div>
@@ -2292,21 +2310,21 @@ onMounted(async () => {
             <article class="surface admin-panel">
               <div class="panel-topline">
                 <div>
-                  <p class="eyebrow">Knowledge Sources</p>
-                  <h3>Uploads e indexación</h3>
+                  <p class="eyebrow">{{ t('admin.dataSources.eyebrow') }}</p>
+                  <h3>{{ t('admin.dataSources.title') }}</h3>
                 </div>
-                <span class="status-pill">{{ adminOverview.data_sources.length }} fuentes</span>
+                <span class="status-pill">{{ t('admin.dataSources.count', { count: adminOverview.data_sources.length }) }}</span>
               </div>
 
               <form class="form-stack" @submit.prevent="uploadDataSource">
                 <div class="field-grid">
                   <label>
-                    <span>Nombre visible</span>
+                    <span>{{ t('admin.dataSources.visibleName') }}</span>
                     <input v-model="uploadDataSourceName" type="text" :disabled="!canManageAgentConfig || adminSaving" />
                   </label>
 
                   <label>
-                    <span>Archivo .pdf, .txt, .csv o .xlsx</span>
+                    <span>{{ t('admin.dataSources.acceptedFiles') }}</span>
                     <input type="file" accept=".pdf,.txt,.csv,.xlsx" :disabled="!canManageAgentConfig || adminSaving" @change="onDataSourceFileChange" />
                   </label>
                 </div>
@@ -2316,7 +2334,7 @@ onMounted(async () => {
                   type="submit"
                   :disabled="!canManageAgentConfig || adminSaving || !uploadDataSourceFile"
                 >
-                  Cargar fuente
+                  {{ t('admin.dataSources.upload') }}
                 </button>
               </form>
 
@@ -2330,18 +2348,18 @@ onMounted(async () => {
                     <div>
                       <strong>{{ source.name }}</strong>
                       <p class="muted-copy">
-                        {{ source.latest_upload?.original_name || 'Sin archivo' }}
+                        {{ source.latest_upload?.original_name || t('common.noFile') }}
                         · {{ formatBytes(source.latest_upload?.size_bytes) }}
                       </p>
                     </div>
 
-                    <span class="status-chip">{{ source.status }}</span>
+                    <span class="status-chip">{{ translateDataSourceStatus(source.status) }}</span>
                   </div>
 
                   <div class="metrics-row">
-                    <span>{{ source.chunk_count }} chunks</span>
-                    <span>Intentos: {{ source.latest_import?.attempts_count ?? 0 }}</span>
-                    <span>Última sync: {{ formatTimestamp(source.last_synced_at) }}</span>
+                    <span>{{ t('admin.dataSources.chunkCount', { count: source.chunk_count }) }}</span>
+                    <span>{{ t('admin.dataSources.attempts', { count: source.latest_import?.attempts_count ?? 0 }) }}</span>
+                    <span>{{ t('admin.dataSources.lastSync', { value: formatTimestamp(source.last_synced_at) }) }}</span>
                   </div>
 
                   <p v-if="source.latest_import?.error_message" class="error-copy">
@@ -2355,7 +2373,7 @@ onMounted(async () => {
                       :disabled="!canManageAgentConfig || adminSaving || source.latest_import?.status !== 'failed'"
                       @click="retryImport(source)"
                     >
-                      Retry import
+                      {{ t('admin.dataSources.retry') }}
                     </button>
                   </div>
                 </article>
@@ -2365,35 +2383,35 @@ onMounted(async () => {
             <article class="surface admin-panel">
               <div class="panel-topline">
                 <div>
-                  <p class="eyebrow">Bindings</p>
-                  <h3>`search_inventory` y `search_knowledge`</h3>
+                  <p class="eyebrow">{{ t('admin.bindings.eyebrow') }}</p>
+                  <h3>{{ t('admin.bindings.title') }}</h3>
                 </div>
-                <span class="status-pill">{{ bindingTools.length }} tools</span>
+                <span class="status-pill">{{ t('admin.bindings.toolsCount', { count: bindingTools.length }) }}</span>
               </div>
 
               <div class="table-stack">
                 <article v-for="toolName in bindingTools" :key="toolName" class="mini-card">
                   <div class="subsection-header">
-                    <strong>Tenant · {{ toolName }}</strong>
+                    <strong>{{ t('admin.bindings.tenantScope', { toolName }) }}</strong>
                   </div>
 
                   <div v-if="tenantToolDrafts[toolName]" class="field-grid">
                     <label class="checkbox-field checkbox-field-surface">
                       <input v-model="tenantToolDrafts[toolName].enabled" type="checkbox" :disabled="!canManageAgentConfig || adminSaving" />
-                      <span>Habilitada</span>
+                      <span>{{ t('admin.bindings.enabled') }}</span>
                     </label>
 
                     <label>
-                      <span>Timeout seconds</span>
+                      <span>{{ t('admin.bindings.timeout') }}</span>
                       <input v-model="tenantToolDrafts[toolName].timeoutSeconds" type="number" min="1" max="120" :disabled="!canManageAgentConfig || adminSaving" />
                     </label>
 
                     <label>
-                      <span>Data source</span>
+                      <span>{{ t('admin.bindings.dataSource') }}</span>
                       <select v-model="tenantToolDrafts[toolName].dataSourceId" :disabled="!canManageAgentConfig || adminSaving">
-                        <option value="">Fallback automático</option>
+                        <option value="">{{ t('admin.bindings.automaticFallback') }}</option>
                         <option v-for="source in readyDataSources" :key="source.id" :value="String(source.id)">
-                          {{ source.name }} · {{ source.status }}
+                          {{ source.name }} · {{ translateDataSourceStatus(source.status) }}
                         </option>
                       </select>
                     </label>
@@ -2405,7 +2423,7 @@ onMounted(async () => {
                     :disabled="!canManageAgentConfig || adminSaving"
                     @click="saveTenantToolBinding(toolName)"
                   >
-                    Guardar binding tenant
+                    {{ t('admin.bindings.saveTenant') }}
                   </button>
                 </article>
               </div>
@@ -2432,20 +2450,20 @@ onMounted(async () => {
                     <div v-if="lineToolDrafts[toolDraftKey(line.id, toolName)]" class="field-grid">
                       <label class="checkbox-field checkbox-field-surface">
                         <input v-model="lineToolDrafts[toolDraftKey(line.id, toolName)].enabled" type="checkbox" :disabled="!canManageAgentConfig || adminSaving" />
-                        <span>Habilitada</span>
+                        <span>{{ t('admin.bindings.enabled') }}</span>
                       </label>
 
                       <label>
-                        <span>Timeout seconds</span>
+                        <span>{{ t('admin.bindings.timeout') }}</span>
                         <input v-model="lineToolDrafts[toolDraftKey(line.id, toolName)].timeoutSeconds" type="number" min="1" max="120" :disabled="!canManageAgentConfig || adminSaving" />
                       </label>
 
                       <label>
-                        <span>Data source</span>
+                        <span>{{ t('admin.bindings.dataSource') }}</span>
                         <select v-model="lineToolDrafts[toolDraftKey(line.id, toolName)].dataSourceId" :disabled="!canManageAgentConfig || adminSaving">
-                          <option value="">Fallback tenant</option>
+                          <option value="">{{ t('admin.bindings.tenantFallback') }}</option>
                           <option v-for="source in readyDataSources" :key="source.id" :value="String(source.id)">
-                            {{ source.name }} · {{ source.status }}
+                            {{ source.name }} · {{ translateDataSourceStatus(source.status) }}
                           </option>
                         </select>
                       </label>
@@ -2457,7 +2475,7 @@ onMounted(async () => {
                       :disabled="!canManageAgentConfig || adminSaving"
                       @click="saveLineToolBinding(line.id, toolName)"
                     >
-                      Guardar override
+                      {{ t('admin.bindings.saveOverride') }}
                     </button>
                   </div>
                 </article>
@@ -2467,10 +2485,10 @@ onMounted(async () => {
             <article class="surface admin-panel">
               <div class="panel-topline">
                 <div>
-                  <p class="eyebrow">Credentials</p>
-                  <h3>Metadata sensible</h3>
+                  <p class="eyebrow">{{ t('admin.credentials.eyebrow') }}</p>
+                  <h3>{{ t('admin.credentials.title') }}</h3>
                 </div>
-                <span class="status-pill">{{ adminOverview.credential_metadata.length }} registros</span>
+                <span class="status-pill">{{ t('admin.credentials.count', { count: adminOverview.credential_metadata.length }) }}</span>
               </div>
 
               <div class="table-stack">
@@ -2483,37 +2501,37 @@ onMounted(async () => {
                     <div>
                       <strong>{{ credential.provider }} / {{ credential.credential_key }}</strong>
                       <p class="muted-copy">
-                        {{ credential.scope_type === 'tenant' ? 'Tenant' : lineLabel(credential.whatsapp_line) }}
+                        {{ credential.scope_type === 'tenant' ? t('common.scopes.tenant') : lineLabel(credential.whatsapp_line) }}
                       </p>
                     </div>
-                    <span class="status-chip">{{ credential.has_secret ? 'configured' : 'empty' }}</span>
+                    <span class="status-chip">{{ translateCredentialStatus(credential.has_secret) }}</span>
                   </div>
 
                   <div class="metrics-row">
-                    <span>Último uso: {{ formatTimestamp(credential.last_used_at) }}</span>
-                    <span>Actualizada: {{ formatTimestamp(credential.updated_at) }}</span>
+                    <span>{{ t('admin.credentials.lastUsed', { value: formatTimestamp(credential.last_used_at) }) }}</span>
+                    <span>{{ t('admin.credentials.updatedAt', { value: formatTimestamp(credential.updated_at) }) }}</span>
                   </div>
                 </article>
               </div>
 
               <form v-if="canManagePlatform" class="form-stack subsection" @submit.prevent="saveCredential">
                 <div class="subsection-header">
-                  <strong>Registrar o reemplazar secreto</strong>
+                  <strong>{{ t('admin.credentials.formTitle') }}</strong>
                 </div>
 
                 <div class="field-grid">
                   <label>
-                    <span>Scope</span>
+                    <span>{{ t('admin.credentials.scope') }}</span>
                     <select v-model="credentialForm.scopeType" :disabled="adminSaving">
-                      <option value="tenant">tenant</option>
-                      <option value="whatsapp_line">whatsapp_line</option>
+                      <option value="tenant">{{ translateScope('tenant') }}</option>
+                      <option value="whatsapp_line">{{ translateScope('whatsapp_line') }}</option>
                     </select>
                   </label>
 
                   <label v-if="credentialForm.scopeType === 'whatsapp_line'">
-                    <span>Línea</span>
+                    <span>{{ t('sandbox.line') }}</span>
                     <select v-model="credentialForm.whatsappLineId" :disabled="adminSaving">
-                      <option value="">Selecciona una línea</option>
+                      <option value="">{{ t('common.selectLine') }}</option>
                       <option v-for="line in adminOverview.whatsapp_lines" :key="line.id" :value="String(line.id)">
                         {{ lineLabel(line) }}
                       </option>
@@ -2521,23 +2539,23 @@ onMounted(async () => {
                   </label>
 
                   <label>
-                    <span>Provider</span>
+                    <span>{{ t('admin.credentials.provider') }}</span>
                     <input v-model="credentialForm.provider" type="text" :disabled="adminSaving" />
                   </label>
 
                   <label>
-                    <span>Credential key</span>
+                    <span>{{ t('admin.credentials.credentialKey') }}</span>
                     <input v-model="credentialForm.credentialKey" type="text" :disabled="adminSaving" />
                   </label>
                 </div>
 
                 <label>
-                  <span>Secret</span>
+                  <span>{{ t('admin.credentials.secret') }}</span>
                   <textarea v-model="credentialForm.secret" rows="3" :disabled="adminSaving" />
                 </label>
 
                 <button class="primary-button" type="submit" :disabled="adminSaving">
-                  Guardar credencial
+                  {{ t('admin.credentials.save') }}
                 </button>
               </form>
             </article>
@@ -2545,15 +2563,15 @@ onMounted(async () => {
             <article class="surface admin-panel admin-panel-wide">
               <div class="panel-topline">
                 <div>
-                  <p class="eyebrow">Logs</p>
-                  <h3>Operación reciente</h3>
+                  <p class="eyebrow">{{ t('admin.logs.eyebrow') }}</p>
+                  <h3>{{ t('admin.logs.title') }}</h3>
                 </div>
-                <span class="status-pill">20 recientes por stream</span>
+                <span class="status-pill">{{ t('admin.logs.recent') }}</span>
               </div>
 
               <div class="logs-grid">
                 <div class="log-column">
-                  <strong>Agent events</strong>
+                  <strong>{{ t('admin.logs.agentEvents') }}</strong>
                   <article
                     v-for="event in adminOverview.logs.agent_events"
                     :key="`agent-${event.id}`"
@@ -2568,7 +2586,7 @@ onMounted(async () => {
                 </div>
 
                 <div class="log-column">
-                  <strong>Audit events</strong>
+                  <strong>{{ t('admin.logs.auditEvents') }}</strong>
                   <article
                     v-for="event in adminOverview.logs.audit_events"
                     :key="`audit-${event.id}`"
@@ -2579,13 +2597,13 @@ onMounted(async () => {
                       <span>{{ formatTimestamp(event.occurred_at) }}</span>
                     </div>
                     <p class="muted-copy">
-                      {{ event.actor_user?.email || 'system' }} · {{ eventPreview(event.payload) }}
+                      {{ event.actor_user?.email || t('common.system') }} · {{ eventPreview(event.payload) }}
                     </p>
                   </article>
                 </div>
 
                 <div class="log-column">
-                  <strong>Tool executions</strong>
+                  <strong>{{ t('admin.logs.toolExecutions') }}</strong>
                   <article
                     v-for="execution in adminOverview.logs.tool_executions"
                     :key="`tool-${execution.id}`"

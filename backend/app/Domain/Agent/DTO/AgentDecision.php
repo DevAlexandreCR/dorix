@@ -31,7 +31,7 @@ final readonly class AgentDecision
         $outcomeValue = $payload['outcome'] ?? null;
 
         if (! is_string($outcomeValue) || ($outcome = AgentDecisionOutcome::tryFrom($outcomeValue)) === null) {
-            throw new InvalidAgentDecisionException('The runtime decision outcome is invalid or missing.');
+            throw new InvalidAgentDecisionException(__('api.agent.decision_invalid_outcome'));
         }
 
         $replyText = self::normalizeString($payload['reply_text'] ?? '');
@@ -46,11 +46,11 @@ final readonly class AgentDecision
             AgentDecisionOutcome::SendMessage,
             AgentDecisionOutcome::RequestMissingInformation,
         ], true) && $replyText === '') {
-            throw new InvalidAgentDecisionException('Reply text is required for message-based runtime outcomes.');
+            throw new InvalidAgentDecisionException(__('api.agent.decision_reply_required'));
         }
 
         if ($outcome === AgentDecisionOutcome::CallTool && $toolName === '') {
-            throw new InvalidAgentDecisionException('Tool name is required when the runtime requests a tool call.');
+            throw new InvalidAgentDecisionException(__('api.agent.decision_tool_required'));
         }
 
         return new self(
@@ -115,7 +115,7 @@ final readonly class AgentDecision
         $decoded = json_decode($value, true);
 
         if (! is_array($decoded)) {
-            throw new InvalidAgentDecisionException('Tool arguments must be a valid JSON object string.');
+            throw new InvalidAgentDecisionException(__('api.agent.decision_arguments_invalid'));
         }
 
         return $decoded;

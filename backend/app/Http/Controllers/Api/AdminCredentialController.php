@@ -39,7 +39,7 @@ class AdminCredentialController
 
             if (! is_numeric($lineId)) {
                 throw ValidationException::withMessages([
-                    'whatsapp_line_id' => ['A tenant-owned WhatsApp line is required for whatsapp_line scoped credentials.'],
+                    'whatsapp_line_id' => [__('api.admin.credential_scope_line_required')],
                 ]);
             }
 

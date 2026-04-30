@@ -2,8 +2,8 @@
 
 namespace App\Domain\WhatsApp\Exceptions;
 
-use RuntimeException;
+use App\Support\Http\ApiException;
 
-class InvalidWhatsAppWebhookPayloadException extends RuntimeException
+class InvalidWhatsAppWebhookPayloadException extends ApiException
 {
 }

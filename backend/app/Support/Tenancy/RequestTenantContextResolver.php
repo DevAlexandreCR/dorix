@@ -32,7 +32,11 @@ class RequestTenantContextResolver implements TenantContextResolver
 
         if (is_string($headerTenantId) && $headerTenantId !== '') {
             if (! ctype_digit($headerTenantId)) {
-                throw new MissingTenantContextException('The X-Tenant-Id header must be a valid integer tenant identifier.');
+                throw new MissingTenantContextException(
+                    'tenant_context_header_invalid',
+                    'api.errors.tenant_context_header_invalid',
+                    status: 400,
+                );
             }
 
             return $this->resolveById((int) $headerTenantId, 'header:id');
@@ -45,7 +49,9 @@ class RequestTenantContextResolver implements TenantContextResolver
         }
 
         throw new MissingTenantContextException(
-            'Tenant context is required. Provide the {tenant} route parameter or the X-Tenant-Id / X-Tenant-Slug headers.'
+            'tenant_context_required',
+            'api.errors.tenant_context_required',
+            status: 400,
         );
     }
 
@@ -54,7 +60,15 @@ class RequestTenantContextResolver implements TenantContextResolver
         $tenant = Tenant::query()->find($tenantId);
 
         if (! $tenant) {
-            throw new TenantNotFoundForContextException("Tenant {$tenantId} could not be resolved from the {$source} context.");
+            throw new TenantNotFoundForContextException(
+                'tenant_not_found',
+                'api.errors.tenant_not_found_id',
+                [
+                    'tenant_id' => $tenantId,
+                    'source' => $source,
+                ],
+                404,
+            );
         }
 
         return new TenantContext($tenant, $source);
@@ -65,7 +79,15 @@ class RequestTenantContextResolver implements TenantContextResolver
         $tenant = Tenant::query()->where('slug', $slug)->first();
 
         if (! $tenant) {
-            throw new TenantNotFoundForContextException("Tenant slug [{$slug}] could not be resolved from the {$source} context.");
+            throw new TenantNotFoundForContextException(
+                'tenant_not_found',
+                'api.errors.tenant_not_found_slug',
+                [
+                    'slug' => $slug,
+                    'source' => $source,
+                ],
+                404,
+            );
         }
 
         return new TenantContext($tenant, $source);

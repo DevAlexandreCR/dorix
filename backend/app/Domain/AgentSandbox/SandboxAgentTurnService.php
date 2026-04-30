@@ -73,15 +73,26 @@ class SandboxAgentTurnService
         $body = trim($body);
 
         if ($body === '') {
-            throw new ConversationOperationException('The sandbox message body is required.');
+            throw new ConversationOperationException(
+                'sandbox_body_required',
+                'api.conversations.sandbox_body_required',
+            );
         }
 
         if ($conversation->source !== ConversationSource::AgentSandbox) {
-            throw new ConversationOperationException('The target conversation is not a sandbox session.', 404);
+            throw new ConversationOperationException(
+                'sandbox_not_found',
+                'api.conversations.sandbox_not_found',
+                status: 404,
+            );
         }
 
         if ($conversation->status === ConversationStatus::Closed) {
-            throw new ConversationOperationException('Closed sandbox sessions do not accept new messages.', 409);
+            throw new ConversationOperationException(
+                'sandbox_closed',
+                'api.conversations.sandbox_closed',
+                status: 409,
+            );
         }
 
         $message = null;
@@ -196,7 +207,11 @@ class SandboxAgentTurnService
         );
 
         if (! $processed || ! $message instanceof ConversationMessage) {
-            throw new ConversationOperationException('The sandbox session is busy processing another turn.', 409);
+            throw new ConversationOperationException(
+                'sandbox_busy_turn',
+                'api.conversations.sandbox_busy_turn',
+                status: 409,
+            );
         }
 
         return $message->fresh();
@@ -205,7 +220,11 @@ class SandboxAgentTurnService
     public function closeSession(Conversation $conversation, User $actor): Conversation
     {
         if ($conversation->source !== ConversationSource::AgentSandbox) {
-            throw new ConversationOperationException('The target conversation is not a sandbox session.', 404);
+            throw new ConversationOperationException(
+                'sandbox_not_found',
+                'api.conversations.sandbox_not_found',
+                status: 404,
+            );
         }
 
         $processed = $this->lockManager->runExclusive(
@@ -241,7 +260,11 @@ class SandboxAgentTurnService
         );
 
         if (! $processed) {
-            throw new ConversationOperationException('The sandbox session is busy processing another action.', 409);
+            throw new ConversationOperationException(
+                'sandbox_busy_action',
+                'api.conversations.sandbox_busy_action',
+                status: 409,
+            );
         }
 
         return $conversation->fresh(['whatsappLine', 'state']);

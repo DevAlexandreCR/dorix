@@ -7,10 +7,10 @@ use App\Http\Requests\Api\LoginRequest;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\Auth\TenantAccess;
+use App\Support\Http\ApiException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\ValidationException;
 
 class AuthSessionController
 {
@@ -40,9 +40,11 @@ class AuthSessionController
         $credentials = $request->validated();
 
         if (! Auth::guard('web')->attempt($credentials, false)) {
-            throw ValidationException::withMessages([
-                'email' => ['The provided credentials are invalid.'],
-            ]);
+            throw new ApiException(
+                'invalid_credentials',
+                'api.auth.invalid_credentials',
+                status: 422,
+            );
         }
 
         $request->session()->regenerate();

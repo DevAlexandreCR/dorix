@@ -38,7 +38,7 @@ class MetaGraphOutboundMessageSender implements OutboundMessageSender
     public function send(OutboundMessageData $outboundMessage): ConversationMessage
     {
         if ($outboundMessage->messageType !== 'text') {
-            throw new WhatsAppSendFailedException('Only outbound text messages are supported in phase 2.');
+            throw new WhatsAppSendFailedException(__('api.whatsapp.outbound_text_only_phase_2'));
         }
 
         $existingMessage = ConversationMessage::query()
@@ -55,7 +55,7 @@ class MetaGraphOutboundMessageSender implements OutboundMessageSender
             ->findOrFail($outboundMessage->conversationId);
 
         if ((int) $line->tenant_id !== $outboundMessage->tenantId || (int) $conversation->whatsapp_line_id !== $line->getKey()) {
-            throw new WhatsAppSendFailedException('Outbound message tenant and line context are inconsistent.');
+            throw new WhatsAppSendFailedException(__('api.whatsapp.outbound_context_invalid'));
         }
 
         return $this->withinTenantContext($line, function () use ($outboundMessage, $line, $conversation): ConversationMessage {
@@ -73,7 +73,7 @@ class MetaGraphOutboundMessageSender implements OutboundMessageSender
                 ]);
 
                 throw new WhatsAppSendFailedException(
-                    'Automated outbound messages are blocked while the conversation is in HUMAN_HANDOFF.',
+                    __('api.whatsapp.outbound_blocked_handoff'),
                 );
             }
 
@@ -146,7 +146,7 @@ class MetaGraphOutboundMessageSender implements OutboundMessageSender
                 $providerMessageId = data_get($responseData, 'messages.0.id');
 
                 if (! is_string($providerMessageId) || $providerMessageId === '') {
-                    throw new WhatsAppSendFailedException('Meta accepted the outbound request without returning a provider message id.');
+                    throw new WhatsAppSendFailedException(__('api.whatsapp.meta_missing_message_id'));
                 }
 
                 $message->forceFill([
@@ -193,7 +193,7 @@ class MetaGraphOutboundMessageSender implements OutboundMessageSender
                     throw $exception;
                 }
 
-                throw new WhatsAppSendFailedException($exception->getMessage(), previous: $exception);
+                throw new WhatsAppSendFailedException(__('api.whatsapp.send_failed'), previous: $exception);
             }
         });
     }
@@ -215,7 +215,7 @@ class MetaGraphOutboundMessageSender implements OutboundMessageSender
             ->first();
 
         if (! $credential) {
-            throw new MissingWhatsAppCredentialException('No WhatsApp access token credential is configured for the target line or tenant scope.');
+            throw new MissingWhatsAppCredentialException(__('api.whatsapp.missing_credential'));
         }
 
         return $credential;

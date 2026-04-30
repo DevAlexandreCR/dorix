@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Domain\AgentSandbox\SandboxAgentTurnService;
-use App\Domain\Conversations\Exceptions\ConversationOperationException;
 use App\Enums\ConversationSource;
 use App\Enums\Permission;
 use App\Http\Requests\Api\StoreAgentSandboxMessageRequest;
@@ -94,14 +93,10 @@ class AgentSandboxController
 
         $conversationModel = $this->findConversation($tenant, $conversation);
 
-        try {
-            $triggeringMessage = $this->service->runTurn(
-                $conversationModel,
-                (string) $request->validated('body'),
-            );
-        } catch (ConversationOperationException $exception) {
-            return $this->operationError($exception);
-        }
+        $triggeringMessage = $this->service->runTurn(
+            $conversationModel,
+            (string) $request->validated('body'),
+        );
 
         $conversationModel = $this->findConversation($tenant, $conversationModel->getKey());
         $newMessages = $this->messagesCreatedByTurn($conversationModel, $triggeringMessage);
@@ -120,14 +115,10 @@ class AgentSandboxController
         $tenant = $this->tenantFromRequest($request);
         $this->authorizeForTenant($request, Permission::ManageAgentConfig, $tenant);
 
-        try {
-            $conversationModel = $this->service->closeSession(
-                $this->findConversation($tenant, $conversation),
-                $request->user(),
-            );
-        } catch (ConversationOperationException $exception) {
-            return $this->operationError($exception);
-        }
+        $conversationModel = $this->service->closeSession(
+            $this->findConversation($tenant, $conversation),
+            $request->user(),
+        );
 
         return response()->json([
             'data' => $this->serializeSessionPayload($conversationModel),
@@ -161,13 +152,6 @@ class AgentSandboxController
         return WhatsAppLine::query()
             ->forTenant($tenant->getKey())
             ->findOrFail($lineId);
-    }
-
-    protected function operationError(ConversationOperationException $exception): JsonResponse
-    {
-        return response()->json([
-            'message' => $exception->getMessage(),
-        ], $exception->status());
     }
 
     /**

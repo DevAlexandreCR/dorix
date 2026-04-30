@@ -32,7 +32,11 @@ class TenantContextManager
     public function require(): TenantContext
     {
         if (! $this->context) {
-            throw new MissingTenantContextException('Tenant context has not been resolved for the current execution.');
+            throw new MissingTenantContextException(
+                'tenant_context_missing_runtime',
+                'api.errors.tenant_context_missing_runtime',
+                status: 400,
+            );
         }
 
         return $this->context;

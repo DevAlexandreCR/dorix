@@ -1,7 +1,36 @@
+import { currentLocale, translate } from '../../i18n';
+
 export interface JsonRequestOptions {
   method?: string;
   body?: FormData | unknown;
   headers?: HeadersInit;
+}
+
+export interface ApiErrorPayload {
+  code?: string;
+  message?: string;
+  errors?: Record<string, string[]>;
+}
+
+export class ApiError extends Error {
+  readonly status: number;
+
+  readonly code: string;
+
+  readonly errors?: Record<string, string[]>;
+
+  constructor(
+    message: string,
+    status: number,
+    code: string,
+    errors?: Record<string, string[]>,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+    this.errors = errors;
+  }
 }
 
 function readCookie(name: string): string | null {
@@ -21,6 +50,7 @@ function buildHeaders(options: JsonRequestOptions): Headers {
   const method = (options.method ?? 'GET').toUpperCase();
 
   headers.set('Accept', 'application/json');
+  headers.set('Accept-Language', currentLocale());
 
   if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
     const csrfToken = readCookie('XSRF-TOKEN');
@@ -37,24 +67,38 @@ function buildHeaders(options: JsonRequestOptions): Headers {
   return headers;
 }
 
-async function parseError(response: Response): Promise<string> {
+async function parseError(response: Response): Promise<ApiError> {
   try {
-    const payload = (await response.json()) as { message?: string; errors?: Record<string, string[]> };
+    const payload = (await response.json()) as ApiErrorPayload;
 
     if (payload.message) {
-      return payload.message;
+      return new ApiError(
+        payload.message,
+        response.status,
+        payload.code ?? 'api_error',
+        payload.errors,
+      );
     }
 
     const firstField = Object.values(payload.errors ?? {})[0];
 
     if (firstField?.[0]) {
-      return firstField[0];
+      return new ApiError(
+        firstField[0],
+        response.status,
+        payload.code ?? 'validation_failed',
+        payload.errors,
+      );
     }
   } catch {
     // Ignore JSON parse failures and fall back to status text.
   }
 
-  return `Request failed with status ${response.status}`;
+  return new ApiError(
+    translate('api.requestFailed', { status: response.status }),
+    response.status,
+    'http_error',
+  );
 }
 
 export async function requestJson<T>(url: string, options: JsonRequestOptions = {}): Promise<T> {
@@ -71,7 +115,7 @@ export async function requestJson<T>(url: string, options: JsonRequestOptions = 
   });
 
   if (!response.ok) {
-    throw new Error(await parseError(response));
+    throw await parseError(response);
   }
 
   if (response.status === 204) {

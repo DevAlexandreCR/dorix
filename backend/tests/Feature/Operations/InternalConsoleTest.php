@@ -68,6 +68,24 @@ class InternalConsoleTest extends TestCase
             ]);
     }
 
+    public function test_invalid_login_returns_a_localized_api_error(): void
+    {
+        User::factory()->create([
+            'email' => 'operator@example.com',
+            'password' => 'secret-pass',
+        ]);
+
+        $this->withCsrf()->postJson('/api/v1/auth/login', [
+            'email' => 'operator@example.com',
+            'password' => 'bad-pass',
+        ], [
+            'Accept-Language' => 'en',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'invalid_credentials')
+            ->assertJsonPath('message', 'The email or password is incorrect.');
+    }
+
     public function test_operator_can_take_a_conversation_reply_manually_and_resume_the_bot(): void
     {
         [$tenant, $line, $conversation] = $this->conversationFixtures();
@@ -176,11 +194,14 @@ class InternalConsoleTest extends TestCase
 
         $this->actingAs($viewer)
             ->withCsrf()
+            ->withHeader('Accept-Language', 'es-CO')
             ->withHeader('X-Tenant-Id', (string) $tenant->id)
             ->postJson("/api/v1/conversations/{$conversation->id}/handoff", [
                 'reason' => 'Intento no autorizado.',
             ])
-            ->assertForbidden();
+            ->assertForbidden()
+            ->assertJsonPath('code', 'forbidden')
+            ->assertJsonPath('message', 'No tienes permiso para hacer esta acción.');
 
         $this->actingAs($viewer)
             ->withCsrf()
@@ -189,6 +210,23 @@ class InternalConsoleTest extends TestCase
                 'body' => 'No debería pasar.',
             ])
             ->assertForbidden();
+    }
+
+    public function test_manual_reply_requires_human_handoff_before_sending(): void
+    {
+        [$tenant, , $conversation] = $this->conversationFixtures(status: ConversationStatus::BotActive);
+        $operator = $this->tenantUser($tenant, TenantRole::Operator);
+
+        $this->actingAs($operator)
+            ->withCsrf()
+            ->withHeader('Accept-Language', 'es-CO')
+            ->withHeader('X-Tenant-Id', (string) $tenant->id)
+            ->postJson("/api/v1/conversations/{$conversation->id}/manual-reply", [
+                'body' => 'Todavía no.',
+            ])
+            ->assertConflict()
+            ->assertJsonPath('code', 'manual_reply_requires_handoff')
+            ->assertJsonPath('message', 'La conversación debe estar en HUMAN_HANDOFF antes de enviar una respuesta manual.');
     }
 
     public function test_automated_runtime_outbound_is_blocked_during_human_handoff_but_manual_console_is_allowed(): void

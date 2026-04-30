@@ -14,6 +14,7 @@ use App\Models\UploadedFile;
 use App\Support\Admin\AdminPanelDataBuilder;
 use App\Support\AgentEvents\AgentEventRecorder;
 use App\Support\Audit\AuditEventRecorder;
+use App\Support\Http\ApiException;
 use App\Support\Tenancy\TenantContextManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -161,9 +162,11 @@ class DataSourceController extends Controller
             ->findOrFail($import->getKey());
 
         if ($import->status !== 'failed') {
-            return response()->json([
-                'message' => 'Only failed imports can be retried.',
-            ], Response::HTTP_CONFLICT);
+            throw new ApiException(
+                'data_source_import_retry_not_allowed',
+                'api.data_sources.retry_only_failed',
+                status: Response::HTTP_CONFLICT,
+            );
         }
 
         $import->forceFill([

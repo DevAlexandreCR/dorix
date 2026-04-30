@@ -56,7 +56,7 @@ class HandoffToHumanTool implements ToolInterface
         $payload = $invocation->arguments['payload'] ?? [];
 
         if (! is_array($payload)) {
-            throw new InvalidToolArgumentsException('The tool argument "payload" must be an object when provided.');
+            throw new InvalidToolArgumentsException(__('api.tools.invalid_payload_object'));
         }
 
         return new ToolResult(
@@ -76,7 +76,9 @@ class HandoffToHumanTool implements ToolInterface
     protected function requireString(mixed $value, string $field): string
     {
         if (! is_string($value) || trim($value) === '') {
-            throw new InvalidToolArgumentsException(sprintf('The tool argument "%s" must be a non-empty string.', $field));
+            throw new InvalidToolArgumentsException(__('api.tools.field_non_empty_string', [
+                'field' => $field,
+            ]));
         }
 
         return trim($value);

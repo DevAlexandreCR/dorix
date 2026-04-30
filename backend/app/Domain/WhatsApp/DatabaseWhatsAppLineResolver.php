@@ -17,7 +17,12 @@ class DatabaseWhatsAppLineResolver implements WhatsAppLineResolver
             ->first();
 
         if (! $line || ! $line->tenant) {
-            throw new WhatsAppLineNotFoundException("WhatsApp line could not be resolved for phone_number_id [{$phoneNumberId}].");
+            throw new WhatsAppLineNotFoundException(
+                'whatsapp_line_not_found',
+                'api.webhook.line_not_found',
+                ['phone_number_id' => $phoneNumberId],
+                404,
+            );
         }
 
         return new ResolvedWhatsAppLine($line, $line->tenant);

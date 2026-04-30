@@ -172,6 +172,42 @@ class ExcelDataSourceTest extends TestCase
         ]);
     }
 
+    public function test_retry_rejects_imports_that_have_not_failed_yet(): void
+    {
+        Storage::fake('local');
+
+        $tenant = Tenant::query()->create([
+            'name' => 'Acme',
+            'slug' => 'acme',
+        ]);
+
+        $user = $this->tenantAdmin($tenant);
+
+        $this->actingAs($user)
+            ->withCsrf()
+            ->withHeader('X-Tenant-Id', (string) $tenant->id)
+            ->post('/api/v1/data-sources/excel', [
+                'name' => 'Catalogo Pendiente',
+                'file' => TestUploadedFile::fake()->createWithContent(
+                    'catalogo.xlsx',
+                    $this->validWorkbookContent(),
+                ),
+            ])
+            ->assertCreated();
+
+        $dataSource = DataSource::query()->firstOrFail();
+        $import = DataSourceImport::query()->firstOrFail();
+
+        $this->actingAs($user)
+            ->withCsrf()
+            ->withHeader('Accept-Language', 'es-CO')
+            ->withHeader('X-Tenant-Id', (string) $tenant->id)
+            ->post(sprintf('/api/v1/data-sources/%d/imports/%d/retry', $dataSource->id, $import->id))
+            ->assertConflict()
+            ->assertJsonPath('code', 'data_source_import_retry_not_allowed')
+            ->assertJsonPath('message', 'Solo puedes reintentar importaciones que hayan fallado.');
+    }
+
     public function test_tenant_can_upload_txt_and_retrieve_knowledge_context(): void
     {
         Storage::fake('local');
@@ -313,6 +349,7 @@ class ExcelDataSourceTest extends TestCase
         $response = $this->actingAs($user)
             ->withCsrf()
             ->withHeader('Accept', 'application/json')
+            ->withHeader('Accept-Language', 'es-CO')
             ->withHeader('X-Tenant-Id', (string) $tenant->id)
             ->post('/api/v1/data-sources', [
                 'name' => 'Documento Word',
@@ -320,7 +357,36 @@ class ExcelDataSourceTest extends TestCase
             ]);
 
         $response->assertUnprocessable()
-            ->assertJsonValidationErrors('file');
+            ->assertJsonPath('code', 'validation_failed')
+            ->assertJsonPath('message', 'Revisa la información enviada.')
+            ->assertJsonPath('errors.file.0', 'archivo debe ser un archivo de tipo: pdf, txt, csv, xlsx.');
+    }
+
+    public function test_upload_validation_errors_are_returned_in_english_when_requested(): void
+    {
+        Storage::fake('local');
+
+        $tenant = Tenant::query()->create([
+            'name' => 'Acme',
+            'slug' => 'acme',
+        ]);
+
+        $user = $this->tenantAdmin($tenant);
+
+        $response = $this->actingAs($user)
+            ->withCsrf()
+            ->withHeader('Accept', 'application/json')
+            ->withHeader('Accept-Language', 'en')
+            ->withHeader('X-Tenant-Id', (string) $tenant->id)
+            ->post('/api/v1/data-sources', [
+                'name' => 'Word Document',
+                'file' => TestUploadedFile::fake()->create('manual.docx', 12),
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonPath('code', 'validation_failed')
+            ->assertJsonPath('message', 'Please review the submitted information.')
+            ->assertJsonPath('errors.file.0', 'The file must be a file of type: pdf, txt, csv, xlsx.');
     }
 
     protected function runImportJob(Tenant $tenant, DataSourceImport $import): void

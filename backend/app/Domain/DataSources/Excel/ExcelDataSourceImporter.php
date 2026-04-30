@@ -40,13 +40,13 @@ class ExcelDataSourceImporter implements DataSourceImporter
         $uploadedFile = $import->uploadedFile;
 
         if (! $dataSource || ! $uploadedFile) {
-            throw new DataSourceImportException('The import job is missing its data source or uploaded file linkage.');
+            throw new DataSourceImportException(__('api.data_sources.import.missing_linkage'));
         }
 
         $filePath = Storage::disk($uploadedFile->disk)->path($uploadedFile->path);
 
         if (! is_file($filePath)) {
-            throw new DataSourceImportException('The uploaded knowledge source file is no longer available in storage.');
+            throw new DataSourceImportException(__('api.data_sources.import.file_missing'));
         }
 
         $sourceType = $this->sourceType($dataSource, $uploadedFile->metadata['extension'] ?? null);
@@ -77,7 +77,7 @@ class ExcelDataSourceImporter implements DataSourceImporter
             $chunks = $indexed['chunks'];
 
             if ($chunks === []) {
-                throw new DataSourceImportException('The uploaded knowledge source did not produce any retrievable content chunks.');
+                throw new DataSourceImportException(__('api.data_sources.import.empty_chunks'));
             }
 
             DB::transaction(function () use ($dataSource, $chunks): void {
@@ -197,7 +197,9 @@ class ExcelDataSourceImporter implements DataSourceImporter
             'csv' => $this->indexCsv($dataSource, $import, $filePath, $originalName),
             'txt' => $this->indexText($dataSource, $import, $filePath, $originalName, 'txt'),
             'pdf' => $this->indexPdf($dataSource, $import, $filePath, $originalName),
-            default => throw new DataSourceImportException(sprintf('Unsupported knowledge source type "%s".', $sourceType)),
+            default => throw new DataSourceImportException(__('api.data_sources.import.unsupported_type', [
+                'source_type' => $sourceType,
+            ])),
         };
     }
 
@@ -234,7 +236,7 @@ class ExcelDataSourceImporter implements DataSourceImporter
         $handle = fopen($filePath, 'rb');
 
         if ($handle === false) {
-            throw new DataSourceImportException('The uploaded CSV file could not be opened.');
+            throw new DataSourceImportException(__('api.data_sources.import.csv_open_failed'));
         }
 
         try {
@@ -275,7 +277,7 @@ class ExcelDataSourceImporter implements DataSourceImporter
         $content = file_get_contents($filePath);
 
         if (! is_string($content)) {
-            throw new DataSourceImportException('The uploaded text file could not be read.');
+            throw new DataSourceImportException(__('api.data_sources.import.text_read_failed'));
         }
 
         $sourceName = pathinfo($originalName, PATHINFO_FILENAME) ?: Str::upper($sourceType);
@@ -301,7 +303,7 @@ class ExcelDataSourceImporter implements DataSourceImporter
         $content = trim($this->pdfParser->parseFile($filePath)->getText());
 
         if ($content === '') {
-            throw new DataSourceImportException('The uploaded PDF did not contain extractable text.');
+            throw new DataSourceImportException(__('api.data_sources.import.pdf_extract_failed'));
         }
 
         $sourceName = pathinfo($originalName, PATHINFO_FILENAME) ?: 'PDF';

@@ -67,10 +67,21 @@ class TenantContextResolverTest extends TestCase
 
     public function test_it_requires_explicit_tenant_context(): void
     {
-        $this->getJson('/api/_test/tenant-context')
+        $this->getJson('/api/_test/tenant-context', [
+            'Accept-Language' => 'es-CO',
+        ])
             ->assertBadRequest()
-            ->assertJson([
-                'message' => 'Tenant context is required. Provide the {tenant} route parameter or the X-Tenant-Id / X-Tenant-Slug headers.',
-            ]);
+            ->assertJsonPath('code', 'tenant_context_required')
+            ->assertJsonPath('message', 'Hace falta el contexto del tenant. Envía el parámetro de ruta {tenant} o los encabezados X-Tenant-Id / X-Tenant-Slug.');
+    }
+
+    public function test_it_translates_tenant_context_errors_to_english_when_requested(): void
+    {
+        $this->getJson('/api/_test/tenant-context', [
+            'Accept-Language' => 'en',
+        ])
+            ->assertBadRequest()
+            ->assertJsonPath('code', 'tenant_context_required')
+            ->assertJsonPath('message', 'Tenant context is required. Send the {tenant} route parameter or the X-Tenant-Id / X-Tenant-Slug headers.');
     }
 }

@@ -66,7 +66,9 @@ class ToolExecutionRunner
 
         try {
             if ($enabledTool === null) {
-                throw new ToolNotEnabledException(sprintf('The tool "%s" is not enabled for the current tenant or WhatsApp line.', $decision->toolName));
+                throw new ToolNotEnabledException(__('api.tools.not_enabled', [
+                    'tool_name' => $decision->toolName,
+                ]));
             }
 
             $tool = $this->registry->get($decision->toolName);
@@ -151,11 +153,10 @@ class ToolExecutionRunner
             : SIG_DFL;
 
         pcntl_signal(SIGALRM, function () use ($invocation, $timeoutSeconds): void {
-            throw new ToolTimeoutException(sprintf(
-                'The tool "%s" exceeded the configured timeout of %d seconds.',
-                $invocation->tool->name(),
-                $timeoutSeconds,
-            ));
+            throw new ToolTimeoutException(__('api.tools.timeout', [
+                'tool_name' => $invocation->tool->name(),
+                'timeout' => $timeoutSeconds,
+            ]));
         });
 
         pcntl_alarm($timeoutSeconds);

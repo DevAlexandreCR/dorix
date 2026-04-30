@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Domain\Conversations\Exceptions\ConversationOperationException;
 use App\Domain\Conversations\OperationalConversationService;
 use App\Enums\ConversationSource;
 use App\Enums\ConversationStatus;
@@ -133,16 +132,12 @@ class OperationalConversationController
             $request->integer('assigned_to_user_id') ?: $actor?->getKey(),
         );
 
-        try {
-            $conversationModel = $this->service->handoff(
-                $conversationModel,
-                $actor,
-                $assignee,
-                $request->validated('reason'),
-            );
-        } catch (ConversationOperationException $exception) {
-            return $this->operationError($exception);
-        }
+        $conversationModel = $this->service->handoff(
+            $conversationModel,
+            $actor,
+            $assignee,
+            $request->validated('reason'),
+        );
 
         return response()->json([
             'data' => $this->serializeConversationDetail($conversationModel),
@@ -158,11 +153,7 @@ class OperationalConversationController
         $actor = $request->user();
         $assignee = $this->resolveAssignee($tenant, (int) $request->validated('assigned_to_user_id'));
 
-        try {
-            $conversationModel = $this->service->assign($conversationModel, $actor, $assignee);
-        } catch (ConversationOperationException $exception) {
-            return $this->operationError($exception);
-        }
+        $conversationModel = $this->service->assign($conversationModel, $actor, $assignee);
 
         return response()->json([
             'data' => $this->serializeConversationDetail($conversationModel),
@@ -176,15 +167,11 @@ class OperationalConversationController
 
         $conversationModel = $this->findConversation($tenant, $conversation);
 
-        try {
-            $message = $this->service->manualReply(
-                $conversationModel,
-                $request->user(),
-                (string) $request->validated('body'),
-            );
-        } catch (ConversationOperationException $exception) {
-            return $this->operationError($exception);
-        }
+        $message = $this->service->manualReply(
+            $conversationModel,
+            $request->user(),
+            (string) $request->validated('body'),
+        );
 
         return response()->json([
             'data' => $this->serializeMessage($message),
@@ -199,15 +186,11 @@ class OperationalConversationController
         $conversationModel = $this->findConversation($tenant, $conversation);
         $targetStatus = ConversationStatus::from((string) $request->validated('target_status'));
 
-        try {
-            $conversationModel = $this->service->resume(
-                $conversationModel,
-                $request->user(),
-                $targetStatus,
-            );
-        } catch (ConversationOperationException $exception) {
-            return $this->operationError($exception);
-        }
+        $conversationModel = $this->service->resume(
+            $conversationModel,
+            $request->user(),
+            $targetStatus,
+        );
 
         return response()->json([
             'data' => $this->serializeConversationDetail($conversationModel),
@@ -249,13 +232,6 @@ class OperationalConversationController
             });
 
         return $query->firstOrFail();
-    }
-
-    protected function operationError(ConversationOperationException $exception): JsonResponse
-    {
-        return response()->json([
-            'message' => $exception->getMessage(),
-        ], $exception->status());
     }
 
     /**

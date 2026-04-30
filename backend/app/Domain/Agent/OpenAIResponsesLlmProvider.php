@@ -21,7 +21,7 @@ class OpenAIResponsesLlmProvider implements LlmProviderInterface
         $apiKey = (string) config('services.openai.api_key');
 
         if ($apiKey === '') {
-            throw new LlmProviderException('OpenAI API key is not configured.');
+            throw new LlmProviderException(__('api.agent.openai_key_missing'));
         }
 
         $response = $this->http
@@ -43,26 +43,25 @@ class OpenAIResponsesLlmProvider implements LlmProviderInterface
         $responseData = $response->json();
 
         if (! $response->successful()) {
-            throw new LlmProviderException(sprintf(
-                'OpenAI runtime request failed with status %d.',
-                $response->status(),
-            ));
+            throw new LlmProviderException(__('api.agent.openai_request_failed', [
+                'status' => $response->status(),
+            ]));
         }
 
         if (! is_array($responseData)) {
-            throw new LlmProviderException('OpenAI runtime response is not a valid JSON object.');
+            throw new LlmProviderException(__('api.agent.openai_invalid_object'));
         }
 
         $outputText = $this->extractOutputText($responseData);
 
         if ($outputText === '') {
-            throw new LlmProviderException('OpenAI runtime response did not include structured output text.');
+            throw new LlmProviderException(__('api.agent.openai_missing_output_text'));
         }
 
         $decisionPayload = json_decode($outputText, true);
 
         if (! is_array($decisionPayload)) {
-            throw new LlmProviderException('OpenAI runtime response did not return a valid JSON decision payload.');
+            throw new LlmProviderException(__('api.agent.openai_invalid_decision'));
         }
 
         return AgentDecision::fromArray($decisionPayload);

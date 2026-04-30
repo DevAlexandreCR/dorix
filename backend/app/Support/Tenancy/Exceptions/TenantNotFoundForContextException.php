@@ -2,8 +2,8 @@
 
 namespace App\Support\Tenancy\Exceptions;
 
-use RuntimeException;
+use App\Support\Http\ApiException;
 
-class TenantNotFoundForContextException extends RuntimeException
+class TenantNotFoundForContextException extends ApiException
 {
 }

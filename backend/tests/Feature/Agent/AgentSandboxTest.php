@@ -83,11 +83,14 @@ class AgentSandboxTest extends TestCase
 
         $this->actingAs($tenantAdmin)
             ->withCsrf()
+            ->withHeader('Accept-Language', 'es-CO')
             ->withHeader('X-Tenant-Id', (string) $tenant->id)
             ->postJson("/api/v1/agent-sandbox/sessions/{$conversationId}/messages", [
                 'body' => 'No debe entrar',
             ])
-            ->assertStatus(409);
+            ->assertConflict()
+            ->assertJsonPath('code', 'sandbox_closed')
+            ->assertJsonPath('message', 'Las sesiones sandbox cerradas no aceptan más mensajes.');
 
         $this->assertDatabaseHas('conversation_messages', [
             'conversation_id' => $conversationId,

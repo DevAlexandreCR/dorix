@@ -13,13 +13,21 @@ class MetaWebhookPayloadNormalizer
     public function normalize(array $payload): NormalizedWebhookPayload
     {
         if (($payload['object'] ?? null) !== 'whatsapp_business_account') {
-            throw new InvalidWhatsAppWebhookPayloadException('Invalid WhatsApp webhook payload: object must be whatsapp_business_account.');
+            throw new InvalidWhatsAppWebhookPayloadException(
+                'invalid_whatsapp_webhook_payload',
+                'api.webhook.payload.invalid_object',
+                status: 422,
+            );
         }
 
         $entries = $payload['entry'] ?? null;
 
         if (! is_array($entries) || $entries === []) {
-            throw new InvalidWhatsAppWebhookPayloadException('Invalid WhatsApp webhook payload: entry must contain at least one item.');
+            throw new InvalidWhatsAppWebhookPayloadException(
+                'invalid_whatsapp_webhook_payload',
+                'api.webhook.payload.missing_entry',
+                status: 422,
+            );
         }
 
         $inboundMessages = [];
@@ -40,14 +48,22 @@ class MetaWebhookPayloadNormalizer
                 $value = $change['value'] ?? null;
 
                 if (! is_array($value)) {
-                    throw new InvalidWhatsAppWebhookPayloadException('Invalid WhatsApp webhook payload: messages change is missing value.');
+                    throw new InvalidWhatsAppWebhookPayloadException(
+                        'invalid_whatsapp_webhook_payload',
+                        'api.webhook.payload.missing_change_value',
+                        status: 422,
+                    );
                 }
 
                 $messages = $value['messages'] ?? [];
                 $statuses = $value['statuses'] ?? [];
 
                 if (! is_array($messages) || ! is_array($statuses)) {
-                    throw new InvalidWhatsAppWebhookPayloadException('Invalid WhatsApp webhook payload: messages and statuses must be arrays when present.');
+                    throw new InvalidWhatsAppWebhookPayloadException(
+                        'invalid_whatsapp_webhook_payload',
+                        'api.webhook.payload.messages_statuses_array',
+                        status: 422,
+                    );
                 }
 
                 if ($messages === [] && $statuses === []) {
@@ -57,7 +73,11 @@ class MetaWebhookPayloadNormalizer
                 $phoneNumberId = data_get($value, 'metadata.phone_number_id');
 
                 if (! is_string($phoneNumberId) || $phoneNumberId === '') {
-                    throw new InvalidWhatsAppWebhookPayloadException('Invalid WhatsApp webhook payload: metadata.phone_number_id is required.');
+                    throw new InvalidWhatsAppWebhookPayloadException(
+                        'invalid_whatsapp_webhook_payload',
+                        'api.webhook.payload.missing_phone_number_id',
+                        status: 422,
+                    );
                 }
 
                 $contactNames = $this->extractContactNames($value['contacts'] ?? []);
@@ -80,7 +100,11 @@ class MetaWebhookPayloadNormalizer
         }
 
         if ($inboundMessages === [] && $statusUpdates === []) {
-            throw new InvalidWhatsAppWebhookPayloadException('Invalid WhatsApp webhook payload: no inbound messages or status updates were found.');
+            throw new InvalidWhatsAppWebhookPayloadException(
+                'invalid_whatsapp_webhook_payload',
+                'api.webhook.payload.missing_activity',
+                status: 422,
+            );
         }
 
         return new NormalizedWebhookPayload($inboundMessages, $statusUpdates);
@@ -118,19 +142,35 @@ class MetaWebhookPayloadNormalizer
         $timestamp = $message['timestamp'] ?? null;
 
         if (! is_string($providerMessageId) || $providerMessageId === '') {
-            throw new InvalidWhatsAppWebhookPayloadException('Invalid WhatsApp inbound payload: message id is required.');
+            throw new InvalidWhatsAppWebhookPayloadException(
+                'invalid_whatsapp_webhook_payload',
+                'api.webhook.payload.inbound_message_id_required',
+                status: 422,
+            );
         }
 
         if (! is_string($contactPhone) || $contactPhone === '') {
-            throw new InvalidWhatsAppWebhookPayloadException('Invalid WhatsApp inbound payload: from is required.');
+            throw new InvalidWhatsAppWebhookPayloadException(
+                'invalid_whatsapp_webhook_payload',
+                'api.webhook.payload.inbound_from_required',
+                status: 422,
+            );
         }
 
         if (! is_string($providerMessageType) || $providerMessageType === '') {
-            throw new InvalidWhatsAppWebhookPayloadException('Invalid WhatsApp inbound payload: message type is required.');
+            throw new InvalidWhatsAppWebhookPayloadException(
+                'invalid_whatsapp_webhook_payload',
+                'api.webhook.payload.inbound_type_required',
+                status: 422,
+            );
         }
 
         if (! is_scalar($timestamp) || (string) $timestamp === '') {
-            throw new InvalidWhatsAppWebhookPayloadException('Invalid WhatsApp inbound payload: timestamp is required.');
+            throw new InvalidWhatsAppWebhookPayloadException(
+                'invalid_whatsapp_webhook_payload',
+                'api.webhook.payload.inbound_timestamp_required',
+                status: 422,
+            );
         }
 
         $body = $providerMessageType === 'text'
@@ -138,7 +178,11 @@ class MetaWebhookPayloadNormalizer
             : null;
 
         if ($providerMessageType === 'text' && (! is_string($body) || $body === '')) {
-            throw new InvalidWhatsAppWebhookPayloadException('Invalid WhatsApp inbound payload: text.body is required for text messages.');
+            throw new InvalidWhatsAppWebhookPayloadException(
+                'invalid_whatsapp_webhook_payload',
+                'api.webhook.payload.inbound_text_body_required',
+                status: 422,
+            );
         }
 
         return new InboundMessageData(
@@ -170,21 +214,37 @@ class MetaWebhookPayloadNormalizer
         $timestamp = $status['timestamp'] ?? null;
 
         if (! is_string($providerMessageId) || $providerMessageId === '') {
-            throw new InvalidWhatsAppWebhookPayloadException('Invalid WhatsApp status payload: status id is required.');
+            throw new InvalidWhatsAppWebhookPayloadException(
+                'invalid_whatsapp_webhook_payload',
+                'api.webhook.payload.status_id_required',
+                status: 422,
+            );
         }
 
         if (! is_string($state) || $state === '') {
-            throw new InvalidWhatsAppWebhookPayloadException('Invalid WhatsApp status payload: status is required.');
+            throw new InvalidWhatsAppWebhookPayloadException(
+                'invalid_whatsapp_webhook_payload',
+                'api.webhook.payload.status_required',
+                status: 422,
+            );
         }
 
         if (! is_scalar($timestamp) || (string) $timestamp === '') {
-            throw new InvalidWhatsAppWebhookPayloadException('Invalid WhatsApp status payload: timestamp is required.');
+            throw new InvalidWhatsAppWebhookPayloadException(
+                'invalid_whatsapp_webhook_payload',
+                'api.webhook.payload.status_timestamp_required',
+                status: 422,
+            );
         }
 
         $errors = $status['errors'] ?? [];
 
         if (! is_array($errors)) {
-            throw new InvalidWhatsAppWebhookPayloadException('Invalid WhatsApp status payload: errors must be an array when present.');
+            throw new InvalidWhatsAppWebhookPayloadException(
+                'invalid_whatsapp_webhook_payload',
+                'api.webhook.payload.status_errors_array',
+                status: 422,
+            );
         }
 
         return new StatusUpdateData(

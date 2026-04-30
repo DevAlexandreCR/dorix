@@ -2,19 +2,8 @@
 
 namespace App\Domain\Conversations\Exceptions;
 
-use RuntimeException;
+use App\Support\Http\ApiException;
 
-class ConversationOperationException extends RuntimeException
+class ConversationOperationException extends ApiException
 {
-    public function __construct(
-        string $message,
-        protected int $status = 422,
-    ) {
-        parent::__construct($message);
-    }
-
-    public function status(): int
-    {
-        return $this->status;
-    }
 }
