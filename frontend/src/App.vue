@@ -46,6 +46,19 @@ import type {
   SessionMembership,
   SessionResponse,
 } from './modules/operations/types';
+import {
+  closeSandboxSession,
+  createSandboxSession,
+  fetchSandboxSession,
+  fetchSandboxSessions,
+  sendSandboxMessage,
+} from './modules/sandbox/api';
+import type {
+  SandboxLastTurn,
+  SandboxLineOption,
+  SandboxSessionPayload,
+  SandboxSessionSummary,
+} from './modules/sandbox/types';
 
 type TenantMembership = SessionMembership & {
   tenant_id: number;
@@ -53,7 +66,7 @@ type TenantMembership = SessionMembership & {
   tenant_slug: string;
 };
 
-type WorkspaceSection = 'operations' | 'admin';
+type WorkspaceSection = 'operations' | 'sandbox' | 'admin';
 
 type AgentConfigForm = {
   name: string;
@@ -100,6 +113,20 @@ const handoffReason = ref('');
 const search = ref('');
 const statusFilter = ref('ALL');
 const assignedToMeOnly = ref(false);
+
+const sandboxLoading = ref(false);
+const sandboxThreadLoading = ref(false);
+const sandboxActionLoading = ref(false);
+const sandboxError = ref<string | null>(null);
+const sandboxThreadError = ref<string | null>(null);
+const sandboxActionError = ref<string | null>(null);
+const sandboxSessions = ref<SandboxSessionSummary[]>([]);
+const sandboxThread = ref<SandboxSessionPayload | null>(null);
+const selectedSandboxConversationId = ref<number | null>(null);
+const sandboxAvailableLines = ref<SandboxLineOption[]>([]);
+const sandboxSessionLabel = ref('');
+const sandboxLineId = ref<number | null>(null);
+const sandboxMessageBody = ref('');
 
 const adminLoading = ref(false);
 const adminSaving = ref(false);
@@ -199,6 +226,7 @@ const canViewCredentialMetadata = computed(() =>
 const canManagePlatform = computed(() =>
   selectedMembership.value?.permissions.includes('platform.manage') ?? false,
 );
+const canAccessSandbox = computed(() => canManageAgentConfig.value);
 const canAccessAdmin = computed(() =>
   canManageTenant.value || canManageAgentConfig.value || canViewCredentialMetadata.value,
 );
@@ -231,6 +259,17 @@ const readyDataSources = computed(() =>
   (adminOverview.value?.data_sources ?? []).filter(
     (source) => source.status === 'ready' || source.status === 'pending' || source.status === 'failed',
   ),
+);
+const selectedSandboxConversation = computed(
+  () => sandboxThread.value?.conversation ?? null,
+);
+const sandboxLastTurn = computed<SandboxLastTurn | null>(
+  () => sandboxThread.value?.last_turn ?? null,
+);
+const canSendSandboxMessage = computed(() =>
+  selectedSandboxConversation.value !== null &&
+  selectedSandboxConversation.value.status !== 'CLOSED' &&
+  canAccessSandbox.value,
 );
 
 function defaultLineForm(): LineForm {
@@ -684,6 +723,143 @@ async function loadAdminWorkspace(): Promise<void> {
   }
 }
 
+async function loadSandboxSessions(): Promise<void> {
+  if (!selectedTenantId.value || !canAccessSandbox.value) {
+    sandboxSessions.value = [];
+    sandboxThread.value = null;
+    sandboxAvailableLines.value = [];
+    return;
+  }
+
+  sandboxLoading.value = true;
+  sandboxError.value = null;
+
+  try {
+    const payload = await fetchSandboxSessions(selectedTenantId.value);
+    sandboxSessions.value = payload.data;
+    sandboxAvailableLines.value = payload.meta?.available_lines ?? [];
+
+    if (
+      selectedSandboxConversationId.value !== null &&
+      !payload.data.some((conversation) => conversation.id === selectedSandboxConversationId.value)
+    ) {
+      selectedSandboxConversationId.value = payload.data[0]?.id ?? null;
+    }
+
+    if (selectedSandboxConversationId.value === null) {
+      selectedSandboxConversationId.value = payload.data[0]?.id ?? null;
+    }
+
+    if (
+      sandboxLineId.value === null ||
+      !sandboxAvailableLines.value.some((line) => line.id === sandboxLineId.value)
+    ) {
+      sandboxLineId.value = sandboxAvailableLines.value[0]?.id ?? null;
+    }
+  } catch (error) {
+    sandboxError.value =
+      error instanceof Error ? error.message : 'No fue posible cargar las sesiones sandbox.';
+  } finally {
+    sandboxLoading.value = false;
+  }
+}
+
+async function loadSandboxConversation(conversationId: number | null): Promise<void> {
+  if (!selectedTenantId.value || conversationId === null) {
+    sandboxThread.value = null;
+    return;
+  }
+
+  sandboxThreadLoading.value = true;
+  sandboxThreadError.value = null;
+
+  try {
+    const payload = await fetchSandboxSession(selectedTenantId.value, conversationId);
+    sandboxThread.value = payload.data;
+  } catch (error) {
+    sandboxThreadError.value =
+      error instanceof Error ? error.message : 'No fue posible cargar la sesión sandbox.';
+  } finally {
+    sandboxThreadLoading.value = false;
+  }
+}
+
+async function createSandboxChat(): Promise<void> {
+  if (!selectedTenantId.value || !sandboxLineId.value) {
+    return;
+  }
+
+  sandboxActionLoading.value = true;
+  sandboxActionError.value = null;
+
+  try {
+    const response = await createSandboxSession(selectedTenantId.value, {
+      whatsapp_line_id: sandboxLineId.value,
+      label: sandboxSessionLabel.value.trim() || undefined,
+    });
+
+    sandboxSessionLabel.value = '';
+    selectedSandboxConversationId.value = response.data.conversation.id;
+    sandboxThread.value = response.data;
+    await loadSandboxSessions();
+  } catch (error) {
+    sandboxActionError.value =
+      error instanceof Error ? error.message : 'No fue posible crear la sesión sandbox.';
+  } finally {
+    sandboxActionLoading.value = false;
+  }
+}
+
+async function submitSandboxMessage(): Promise<void> {
+  if (!selectedTenantId.value || !selectedSandboxConversationId.value || sandboxMessageBody.value.trim() === '') {
+    return;
+  }
+
+  sandboxActionLoading.value = true;
+  sandboxActionError.value = null;
+
+  try {
+    const response = await sendSandboxMessage(
+      selectedTenantId.value,
+      selectedSandboxConversationId.value,
+      sandboxMessageBody.value.trim(),
+    );
+
+    sandboxMessageBody.value = '';
+    sandboxThread.value = response.data;
+    await loadSandboxSessions();
+  } catch (error) {
+    sandboxActionError.value =
+      error instanceof Error ? error.message : 'No fue posible ejecutar el turno sandbox.';
+  } finally {
+    sandboxActionLoading.value = false;
+  }
+}
+
+async function closeSandboxChat(): Promise<void> {
+  if (!selectedTenantId.value || !selectedSandboxConversationId.value) {
+    return;
+  }
+
+  sandboxActionLoading.value = true;
+  sandboxActionError.value = null;
+
+  try {
+    const response = await closeSandboxSession(
+      selectedTenantId.value,
+      selectedSandboxConversationId.value,
+    );
+
+    sandboxThread.value = response.data;
+    await loadSandboxSessions();
+  } catch (error) {
+    sandboxActionError.value =
+      error instanceof Error ? error.message : 'No fue posible cerrar la sesión sandbox.';
+  } finally {
+    sandboxActionLoading.value = false;
+  }
+}
+
 async function withAdminAction(
   successMessage: string,
   action: () => Promise<void>,
@@ -999,12 +1175,23 @@ async function retryImport(source: DataSourceRecord): Promise<void> {
 watch(selectedTenantId, async () => {
   selectedConversationId.value = null;
   thread.value = null;
+  selectedSandboxConversationId.value = null;
+  sandboxThread.value = null;
+  sandboxSessions.value = [];
+  sandboxAvailableLines.value = [];
+  sandboxActionError.value = null;
+  sandboxError.value = null;
   adminOverview.value = null;
   adminSuccess.value = null;
   adminError.value = null;
 
   if (workspaceSection.value === 'operations') {
     await loadInbox();
+    return;
+  }
+
+  if (workspaceSection.value === 'sandbox') {
+    await loadSandboxSessions();
     return;
   }
 
@@ -1017,10 +1204,22 @@ watch(selectedConversationId, async (conversationId) => {
   }
 });
 
+watch(selectedSandboxConversationId, async (conversationId) => {
+  if (workspaceSection.value === 'sandbox') {
+    await loadSandboxConversation(conversationId);
+  }
+});
+
 watch(workspaceSection, async (section) => {
   if (section === 'operations') {
     await loadInbox();
     await loadConversation(selectedConversationId.value);
+    return;
+  }
+
+  if (section === 'sandbox') {
+    await loadSandboxSessions();
+    await loadSandboxConversation(selectedSandboxConversationId.value);
     return;
   }
 
@@ -1118,6 +1317,15 @@ onMounted(async () => {
               @click="workspaceSection = 'operations'"
             >
               Operaciones
+            </button>
+            <button
+              v-if="selectedMembership && canAccessSandbox"
+              type="button"
+              class="segment-button"
+              :class="{ 'segment-button-active': workspaceSection === 'sandbox' }"
+              @click="workspaceSection = 'sandbox'"
+            >
+              Sandbox
             </button>
             <button
               type="button"
@@ -1398,6 +1606,245 @@ onMounted(async () => {
 
         <section v-else class="surface centered-state">
           <p>La sesión autenticada no tiene memberships operativas disponibles.</p>
+        </section>
+      </section>
+
+      <section v-else-if="workspaceSection === 'sandbox'">
+        <section v-if="!selectedMembership" class="surface centered-state">
+          <p>Selecciona un tenant para abrir el sandbox.</p>
+        </section>
+
+        <section v-else-if="!canAccessSandbox" class="surface centered-state">
+          <p>Este rol no puede usar el sandbox del agente en este tenant.</p>
+        </section>
+
+        <section v-else class="workspace-grid">
+          <aside class="surface inbox-panel">
+            <div class="panel-topline">
+              <div>
+                <p class="eyebrow">Agent Sandbox</p>
+                <h3>{{ selectedMembership.tenant_name }}</h3>
+              </div>
+              <span class="status-pill">
+                {{ sandboxSessions.length }} sesiones
+              </span>
+            </div>
+
+            <form class="form-stack" @submit.prevent="createSandboxChat">
+              <label>
+                <span>Línea</span>
+                <select v-model.number="sandboxLineId" :disabled="sandboxActionLoading">
+                  <option
+                    v-for="line in sandboxAvailableLines"
+                    :key="line.id"
+                    :value="line.id"
+                  >
+                    {{ line.name }}{{ line.display_phone_number ? ` · ${line.display_phone_number}` : '' }}
+                  </option>
+                </select>
+              </label>
+
+              <label>
+                <span>Etiqueta</span>
+                <input
+                  v-model="sandboxSessionLabel"
+                  type="text"
+                  placeholder="Ej. pricing mayo"
+                  :disabled="sandboxActionLoading"
+                />
+              </label>
+
+              <button
+                class="primary-button"
+                type="submit"
+                :disabled="!sandboxLineId || sandboxActionLoading"
+              >
+                {{ sandboxActionLoading ? 'Creando…' : 'Nueva sesión sandbox' }}
+              </button>
+            </form>
+
+            <p v-if="sandboxError" class="error-copy">{{ sandboxError }}</p>
+            <p v-else-if="sandboxLoading" class="muted-copy">Cargando sesiones sandbox…</p>
+
+            <ul v-else class="thread-list">
+              <li v-for="conversation in sandboxSessions" :key="conversation.id">
+                <button
+                  type="button"
+                  class="thread-card"
+                  :class="{ 'thread-card-active': selectedSandboxConversationId === conversation.id }"
+                  @click="selectedSandboxConversationId = conversation.id"
+                >
+                  <div class="thread-card-header">
+                    <strong>{{ conversation.label }}</strong>
+                    <span class="status-chip" :data-status="conversation.status">
+                      {{ conversation.status }}
+                    </span>
+                  </div>
+                  <p class="thread-preview">
+                    {{ conversation.last_message_preview || 'Sin mensajes todavía' }}
+                  </p>
+                  <div class="thread-card-meta">
+                    <span>{{ conversation.whatsapp_line?.name ?? 'Sin línea' }}</span>
+                    <span>{{ formatTimestamp(conversation.last_message_at || conversation.created_at) }}</span>
+                  </div>
+                </button>
+              </li>
+            </ul>
+          </aside>
+
+          <section class="surface thread-panel">
+            <template v-if="selectedSandboxConversation && sandboxThread">
+              <div class="panel-topline">
+                <div>
+                  <p class="eyebrow">Sandbox Thread</p>
+                  <h3>{{ selectedSandboxConversation.label }}</h3>
+                  <p class="muted-copy">
+                    {{ selectedSandboxConversation.whatsapp_line?.name ?? 'Sin línea' }}
+                    <template v-if="selectedSandboxConversation.whatsapp_line?.display_phone_number">
+                      · {{ selectedSandboxConversation.whatsapp_line.display_phone_number }}
+                    </template>
+                  </p>
+                </div>
+                <div class="thread-top-actions">
+                  <span class="status-chip status-chip-large" :data-status="selectedSandboxConversation.status">
+                    {{ selectedSandboxConversation.status }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="detail-grid">
+                <article class="detail-card">
+                  <p class="detail-label">Último outcome</p>
+                  <strong>{{ sandboxLastTurn?.runtime_outcome ?? 'Sin turnos' }}</strong>
+                  <p class="muted-copy">
+                    {{ selectedSandboxConversation.state?.current_intent ?? 'Sin intent actual.' }}
+                  </p>
+                </article>
+
+                <article class="detail-card">
+                  <p class="detail-label">Último handoff</p>
+                  <strong>{{ selectedSandboxConversation.latest_handoff?.status ?? 'Sin registro' }}</strong>
+                  <p class="muted-copy">
+                    {{ selectedSandboxConversation.latest_handoff?.reason || 'Sin motivo registrado.' }}
+                  </p>
+                </article>
+
+                <article class="detail-card">
+                  <p class="detail-label">Tools último turno</p>
+                  <strong>{{ sandboxLastTurn?.tool_executions.length ?? 0 }}</strong>
+                  <p class="muted-copy">
+                    {{ sandboxLastTurn?.handoff_requested ? 'Escaló a handoff.' : 'Sin escalación.' }}
+                  </p>
+                </article>
+              </div>
+
+              <p v-if="sandboxActionError" class="error-copy">{{ sandboxActionError }}</p>
+              <p v-if="sandboxThreadError" class="error-copy">{{ sandboxThreadError }}</p>
+              <p v-else-if="sandboxThreadLoading" class="muted-copy">Cargando sesión sandbox…</p>
+
+              <div v-if="sandboxLastTurn" class="detail-grid turn-metadata-grid">
+                <article class="detail-card">
+                  <p class="detail-label">Tool calls</p>
+                  <div class="stack-list">
+                    <p
+                      v-for="toolExecution in sandboxLastTurn.tool_executions"
+                      :key="toolExecution.id"
+                      class="muted-copy compact-copy"
+                    >
+                      {{ toolExecution.tool_name }} · {{ toolExecution.status }}
+                      <template v-if="toolExecution.next_action">
+                        · {{ toolExecution.next_action }}
+                      </template>
+                    </p>
+                    <p v-if="sandboxLastTurn.tool_executions.length === 0" class="muted-copy compact-copy">
+                      Sin tool calls en el último turno.
+                    </p>
+                  </div>
+                </article>
+
+                <article class="detail-card">
+                  <p class="detail-label">Eventos turno</p>
+                  <div class="stack-list">
+                    <p
+                      v-for="event in sandboxLastTurn.events"
+                      :key="event.id"
+                      class="muted-copy compact-copy"
+                    >
+                      {{ event.event_type }} · {{ formatTimestamp(event.occurred_at) }}
+                    </p>
+                  </div>
+                </article>
+
+                <article class="detail-card">
+                  <p class="detail-label">Error visible</p>
+                  <strong>{{ sandboxLastTurn.error_message || 'Sin error' }}</strong>
+                  <p class="muted-copy">
+                    Trigger message: #{{ sandboxLastTurn.triggering_message_id }}
+                  </p>
+                </article>
+              </div>
+
+              <div class="messages-panel">
+                <article
+                  v-for="message in sandboxThread.messages"
+                  :key="message.id"
+                  class="message-bubble"
+                  :class="message.direction === 'outbound' ? 'message-outbound' : 'message-inbound'"
+                >
+                  <header>
+                    <strong>
+                      {{ message.direction === 'outbound' ? 'Agent' : 'Tester' }}
+                    </strong>
+                    <span>{{ message.source || 'unknown' }}</span>
+                  </header>
+                  <p>{{ message.body || '[mensaje sin body]' }}</p>
+                  <footer>
+                    <span>{{ message.status || 'n/a' }}</span>
+                    <span>{{ formatTimestamp(message.created_at) }}</span>
+                  </footer>
+                </article>
+              </div>
+
+              <form class="composer-panel" @submit.prevent="submitSandboxMessage">
+                <label class="wide-field">
+                  <span>Mensaje de prueba</span>
+                  <textarea
+                    v-model="sandboxMessageBody"
+                    rows="4"
+                    placeholder="Escribe un turno para el runtime real…"
+                    :disabled="!canSendSandboxMessage || sandboxActionLoading"
+                  />
+                </label>
+
+                <div class="composer-actions">
+                  <button
+                    class="primary-button"
+                    type="submit"
+                    :disabled="!canSendSandboxMessage || sandboxMessageBody.trim() === '' || sandboxActionLoading"
+                  >
+                    Ejecutar turno
+                  </button>
+
+                  <button
+                    class="ghost-button"
+                    type="button"
+                    :disabled="selectedSandboxConversation.status === 'CLOSED' || sandboxActionLoading"
+                    @click="closeSandboxChat"
+                  >
+                    Cerrar sesión
+                  </button>
+                </div>
+
+                <p class="muted-copy helper-copy">
+                  Usa runtime, tools y retrieval reales. El outbound se persiste localmente y nunca sale por Meta.
+                </p>
+              </form>
+            </template>
+
+            <div v-else class="centered-state">
+              <p>Crea o selecciona una sesión sandbox para probar el agente.</p>
+            </div>
+          </section>
         </section>
       </section>
 

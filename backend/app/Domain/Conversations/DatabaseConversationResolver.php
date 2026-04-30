@@ -7,6 +7,7 @@ use App\Domain\Conversations\Contracts\ConversationStateRepository;
 use App\Domain\Conversations\Contracts\ConversationStatusTransitioner;
 use App\Domain\WhatsApp\DTO\InboundMessageData;
 use App\Domain\WhatsApp\DTO\ResolvedWhatsAppLine;
+use App\Enums\ConversationSource;
 use App\Enums\ConversationStatus;
 use App\Models\Conversation;
 
@@ -24,6 +25,7 @@ class DatabaseConversationResolver implements ConversationResolver
             ->forTenant($resolvedLine->tenantId())
             ->where('whatsapp_line_id', $resolvedLine->line->getKey())
             ->where('contact_phone', $message->contactPhone)
+            ->where('source', ConversationSource::WhatsApp->value)
             ->orderByDesc('last_message_at')
             ->orderByDesc('id')
             ->first();
@@ -35,6 +37,7 @@ class DatabaseConversationResolver implements ConversationResolver
                 'contact_phone' => $message->contactPhone,
                 'contact_name' => $message->contactName,
                 'status' => ConversationStatus::BotActive,
+                'source' => ConversationSource::WhatsApp,
                 'last_message_at' => $message->receivedAt,
                 'last_customer_message_at' => $message->receivedAt,
                 'metadata' => [

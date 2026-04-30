@@ -378,6 +378,10 @@ textarea {
   margin-top: 1rem;
 }
 
+.turn-metadata-grid {
+  margin-top: 1rem;
+}
+
 .detail-card {
   padding: 1rem;
   border-radius: 20px;
@@ -445,6 +449,15 @@ textarea {
 }
 
 .helper-copy {
+  margin: 0;
+}
+
+.stack-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.compact-copy {
   margin: 0;
 }
 

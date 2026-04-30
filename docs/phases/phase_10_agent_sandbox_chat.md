@@ -48,6 +48,16 @@ Agregar un sandbox de chat persistido, estilo ChatGPT/Claude, para probar el age
 - Vista SPA de sesiones, thread, composer y metadata de ejecución.
 - Tests backend y build frontend.
 
+## Arquitectura mínima del sandbox
+
+- `conversations.source` distingue explícitamente `whatsapp` de `agent_sandbox`.
+- El inbox operativo consulta solo conversaciones `whatsapp`; el sandbox usa endpoints dedicados.
+- Cada sesión sandbox reutiliza un `whatsapp_line_id` real para resolver prompt, `agent_config` y `tenant_tool_configs`.
+- El turno sandbox persiste un inbound local `sandbox:{uuid}`, ejecuta `AgentRuntime` en síncrono y deja `conversation_state`, `agent_events` y `tool_executions` en las mismas tablas operativas.
+- El outbound del sandbox se resuelve con un `SandboxOutboundMessageSender` que crea `conversation_messages` locales y nunca llama a Meta ni requiere credenciales WhatsApp.
+- La SPA consume `/api/v1/agent-sandbox/sessions` para listar sesiones, abrir thread, crear sesiones, enviar turnos y cerrar sesiones.
+- La vista muestra historial persistido y un resumen del último turno con `runtime_outcome`, tool calls, handoff y errores visibles.
+
 ## Cambios técnicos esperados
 
 - Agregar una forma explícita de distinguir conversaciones WhatsApp reales de conversaciones sandbox.

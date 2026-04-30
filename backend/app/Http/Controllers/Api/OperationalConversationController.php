@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Domain\Conversations\Exceptions\ConversationOperationException;
 use App\Domain\Conversations\OperationalConversationService;
+use App\Enums\ConversationSource;
 use App\Enums\ConversationStatus;
 use App\Enums\Permission;
 use App\Enums\TenantRole;
@@ -37,6 +38,7 @@ class OperationalConversationController
 
         $query = Conversation::query()
             ->forTenant($tenant->getKey())
+            ->where('source', ConversationSource::WhatsApp->value)
             ->with([
                 'assignedToUser:id,name,email',
                 'whatsappLine:id,name,display_phone_number',
@@ -229,6 +231,7 @@ class OperationalConversationController
     {
         return Conversation::query()
             ->forTenant($tenant->getKey())
+            ->where('source', ConversationSource::WhatsApp->value)
             ->findOrFail($conversationId);
     }
 

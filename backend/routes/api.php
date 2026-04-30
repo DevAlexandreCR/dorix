@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AdminTenantController;
 use App\Http\Controllers\Api\AdminTenantUserController;
 use App\Http\Controllers\Api\AdminToolConfigController;
 use App\Http\Controllers\Api\AdminWhatsAppLineController;
+use App\Http\Controllers\Api\AgentSandboxController;
 use App\Http\Controllers\Api\AuthSessionController;
 use App\Http\Controllers\Api\DataSourceController;
 use App\Http\Controllers\Api\HealthController;
@@ -31,6 +32,11 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/conversations/{conversation}/assign', [OperationalConversationController::class, 'assign']);
         Route::post('/conversations/{conversation}/manual-reply', [OperationalConversationController::class, 'manualReply']);
         Route::post('/conversations/{conversation}/resume', [OperationalConversationController::class, 'resume']);
+        Route::get('/agent-sandbox/sessions', [AgentSandboxController::class, 'index']);
+        Route::post('/agent-sandbox/sessions', [AgentSandboxController::class, 'store']);
+        Route::get('/agent-sandbox/sessions/{conversation}', [AgentSandboxController::class, 'show']);
+        Route::post('/agent-sandbox/sessions/{conversation}/messages', [AgentSandboxController::class, 'storeMessage']);
+        Route::post('/agent-sandbox/sessions/{conversation}/close', [AgentSandboxController::class, 'close']);
 
         Route::get('/data-sources', [DataSourceController::class, 'index']);
         Route::post('/data-sources', [DataSourceController::class, 'store']);

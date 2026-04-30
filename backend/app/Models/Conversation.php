@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ConversationSource;
 use App\Enums\ConversationStatus;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -12,6 +13,7 @@ class Conversation extends TenantScopedModel
     protected function casts(): array
     {
         return [
+            'source' => ConversationSource::class,
             'status' => ConversationStatus::class,
             'last_message_at' => 'datetime',
             'last_customer_message_at' => 'datetime',
