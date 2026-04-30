@@ -2,6 +2,7 @@ export const en = {
   common: {
     appEyebrow: 'Control Plane + Operations',
     appLede: 'Unified console to operate conversations, tenants, lines, prompts, knowledge sources, and runtime bindings.',
+    applyFilters: 'Apply filters',
     apiHealth: 'API health',
     noDate: 'No date',
     noFile: 'No file',
@@ -48,6 +49,16 @@ export const en = {
       ready: 'Ready',
       failed: 'Failed',
     },
+  },
+  shell: {
+    themeDark: 'Dark mode',
+    themeLight: 'Light mode',
+  },
+  states: {
+    noMembershipsTitle: 'No operational access',
+    restrictedTitle: 'Restricted access',
+    emptyTitle: 'No data yet',
+    selectTitle: 'Select an item',
   },
   auth: {
     accessEyebrow: 'Operator Access',
@@ -102,6 +113,7 @@ export const en = {
     loadThreadFailed: 'Could not load the thread.',
     loadingThread: 'Loading thread…',
     noConversationSelected: 'Select a conversation from the inbox to open the thread.',
+    emptyInbox: 'No conversations are visible with the current filters.',
     outbound: 'Outbound',
     inbound: 'Inbound',
     manualReply: 'Manual reply',
@@ -181,6 +193,16 @@ export const en = {
       readySources: '{count} ready',
       credentials: 'Credentials',
       configuredCredentials: '{count} configured',
+    },
+    panels: {
+      tenant: 'Tenant',
+      users: 'Users',
+      lines: 'Lines',
+      agent: 'Agent',
+      sources: 'Sources',
+      bindings: 'Bindings',
+      credentials: 'Credentials',
+      logs: 'Logs',
     },
     tenant: {
       eyebrow: 'Tenant',

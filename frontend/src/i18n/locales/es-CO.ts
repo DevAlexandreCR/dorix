@@ -2,6 +2,7 @@ export const esCO = {
   common: {
     appEyebrow: 'Control Plane + Operaciones',
     appLede: 'Consola unificada para operar conversaciones, tenants, líneas, prompts, fuentes de conocimiento y bindings del runtime.',
+    applyFilters: 'Aplicar filtros',
     apiHealth: 'Salud API',
     noDate: 'Sin fecha',
     noFile: 'Sin archivo',
@@ -48,6 +49,16 @@ export const esCO = {
       ready: 'Lista',
       failed: 'Fallida',
     },
+  },
+  shell: {
+    themeDark: 'Modo oscuro',
+    themeLight: 'Modo claro',
+  },
+  states: {
+    noMembershipsTitle: 'Sin acceso operativo',
+    restrictedTitle: 'Acceso restringido',
+    emptyTitle: 'Sin datos por ahora',
+    selectTitle: 'Selecciona un elemento',
   },
   auth: {
     accessEyebrow: 'Acceso de operadores',
@@ -102,6 +113,7 @@ export const esCO = {
     loadThreadFailed: 'No fue posible cargar el hilo.',
     loadingThread: 'Cargando hilo…',
     noConversationSelected: 'Selecciona una conversación del inbox para abrir el hilo.',
+    emptyInbox: 'No hay conversaciones visibles con los filtros actuales.',
     outbound: 'Saliente',
     inbound: 'Entrante',
     manualReply: 'Respuesta manual',
@@ -181,6 +193,16 @@ export const esCO = {
       readySources: '{count} listas',
       credentials: 'Credenciales',
       configuredCredentials: '{count} configuradas',
+    },
+    panels: {
+      tenant: 'Tenant',
+      users: 'Usuarios',
+      lines: 'Líneas',
+      agent: 'Agente',
+      sources: 'Fuentes',
+      bindings: 'Bindings',
+      credentials: 'Credenciales',
+      logs: 'Logs',
     },
     tenant: {
       eyebrow: 'Tenant',
