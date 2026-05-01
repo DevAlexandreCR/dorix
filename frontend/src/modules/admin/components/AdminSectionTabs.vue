@@ -13,11 +13,11 @@ defineEmits<{
 </script>
 
 <template>
-  <div class="flex flex-wrap gap-2">
+  <div class="flex gap-2 overflow-x-auto pb-1">
     <button
       v-for="option in options"
       :key="option.key"
-      class="rounded-full border px-4 py-2 text-sm transition"
+      class="shrink-0 rounded-full border px-4 py-2 text-sm transition"
       :class="modelValue === option.key ? 'bg-[var(--surface-muted)] text-[var(--text)]' : 'text-[var(--text-muted)] hover:text-[var(--text)]'"
       :style="{ borderColor: 'var(--border)' }"
       type="button"

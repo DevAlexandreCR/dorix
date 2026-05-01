@@ -438,8 +438,8 @@ watch(
     </SurfaceCard>
   </section>
 
-  <section v-else class="grid gap-4 xl:h-full xl:min-h-0 xl:grid-cols-[320px_minmax(0,1fr)] xl:overflow-hidden">
-    <SurfaceCard class="xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden">
+  <section v-else class="grid gap-4 xl:flex-1 xl:min-h-0 xl:grid-cols-[320px_minmax(0,1fr)] xl:overflow-hidden">
+    <SurfaceCard class="xl:flex xl:h-full xl:min-h-0 xl:flex-col xl:overflow-hidden">
       <div class="shrink-0">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
@@ -493,7 +493,7 @@ watch(
         </div>
       </div>
 
-      <div class="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div class="mt-4 flex flex-col xl:min-h-0 xl:flex-1 xl:overflow-hidden">
         <div class="mb-3 flex items-center gap-2">
           <p class="text-sm font-medium text-[var(--text)]">{{ t('sandbox.historyTitle') }}</p>
           <InfoPopover :content="t('sandbox.historyDescription')" :label="t('common.moreInfo')" />
@@ -501,7 +501,7 @@ watch(
 
         <LoadingState v-if="sandboxLoading" :label="t('sandbox.loadingSessions')" />
 
-        <div v-else class="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+        <div v-else class="xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-contain xl:pr-1">
           <ul v-if="sandboxSessions.length > 0" class="space-y-2">
             <li v-for="conversation in sandboxSessions" :key="conversation.id">
               <button
@@ -552,7 +552,7 @@ watch(
       </div>
     </SurfaceCard>
 
-    <SurfaceCard padding="lg" class="xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden">
+    <SurfaceCard padding="lg" class="xl:flex xl:h-full xl:min-h-0 xl:flex-col xl:overflow-hidden">
       <template v-if="selectedSandboxConversation && sandboxThread">
         <div class="shrink-0 border-b pb-4" :style="{ borderColor: 'var(--border)' }">
           <div class="flex flex-wrap items-start justify-between gap-3">
@@ -574,26 +574,26 @@ watch(
 
           <div class="mt-4 flex flex-wrap gap-2">
             <div
-              class="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs text-[var(--text)]"
+              class="inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-2 text-xs text-[var(--text)]"
               :style="{ borderColor: 'var(--border)' }"
             >
-              <span class="font-medium">{{ summaryStatusLabel }}</span>
+              <span class="min-w-0 truncate font-medium">{{ summaryStatusLabel }}</span>
               <InfoPopover :content="summaryStatusDescription" :label="t('common.moreInfo')" />
             </div>
 
             <div
-              class="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs text-[var(--text)]"
+              class="inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-2 text-xs text-[var(--text)]"
               :style="{ borderColor: 'var(--border)' }"
             >
-              <span class="font-medium">{{ t('sandbox.latestResponse') }}: {{ latestResponseLabel }}</span>
+              <span class="min-w-0 truncate font-medium">{{ t('sandbox.latestResponse') }}: {{ latestResponseLabel }}</span>
               <InfoPopover :content="latestResponsePreview" :label="t('common.moreInfo')" />
             </div>
 
             <div
-              class="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs text-[var(--text)]"
+              class="inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-2 text-xs text-[var(--text)]"
               :style="{ borderColor: 'var(--border)' }"
             >
-              <span class="font-medium">{{ t('sandbox.reviewTitle') }}: {{ reviewLabel }}</span>
+              <span class="min-w-0 truncate font-medium">{{ t('sandbox.reviewTitle') }}: {{ reviewLabel }}</span>
               <InfoPopover :content="reviewDescription" :label="t('common.moreInfo')" />
             </div>
           </div>
@@ -607,10 +607,10 @@ watch(
 
         <LoadingState v-if="sandboxThreadLoading" class="mt-6" :label="t('sandbox.loadingSession')" />
 
-        <div v-else class="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div v-else class="mt-4 flex flex-col xl:min-h-0 xl:flex-1 xl:overflow-hidden">
           <div
             ref="messagesViewport"
-            class="min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-[24px] border bg-[color:color-mix(in_srgb,var(--surface-muted)_52%,transparent)] p-3 md:p-4"
+            class="rounded-[24px] border bg-[color:color-mix(in_srgb,var(--surface-muted)_52%,transparent)] p-3 md:p-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-contain"
             :style="{ borderColor: 'var(--border)' }"
           >
             <details
@@ -724,7 +724,7 @@ watch(
 
             <div class="mt-3 flex flex-wrap items-center gap-2">
               <button
-                class="btn-primary"
+                class="btn-primary w-full justify-center sm:w-auto"
                 type="submit"
                 :disabled="!canSendSandboxMessage || sandboxMessageBody.trim() === '' || sandboxActionLoading"
               >
@@ -732,7 +732,7 @@ watch(
               </button>
 
               <button
-                class="btn-secondary"
+                class="btn-secondary w-full justify-center sm:w-auto"
                 type="button"
                 :disabled="isConversationClosed || sandboxActionLoading"
                 @click="closeSandboxChat"

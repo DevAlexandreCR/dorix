@@ -19,12 +19,12 @@ const links = computed(() => [
 </script>
 
 <template>
-  <nav class="flex flex-wrap gap-2">
+  <nav class="flex flex-wrap gap-2 sm:flex-nowrap sm:overflow-x-auto">
     <RouterLink
       v-for="link in links"
       :key="link.name"
       :to="{ name: link.name, query: route.query }"
-      class="rounded-full border px-4 py-2 text-sm font-medium transition"
+      class="rounded-full border px-4 py-2 text-sm font-medium transition sm:shrink-0"
       :class="route.name === link.name ? 'bg-[var(--surface-muted)] text-[var(--text)]' : 'text-[var(--text-muted)] hover:text-[var(--text)]'"
       :style="{ borderColor: 'var(--border)' }"
     >

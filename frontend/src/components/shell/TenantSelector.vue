@@ -16,7 +16,7 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <label class="grid min-w-[220px] gap-2 text-sm">
+  <label class="grid min-w-0 w-full gap-2 text-sm sm:min-w-[220px]">
     <span class="font-medium text-[var(--text-muted)]">{{ t('common.scopes.tenant') }}</span>
     <select
       :value="modelValue ?? ''"

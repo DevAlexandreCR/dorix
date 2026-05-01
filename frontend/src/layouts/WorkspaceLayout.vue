@@ -1,7 +1,7 @@
 <template>
   <AppShell>
     <TopBar />
-    <main class="flex min-h-0 flex-1 flex-col">
+    <main class="flex min-h-0 flex-1 flex-col xl:overflow-hidden">
       <RouterView />
     </main>
   </AppShell>

@@ -7,7 +7,7 @@ const { isDark, toggleTheme } = useTheme();
 </script>
 
 <template>
-  <button class="btn-secondary min-w-[112px]" type="button" @click="toggleTheme">
+  <button class="btn-secondary min-w-0 justify-center sm:min-w-[112px]" type="button" @click="toggleTheme">
     {{ isDark ? t('shell.themeLight') : t('shell.themeDark') }}
   </button>
 </template>
