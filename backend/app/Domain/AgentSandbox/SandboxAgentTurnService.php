@@ -291,6 +291,12 @@ class SandboxAgentTurnService
             return $label;
         }
 
-        return sprintf('Sandbox %s', $actor->name);
+        $timestamp = now();
+
+        if (app()->getLocale() === 'en') {
+            return sprintf('Test %s', $timestamp->format('d/m/Y g:i A'));
+        }
+
+        return sprintf('Prueba %s', $timestamp->format('d/m/Y g:i')).' '.($timestamp->hour < 12 ? 'a. m.' : 'p. m.');
     }
 }

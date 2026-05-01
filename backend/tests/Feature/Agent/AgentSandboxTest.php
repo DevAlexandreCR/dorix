@@ -15,6 +15,7 @@ use App\Models\WhatsAppLine;
 use App\Support\Tenancy\TenantScopeKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class AgentSandboxTest extends TestCase
@@ -221,6 +222,38 @@ class AgentSandboxTest extends TestCase
             'id' => $conversationId,
             'contact_name' => 'Ana Sandbox',
         ]);
+    }
+
+    public function test_sandbox_sessions_without_a_label_use_a_human_default_name_in_the_request_locale(): void
+    {
+        [$tenant, $line] = $this->sandboxFixtures();
+        $tenantAdmin = $this->tenantUser($tenant, TenantRole::TenantAdmin);
+
+        Carbon::setTestNow(Carbon::create(2026, 4, 30, 16, 42, 0));
+
+        try {
+            $this->actingAs($tenantAdmin)
+                ->withCsrf()
+                ->withHeader('Accept-Language', 'es-CO')
+                ->withHeader('X-Tenant-Id', (string) $tenant->id)
+                ->postJson('/api/v1/agent-sandbox/sessions', [
+                    'whatsapp_line_id' => $line->id,
+                ])
+                ->assertCreated()
+                ->assertJsonPath('data.conversation.label', 'Prueba 30/04/2026 4:42 p. m.');
+
+            $this->actingAs($tenantAdmin)
+                ->withCsrf()
+                ->withHeader('Accept-Language', 'en')
+                ->withHeader('X-Tenant-Id', (string) $tenant->id)
+                ->postJson('/api/v1/agent-sandbox/sessions', [
+                    'whatsapp_line_id' => $line->id,
+                ])
+                ->assertCreated()
+                ->assertJsonPath('data.conversation.label', 'Test 30/04/2026 4:42 PM');
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_viewer_cannot_access_sandbox_endpoints(): void
