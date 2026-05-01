@@ -441,28 +441,29 @@ watch(
   <section v-else class="grid w-full min-w-0 gap-4 xl:flex-1 xl:min-h-0 xl:grid-cols-[320px_minmax(0,1fr)] xl:overflow-hidden">
     <SurfaceCard class="w-full min-w-0 overflow-hidden xl:flex xl:h-full xl:min-h-0 xl:flex-col">
       <div class="shrink-0">
-        <div class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div class="flex min-w-0 items-start justify-between gap-3">
           <div class="min-w-0">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">
+            <p class="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--accent)]">
               {{ t('sandbox.eyebrow') }}
             </p>
-            <h2 class="mt-2 text-xl font-semibold tracking-tight">{{ t('sandbox.compactListTitle') }}</h2>
+            <div class="mt-1.5 flex min-w-0 items-center gap-2">
+              <h2 class="min-w-0 truncate text-xl font-semibold tracking-tight">{{ t('sandbox.compactListTitle') }}</h2>
+              <span
+                class="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full border px-1.5 text-[11px] font-semibold text-[var(--text-muted)]"
+                :aria-label="t('sandbox.sessionsCount', { count: sandboxSessions.length })"
+                :style="{ borderColor: 'var(--border)' }"
+              >
+                {{ sandboxSessions.length }}
+              </span>
+            </div>
           </div>
 
-          <div class="flex min-w-0 flex-wrap items-center gap-2">
-            <InfoPopover :content="t('sandbox.description')" :label="t('common.moreInfo')" />
-            <span
-              class="inline-flex max-w-full rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]"
-              :style="{ borderColor: 'var(--border)' }"
-            >
-              {{ t('sandbox.sessionsCount', { count: sandboxSessions.length }) }}
-            </span>
-          </div>
+          <InfoPopover :content="t('sandbox.description')" :label="t('common.moreInfo')" />
         </div>
 
-        <div class="mt-4 grid gap-2">
+        <div class="mt-3 grid gap-2.5">
           <button
-            class="btn-primary w-full justify-center px-3 py-3 text-[13px] font-semibold leading-none text-white"
+            class="btn-primary w-full justify-center px-3 py-2.5 text-[13px] font-semibold leading-none text-white"
             type="button"
             :disabled="!canCreateConversation"
             @click="createSandboxChat"
@@ -470,13 +471,16 @@ watch(
             {{ sandboxActionLoading ? t('sandbox.creating') : t('sandbox.newSession') }}
           </button>
 
-          <label class="grid gap-1.5">
-            <span class="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
+          <label
+            class="grid min-w-0 gap-1 rounded-2xl border bg-[color:color-mix(in_srgb,var(--surface-muted)_78%,transparent)] px-3 py-2"
+            :style="{ borderColor: 'var(--border)' }"
+          >
+            <span class="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
               {{ t('sandbox.line') }}
             </span>
             <select
               v-model.number="sandboxLineId"
-              class="input-base rounded-xl px-3 py-2.5 text-[13px]"
+              class="min-w-0 bg-transparent text-[13px] font-medium text-[var(--text)] outline-none"
               :disabled="sandboxActionLoading"
             >
               <option v-for="line in sandboxAvailableLines" :key="line.id" :value="line.id">
@@ -493,12 +497,7 @@ watch(
         </div>
       </div>
 
-      <div class="mt-4 flex min-w-0 flex-col xl:min-h-0 xl:flex-1 xl:overflow-hidden">
-        <div class="mb-3 flex min-w-0 items-center gap-2">
-          <p class="min-w-0 truncate text-sm font-medium text-[var(--text)]">{{ t('sandbox.historyTitle') }}</p>
-          <InfoPopover :content="t('sandbox.historyDescription')" :label="t('common.moreInfo')" />
-        </div>
-
+      <div class="mt-3 flex min-w-0 flex-col xl:min-h-0 xl:flex-1 xl:overflow-hidden">
         <LoadingState v-if="sandboxLoading" :label="t('sandbox.loadingSessions')" />
 
         <div v-else class="max-h-[48vh] min-w-0 overflow-y-auto overscroll-contain pr-1 xl:min-h-0 xl:max-h-none xl:flex-1">
