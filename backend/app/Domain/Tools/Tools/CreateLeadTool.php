@@ -30,6 +30,14 @@ class CreateLeadTool implements ToolInterface
                         'type' => 'string',
                         'description' => 'Optional customer-facing confirmation message to send after creating the lead.',
                     ],
+                    'handoff_after_create' => [
+                        'type' => 'boolean',
+                        'description' => 'When true, create the lead and move the conversation into a public handoff flow.',
+                    ],
+                    'handoff_reason' => [
+                        'type' => 'string',
+                        'description' => 'Operational reason to attach when handoff_after_create is true.',
+                    ],
                 ],
             ],
             outputSchema: [
@@ -55,6 +63,8 @@ class CreateLeadTool implements ToolInterface
     {
         $leadData = $this->requireObject($invocation->arguments['lead_data'] ?? null, 'lead_data');
         $replyText = $this->optionalString($invocation->arguments['reply_text'] ?? '');
+        $handoffAfterCreate = (bool) ($invocation->arguments['handoff_after_create'] ?? false);
+        $handoffReason = $this->optionalString($invocation->arguments['handoff_reason'] ?? '');
 
         $existingCollectedData = $invocation->context->state->collected_data ?? [];
         $mergedCollectedData = array_merge($existingCollectedData, $leadData);
@@ -82,11 +92,17 @@ class CreateLeadTool implements ToolInterface
         }
 
         return new ToolResult(
-            nextAction: $replyText !== '' ? ToolNextAction::SendMessageAndWait : ToolNextAction::WaitForCustomer,
+            nextAction: $handoffAfterCreate
+                ? ToolNextAction::RequestHandoff
+                : ($replyText !== '' ? ToolNextAction::SendMessageAndWait : ToolNextAction::WaitForCustomer),
             replyText: $replyText,
+            handoffReason: $handoffAfterCreate
+                ? ($handoffReason !== '' ? $handoffReason : 'The lead was created and requires human follow-up.')
+                : '',
             outputSummary: [
                 'saved_fields' => array_keys($leadData),
                 'lead_status' => 'created',
+                'handoff_after_create' => $handoffAfterCreate,
             ],
             stateUpdates: [
                 'collected_data' => $mergedCollectedData,

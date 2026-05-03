@@ -3,6 +3,7 @@
 namespace App\Domain\AgentSandbox;
 
 use App\Domain\Agent\AgentContextLoader;
+use App\Domain\Agent\AgentConfigSettings;
 use App\Domain\Agent\AgentDecisionApplier;
 use App\Domain\Agent\Contracts\AgentRuntimeInterface;
 use App\Domain\Conversations\Contracts\ConversationLockManager;
@@ -156,9 +157,11 @@ class SandboxAgentTurnService
                         ],
                     ]);
                 } else {
+                    $context = null;
+
                     try {
                         $context = $this->contextLoader->load($conversation, $message->getKey(), $state);
-                        $automationEnabled = (bool) (($context->agentConfig->settings ?? [])['automation_enabled'] ?? true);
+                        $automationEnabled = AgentConfigSettings::automationEnabled($context->agentConfig);
 
                         if (! $context->line->is_enabled || ! $automationEnabled) {
                             $runtimeOutcome = 'skipped_due_to_configuration';
@@ -189,6 +192,11 @@ class SandboxAgentTurnService
                                 'source' => ConversationSource::AgentSandbox->value,
                                 'exception' => $exception::class,
                             ],
+                            $context ? AgentConfigSettings::handoffCustomerMessage(
+                                $context->agentConfig,
+                                __('api.agent.default_handoff_customer_message'),
+                            ) : __('api.agent.default_handoff_customer_message'),
+                            $context?->tenant->getKey(),
                         );
 
                         $runtimeOutcome = 'fallback_human_handoff';

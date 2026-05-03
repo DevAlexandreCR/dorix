@@ -30,13 +30,13 @@ class AgentSandboxTest extends TestCase
         Http::fake([
             'https://api.openai.com/v1/responses' => Http::response([
                 'output_text' => json_encode([
-                    'outcome' => 'send_message',
+                    'outcome' => 'request_missing_information',
                     'reply_text' => 'Respuesta sandbox.',
                     'handoff_reason' => '',
                     'tool_name' => '',
                     'tool_arguments_json' => '{}',
-                    'missing_information_fields' => [],
-                    'current_intent' => 'sandbox_validation',
+                    'missing_information_fields' => ['interest_summary'],
+                    'current_intent' => 'customer_data_capture',
                     'internal_notes' => 'Reply locally.',
                 ], JSON_THROW_ON_ERROR),
             ], 200),
@@ -70,7 +70,10 @@ class AgentSandboxTest extends TestCase
             ])
             ->assertCreated()
             ->assertJsonPath('data.conversation.status', ConversationStatus::WaitingCustomer->value)
-            ->assertJsonPath('data.last_turn.runtime_outcome', 'send_message')
+            ->assertJsonPath('data.last_turn.runtime_outcome', 'request_missing_information')
+            ->assertJsonPath('data.last_turn.agent_pack_key', 'sales_support_v1')
+            ->assertJsonPath('data.last_turn.policy.allowed', true)
+            ->assertJsonPath('data.last_turn.policy.normalized_intent', 'customer_data_capture')
             ->assertJsonPath('data.new_messages.0.direction', 'inbound')
             ->assertJsonPath('data.new_messages.1.direction', 'outbound')
             ->assertJsonPath('data.new_messages.1.source', 'agent_runtime');
@@ -167,13 +170,14 @@ class AgentSandboxTest extends TestCase
                     'tool_name' => 'create_lead',
                     'tool_arguments_json' => json_encode([
                         'lead_data' => [
-                            'name' => 'Ana Sandbox',
+                            'customer_name' => 'Ana Sandbox',
+                            'interest_summary' => 'Producto premium',
                             'email' => 'ana@example.com',
                         ],
                         'reply_text' => 'Lead creado.',
                     ], JSON_THROW_ON_ERROR),
                     'missing_information_fields' => [],
-                    'current_intent' => 'lead_capture',
+                    'current_intent' => 'lead_qualification',
                     'internal_notes' => 'Persist lead.',
                 ], JSON_THROW_ON_ERROR),
             ], 200),

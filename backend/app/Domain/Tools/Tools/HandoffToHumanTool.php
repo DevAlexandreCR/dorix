@@ -25,6 +25,10 @@ class HandoffToHumanTool implements ToolInterface
                         'type' => 'string',
                         'description' => 'Operational reason for escalating to a human.',
                     ],
+                    'reply_text' => [
+                        'type' => 'string',
+                        'description' => 'Optional public message to send before the handoff is created.',
+                    ],
                     'payload' => [
                         'type' => 'object',
                         'description' => 'Optional structured context to include in the handoff request.',
@@ -53,6 +57,7 @@ class HandoffToHumanTool implements ToolInterface
     public function execute(ToolInvocation $invocation): ToolResult
     {
         $reason = $this->requireString($invocation->arguments['reason'] ?? null, 'reason');
+        $replyText = $this->optionalString($invocation->arguments['reply_text'] ?? '');
         $payload = $invocation->arguments['payload'] ?? [];
 
         if (! is_array($payload)) {
@@ -61,6 +66,7 @@ class HandoffToHumanTool implements ToolInterface
 
         return new ToolResult(
             nextAction: ToolNextAction::RequestHandoff,
+            replyText: $replyText,
             handoffReason: $reason,
             outputSummary: [
                 'handoff_requested' => true,
@@ -82,5 +88,10 @@ class HandoffToHumanTool implements ToolInterface
         }
 
         return trim($value);
+    }
+
+    protected function optionalString(mixed $value): string
+    {
+        return is_string($value) ? trim($value) : '';
     }
 }

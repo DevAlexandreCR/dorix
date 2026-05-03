@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Agent\AgentConfigSettings;
+use App\Domain\Agent\AgentPackRegistry;
 use App\Enums\Permission;
 use App\Http\Controllers\Api\Concerns\ResolvesTenantFromRequest;
 use App\Http\Requests\Api\UpsertAgentConfigRequest;
@@ -18,6 +20,7 @@ class AdminAgentConfigController
     use ResolvesTenantFromRequest;
 
     public function __construct(
+        protected AgentPackRegistry $packs,
         protected AdminPanelDataBuilder $builder,
         protected AuditEventRecorder $audit,
     ) {
@@ -52,6 +55,9 @@ class AdminAgentConfigController
 
         return response()->json([
             'data' => $this->builder->serializeAgentConfig($config->fresh()),
+            'meta' => [
+                'available_agent_packs' => $this->packs->available(),
+            ],
         ]);
     }
 
@@ -89,6 +95,9 @@ class AdminAgentConfigController
 
         return response()->json([
             'data' => $this->builder->serializeAgentConfig($config->fresh()->load('whatsappLine:id,name,display_phone_number')),
+            'meta' => [
+                'available_agent_packs' => $this->packs->available(),
+            ],
         ]);
     }
 
@@ -101,6 +110,9 @@ class AdminAgentConfigController
         $settings = is_array($config->settings) ? $config->settings : [];
         $settings['automation_enabled'] = (bool) $payload['automation_enabled'];
         $settings['system_prompt'] = trim((string) ($payload['system_prompt'] ?? ''));
+        $settings['agent_pack_key'] = trim((string) ($payload['agent_pack_key'] ?? AgentConfigSettings::DEFAULT_AGENT_PACK_KEY))
+            ?: AgentConfigSettings::DEFAULT_AGENT_PACK_KEY;
+        $settings['handoff_customer_message'] = trim((string) ($payload['handoff_customer_message'] ?? ''));
 
         $config->forceFill([
             ...$scope,

@@ -80,6 +80,8 @@ return [
         'decision_reply_required' => 'Reply text is required for message-based runtime outcomes.',
         'decision_tool_required' => 'Tool name is required when the runtime requests a tool call.',
         'decision_arguments_invalid' => 'Tool arguments must be a valid JSON object string.',
+        'default_handoff_customer_message' => 'I am transferring your request to a human teammate so they can continue helping you.',
+        'missing_required_fields_message' => 'Before I continue, please share the following: :fields.',
     ],
     'tools' => [
         'not_enabled' => 'The tool ":tool_name" is not enabled for the current tenant or WhatsApp line.',

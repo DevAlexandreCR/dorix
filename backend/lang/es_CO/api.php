@@ -80,6 +80,8 @@ return [
         'decision_reply_required' => 'Hace falta el texto de respuesta para los resultados del runtime basados en mensaje.',
         'decision_tool_required' => 'Hace falta el nombre de la tool cuando el runtime solicita una ejecución.',
         'decision_arguments_invalid' => 'Los argumentos de la tool deben venir como una cadena JSON válida de tipo objeto.',
+        'default_handoff_customer_message' => 'Voy a transferir tu solicitud a una persona del equipo para que continúe ayudándote.',
+        'missing_required_fields_message' => 'Antes de continuar, compárteme lo siguiente: :fields.',
     ],
     'tools' => [
         'not_enabled' => 'La tool ":tool_name" no está habilitada para el tenant o la línea de WhatsApp actual.',

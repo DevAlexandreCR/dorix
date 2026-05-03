@@ -20,6 +20,10 @@ final readonly class AgentDecision
         public array $missingInformationFields = [],
         public string $currentIntent = '',
         public string $internalNotes = '',
+        public bool $policyAllowed = true,
+        public string $policyNormalizedIntent = '',
+        public string $policyBlockedReason = '',
+        public ?AgentDecisionOutcome $policyReplacementOutcome = null,
     ) {
     }
 
@@ -79,6 +83,14 @@ final readonly class AgentDecision
             'missing_information_fields' => $this->missingInformationFields,
             'current_intent' => $this->currentIntent,
             'internal_notes' => $this->internalNotes,
+            'policy' => [
+                'allowed' => $this->policyAllowed,
+                'normalized_intent' => $this->policyNormalizedIntent !== ''
+                    ? $this->policyNormalizedIntent
+                    : $this->currentIntent,
+                'blocked_reason' => $this->policyBlockedReason,
+                'replacement_outcome' => $this->policyReplacementOutcome?->value,
+            ],
         ];
     }
 

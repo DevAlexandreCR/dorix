@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Domain\Agent\AgentRuntime;
+use App\Domain\Agent\AgentPackRegistry;
 use App\Domain\Agent\Contracts\AgentRuntimeInterface;
 use App\Domain\Agent\Contracts\LlmProviderInterface;
 use App\Domain\Agent\OpenAIResponsesLlmProvider;
@@ -55,6 +56,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(TenantContextManager::class);
         $this->app->bind(AgentRuntimeInterface::class, AgentRuntime::class);
         $this->app->bind(LlmProviderInterface::class, OpenAIResponsesLlmProvider::class);
+        $this->app->singleton(AgentPackRegistry::class);
         $this->app->singleton(NativeXlsxParser::class);
         $this->app->singleton(ToolBoundDataSourceResolver::class);
         $this->app->bind(DataSourceImporter::class, DocumentDataSourceImporter::class);

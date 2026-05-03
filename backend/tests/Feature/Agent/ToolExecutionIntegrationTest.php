@@ -84,7 +84,7 @@ class ToolExecutionIntegrationTest extends TestCase
                         'reply_text' => 'Perfecto, ya registré tus datos.',
                     ], JSON_THROW_ON_ERROR),
                     'missing_information_fields' => [],
-                    'current_intent' => 'lead_capture',
+                    'current_intent' => 'customer_data_capture',
                     'internal_notes' => 'Persist the customer data before continuing.',
                 ], JSON_THROW_ON_ERROR),
             ], 200),
@@ -110,7 +110,7 @@ class ToolExecutionIntegrationTest extends TestCase
 
         $this->assertSame(ConversationStatus::WaitingCustomer, $conversation->status);
         $this->assertSame('call_tool', $state->last_agent_action);
-        $this->assertSame('lead_capture', $state->current_intent);
+        $this->assertSame('customer_data_capture', $state->current_intent);
         $this->assertSame('Bogota', $state->collected_data['city']);
         $this->assertSame('500000', $state->collected_data['budget']);
         $this->assertSame('Perfecto, ya registré tus datos.', $outboundMessage->body);
@@ -129,9 +129,11 @@ class ToolExecutionIntegrationTest extends TestCase
         ]);
     }
 
-    public function test_processing_job_falls_back_when_the_runtime_calls_a_tool_that_is_not_enabled(): void
+    public function test_processing_job_blocks_create_lead_without_required_fields(): void
     {
         [$tenant, $line, $conversation, $message] = $this->conversationFixtures();
+        $this->createWhatsappCredential($tenant);
+        $this->enableTool($tenant, $line, 'create_lead');
 
         Http::fake([
             'https://api.openai.com/v1/responses' => Http::response([
@@ -146,7 +148,55 @@ class ToolExecutionIntegrationTest extends TestCase
                         ],
                     ], JSON_THROW_ON_ERROR),
                     'missing_information_fields' => [],
-                    'current_intent' => 'lead_capture',
+                    'current_intent' => 'lead_qualification',
+                    'internal_notes' => 'Create the lead now.',
+                ], JSON_THROW_ON_ERROR),
+            ], 200),
+            'https://graph.facebook.com/*' => Http::response([
+                'messages' => [
+                    ['id' => 'wamid.outbound.lead-missing.300'],
+                ],
+            ], 200),
+        ]);
+
+        config()->set('services.openai.api_key', 'test-openai-key');
+
+        $this->runProcessingJob($tenant, $conversation, $message);
+
+        $conversation->refresh();
+        $state = $conversation->state()->firstOrFail();
+        $outboundMessage = ConversationMessage::query()
+            ->where('conversation_id', $conversation->id)
+            ->where('direction', MessageDirection::Outbound)
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame(ConversationStatus::WaitingCustomer, $conversation->status);
+        $this->assertSame('request_missing_information', $state->last_agent_action);
+        $this->assertSame('lead_qualification', $state->current_intent);
+        $this->assertSame('Antes de continuar, compárteme lo siguiente: interest_summary.', $outboundMessage->body);
+        $this->assertDatabaseCount('tool_executions', 0);
+    }
+
+    public function test_processing_job_falls_back_when_the_runtime_calls_a_tool_that_is_not_enabled(): void
+    {
+        [$tenant, $line, $conversation, $message] = $this->conversationFixtures();
+
+        Http::fake([
+            'https://api.openai.com/v1/responses' => Http::response([
+                'output_text' => json_encode([
+                    'outcome' => 'call_tool',
+                    'reply_text' => '',
+                    'handoff_reason' => '',
+                    'tool_name' => 'create_lead',
+                    'tool_arguments_json' => json_encode([
+                        'lead_data' => [
+                            'customer_name' => 'Ana Cliente',
+                            'interest_summary' => 'Mesa auxiliar',
+                        ],
+                    ], JSON_THROW_ON_ERROR),
+                    'missing_information_fields' => [],
+                    'current_intent' => 'lead_qualification',
                     'internal_notes' => 'Try to create the lead.',
                 ], JSON_THROW_ON_ERROR),
             ], 200),
@@ -161,11 +211,14 @@ class ToolExecutionIntegrationTest extends TestCase
 
         $this->assertSame(ConversationStatus::HumanHandoff, $conversation->status);
         $this->assertSame('not_enabled', $execution->status);
-        $this->assertSame('The tool "create_lead" is not enabled for the current tenant or WhatsApp line.', $execution->error_message);
+        $this->assertSame(
+            __('api.tools.not_enabled', ['tool_name' => 'create_lead']),
+            $execution->error_message,
+        );
         $this->assertDatabaseHas('handoff_requests', [
             'tenant_id' => $tenant->id,
             'conversation_id' => $conversation->id,
-            'reason' => 'The tool "create_lead" is not enabled for the current tenant or WhatsApp line.',
+            'reason' => __('api.tools.not_enabled', ['tool_name' => 'create_lead']),
         ]);
         $this->assertDatabaseHas('agent_events', [
             'tenant_id' => $tenant->id,
@@ -182,7 +235,7 @@ class ToolExecutionIntegrationTest extends TestCase
             new SlowTimeoutTool,
         ]));
 
-        $this->enableTool($tenant, $line, 'slow_timeout_tool', timeoutSeconds: 1);
+        $this->enableTool($tenant, $line, 'save_customer_data', timeoutSeconds: 1);
 
         Http::fake([
             'https://api.openai.com/v1/responses' => Http::response([
@@ -190,10 +243,10 @@ class ToolExecutionIntegrationTest extends TestCase
                     'outcome' => 'call_tool',
                     'reply_text' => '',
                     'handoff_reason' => '',
-                    'tool_name' => 'slow_timeout_tool',
+                    'tool_name' => 'save_customer_data',
                     'tool_arguments_json' => '{}',
                     'missing_information_fields' => [],
-                    'current_intent' => 'timeout_probe',
+                    'current_intent' => 'customer_data_capture',
                     'internal_notes' => 'Execute the slow tool.',
                 ], JSON_THROW_ON_ERROR),
             ], 200),
@@ -208,7 +261,10 @@ class ToolExecutionIntegrationTest extends TestCase
 
         $this->assertSame(ConversationStatus::HumanHandoff, $conversation->status);
         $this->assertSame('timed_out', $execution->status);
-        $this->assertStringContainsString('exceeded the configured timeout of 1 seconds', $execution->error_message ?? '');
+        $this->assertSame(
+            __('api.tools.timeout', ['tool_name' => 'save_customer_data', 'timeout' => 1]),
+            $execution->error_message,
+        );
         $this->assertDatabaseHas('agent_events', [
             'tenant_id' => $tenant->id,
             'event_type' => 'tool_failed',
@@ -408,6 +464,116 @@ class ToolExecutionIntegrationTest extends TestCase
             'tenant_id' => $tenant->id,
             'event_type' => 'data_source_search_completed',
             'conversation_message_id' => $message->id,
+        ]);
+    }
+
+    public function test_processing_job_uses_the_handoff_tool_public_reply_before_handoff(): void
+    {
+        [$tenant, $line, $conversation, $message] = $this->conversationFixtures();
+        $this->createWhatsappCredential($tenant);
+        $this->enableTool($tenant, $line, 'handoff_to_human');
+
+        Http::fake([
+            'https://api.openai.com/v1/responses' => Http::response([
+                'output_text' => json_encode([
+                    'outcome' => 'call_tool',
+                    'reply_text' => '',
+                    'handoff_reason' => '',
+                    'tool_name' => 'handoff_to_human',
+                    'tool_arguments_json' => json_encode([
+                        'reason' => 'Customer asked for confirmation from an agent.',
+                        'reply_text' => 'Te voy a pasar con una persona del equipo.',
+                    ], JSON_THROW_ON_ERROR),
+                    'missing_information_fields' => [],
+                    'current_intent' => 'handoff_requested',
+                    'internal_notes' => 'Escalate to a human.',
+                ], JSON_THROW_ON_ERROR),
+            ], 200),
+            'https://graph.facebook.com/*' => Http::response([
+                'messages' => [
+                    ['id' => 'wamid.outbound.handoff-tool.300'],
+                ],
+            ], 200),
+        ]);
+
+        config()->set('services.openai.api_key', 'test-openai-key');
+
+        $this->runProcessingJob($tenant, $conversation, $message);
+
+        $conversation->refresh();
+        $execution = ToolExecution::query()->firstOrFail();
+        $outboundMessage = ConversationMessage::query()
+            ->where('conversation_id', $conversation->id)
+            ->where('direction', MessageDirection::Outbound)
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame(ConversationStatus::HumanHandoff, $conversation->status);
+        $this->assertSame('handoff_to_human', $execution->tool_name);
+        $this->assertSame('succeeded', $execution->status);
+        $this->assertSame('Te voy a pasar con una persona del equipo.', $outboundMessage->body);
+        $this->assertDatabaseHas('handoff_requests', [
+            'tenant_id' => $tenant->id,
+            'conversation_id' => $conversation->id,
+            'reason' => 'Customer asked for confirmation from an agent.',
+        ]);
+    }
+
+    public function test_processing_job_falls_back_to_public_handoff_when_retrieval_returns_no_matches(): void
+    {
+        [$tenant, $line, $conversation, $message] = $this->conversationFixtures();
+        $this->createWhatsappCredential($tenant);
+        [$dataSource] = $this->createReadyExcelDataSource($tenant);
+
+        $this->enableTool($tenant, $line, 'search_inventory', bindings: [
+            'data_source_id' => $dataSource->id,
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/v1/responses' => Http::response([
+                'output_text' => json_encode([
+                    'outcome' => 'call_tool',
+                    'reply_text' => '',
+                    'handoff_reason' => '',
+                    'tool_name' => 'search_inventory',
+                    'tool_arguments_json' => json_encode([
+                        'query' => 'producto inexistente',
+                    ], JSON_THROW_ON_ERROR),
+                    'missing_information_fields' => [],
+                    'current_intent' => 'inventory_lookup',
+                    'internal_notes' => 'Search inventory first.',
+                ], JSON_THROW_ON_ERROR),
+            ], 200),
+            'https://graph.facebook.com/*' => Http::response([
+                'messages' => [
+                    ['id' => 'wamid.outbound.inventory-empty.300'],
+                ],
+            ], 200),
+        ]);
+
+        config()->set('services.openai.api_key', 'test-openai-key');
+
+        $this->runProcessingJob($tenant, $conversation, $message);
+
+        $conversation->refresh();
+        $execution = ToolExecution::query()->firstOrFail();
+        $outboundMessage = ConversationMessage::query()
+            ->where('conversation_id', $conversation->id)
+            ->where('direction', MessageDirection::Outbound)
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame(ConversationStatus::HumanHandoff, $conversation->status);
+        $this->assertSame('search_inventory', $execution->tool_name);
+        $this->assertSame(0, $execution->output_summary['match_count']);
+        $this->assertSame(
+            __('api.agent.default_handoff_customer_message'),
+            $outboundMessage->body,
+        );
+        $this->assertDatabaseHas('handoff_requests', [
+            'tenant_id' => $tenant->id,
+            'conversation_id' => $conversation->id,
+            'status' => 'requested',
         ]);
     }
 
@@ -642,7 +808,7 @@ class SlowTimeoutTool implements ToolInterface
     public function definition(): ToolDefinition
     {
         return new ToolDefinition(
-            name: 'slow_timeout_tool',
+            name: 'save_customer_data',
             description: 'A slow test tool used to validate timeout handling.',
             inputSchema: [
                 'type' => 'object',

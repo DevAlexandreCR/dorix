@@ -321,6 +321,13 @@ class AgentSandboxController
         return [
             'triggering_message_id' => $triggeringMessage->getKey(),
             'runtime_outcome' => is_string($runtimeOutcome) ? $runtimeOutcome : null,
+            'agent_pack_key' => data_get($runtimeEvent?->payload ?? [], 'agent_pack_key'),
+            'policy' => [
+                'allowed' => data_get($runtimeEvent?->payload ?? [], 'policy.allowed'),
+                'normalized_intent' => data_get($runtimeEvent?->payload ?? [], 'policy.normalized_intent'),
+                'blocked_reason' => data_get($runtimeEvent?->payload ?? [], 'policy.blocked_reason'),
+                'replacement_outcome' => data_get($runtimeEvent?->payload ?? [], 'policy.replacement_outcome'),
+            ],
             'handoff_requested' => $events->contains(
                 fn (AgentEvent $event): bool => $event->event_type === 'handoff_triggered'
             ),

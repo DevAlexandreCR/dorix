@@ -125,10 +125,15 @@ class AdminPanelTest extends TestCase
                 'is_active' => true,
                 'automation_enabled' => false,
                 'system_prompt' => 'Habla solo con información confirmada.',
+                'agent_pack_key' => 'sales_support_v1',
+                'handoff_customer_message' => 'Te conectaré con una persona del equipo.',
             ])
             ->assertOk()
             ->assertJsonPath('data.automation_enabled', false)
-            ->assertJsonPath('data.system_prompt', 'Habla solo con información confirmada.');
+            ->assertJsonPath('data.system_prompt', 'Habla solo con información confirmada.')
+            ->assertJsonPath('data.agent_pack_key', 'sales_support_v1')
+            ->assertJsonPath('data.handoff_customer_message', 'Te conectaré con una persona del equipo.')
+            ->assertJsonPath('meta.available_agent_packs.0.key', 'sales_support_v1');
 
         $this->actingAs($tenantAdmin)
             ->withCsrf()
@@ -148,9 +153,12 @@ class AdminPanelTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('data.tenant.id', $tenant->id)
             ->assertJsonPath('data.agent_configs.0.automation_enabled', false)
+            ->assertJsonPath('data.agent_configs.0.agent_pack_key', 'sales_support_v1')
+            ->assertJsonPath('data.agent_configs.0.handoff_customer_message', 'Te conectaré con una persona del equipo.')
             ->assertJsonPath('data.tool_configs.0.data_source_id', $dataSource->id)
             ->assertJsonPath('data.credential_metadata.0.provider', 'whatsapp_meta')
-            ->assertJsonPath('data.credential_metadata.0.has_secret', true);
+            ->assertJsonPath('data.credential_metadata.0.has_secret', true)
+            ->assertJsonPath('data.available_agent_packs.0.key', 'sales_support_v1');
 
         $response->assertJsonFragment([
             'email' => 'operator-added@example.com',

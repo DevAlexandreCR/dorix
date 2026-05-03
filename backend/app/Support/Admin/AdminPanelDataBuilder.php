@@ -2,6 +2,8 @@
 
 namespace App\Support\Admin;
 
+use App\Domain\Agent\AgentConfigSettings;
+use App\Domain\Agent\AgentPackRegistry;
 use App\Domain\Tools\ToolRegistry;
 use App\Models\AgentConfig;
 use App\Models\AgentEvent;
@@ -19,6 +21,7 @@ use Illuminate\Support\Collection;
 class AdminPanelDataBuilder
 {
     public function __construct(
+        protected AgentPackRegistry $packs,
         protected ToolRegistry $toolRegistry,
         protected ObservabilityPayloadSanitizer $sanitizer,
     ) {
@@ -107,6 +110,7 @@ class AdminPanelDataBuilder
                 'operator',
                 'viewer',
             ],
+            'available_agent_packs' => $this->packs->available(),
             'binding_tools' => [
                 'search_inventory',
                 'search_knowledge',
@@ -242,6 +246,8 @@ class AdminPanelDataBuilder
             'system_prompt' => is_string($settings['system_prompt'] ?? null)
                 ? $settings['system_prompt']
                 : '',
+            'agent_pack_key' => AgentConfigSettings::agentPackKey($settings),
+            'handoff_customer_message' => AgentConfigSettings::handoffCustomerMessage($settings),
             'created_at' => $config->created_at?->toIso8601String(),
             'updated_at' => $config->updated_at?->toIso8601String(),
             'whatsapp_line' => $config->whatsappLine ? [

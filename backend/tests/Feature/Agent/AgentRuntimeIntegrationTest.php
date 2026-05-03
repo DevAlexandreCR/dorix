@@ -33,6 +33,14 @@ class AgentRuntimeIntegrationTest extends TestCase
     {
         [$tenant, $line, $conversation, $message] = $this->conversationFixtures();
         $state = app(ConversationStateRepository::class)->getOrCreate($conversation);
+        $context = app(AgentContextLoader::class)
+            ->load($conversation, $message->id, $state)
+            ->withRetrievedContext([
+                [
+                    'id' => 1,
+                    'preview' => 'La tienda atiende de lunes a viernes.',
+                ],
+            ]);
 
         Http::fake([
             'https://api.openai.com/v1/responses' => Http::response([
@@ -43,7 +51,7 @@ class AgentRuntimeIntegrationTest extends TestCase
                     'tool_name' => '',
                     'tool_arguments_json' => '{}',
                     'missing_information_fields' => [],
-                    'current_intent' => 'customer_support',
+                    'current_intent' => 'knowledge_lookup',
                     'internal_notes' => 'Respond directly.',
                 ], JSON_THROW_ON_ERROR),
             ], 200),
@@ -51,13 +59,11 @@ class AgentRuntimeIntegrationTest extends TestCase
 
         config()->set('services.openai.api_key', 'test-openai-key');
 
-        $decision = app(AgentRuntimeInterface::class)->run(
-            app(AgentContextLoader::class)->load($conversation, $message->id, $state)
-        );
+        $decision = app(AgentRuntimeInterface::class)->run($context);
 
         $this->assertSame(AgentDecisionOutcome::SendMessage, $decision->outcome);
         $this->assertSame('Hola, te ayudo con eso.', $decision->replyText);
-        $this->assertSame('customer_support', $decision->currentIntent);
+        $this->assertSame('knowledge_lookup', $decision->currentIntent);
         $this->assertDatabaseHas('agent_events', [
             'tenant_id' => $tenant->id,
             'event_type' => 'agent_started',
@@ -118,13 +124,13 @@ class AgentRuntimeIntegrationTest extends TestCase
         Http::fake([
             'https://api.openai.com/v1/responses' => Http::response([
                 'output_text' => json_encode([
-                    'outcome' => 'send_message',
+                    'outcome' => 'request_missing_information',
                     'reply_text' => 'Claro, cuéntame qué producto buscas.',
                     'handoff_reason' => '',
                     'tool_name' => '',
                     'tool_arguments_json' => '{}',
-                    'missing_information_fields' => [],
-                    'current_intent' => 'inventory_intake',
+                    'missing_information_fields' => ['interest_summary'],
+                    'current_intent' => 'customer_data_capture',
                     'internal_notes' => 'Reply and wait.',
                 ], JSON_THROW_ON_ERROR),
             ], 200),
@@ -160,8 +166,8 @@ class AgentRuntimeIntegrationTest extends TestCase
         $this->assertSame(ConversationStatus::WaitingCustomer, $conversation->status);
         $this->assertSame('Claro, cuéntame qué producto buscas.', $outboundMessage->body);
         $this->assertSame('accepted', $outboundMessage->status);
-        $this->assertSame('send_message', $state->last_agent_action);
-        $this->assertSame('inventory_intake', $state->current_intent);
+        $this->assertSame('request_missing_information', $state->last_agent_action);
+        $this->assertSame('customer_data_capture', $state->current_intent);
         $this->assertDatabaseHas('agent_events', [
             'tenant_id' => $tenant->id,
             'event_type' => 'whatsapp_message_sent',
@@ -177,6 +183,7 @@ class AgentRuntimeIntegrationTest extends TestCase
     public function test_processing_job_creates_a_handoff_request_when_runtime_requests_handoff(): void
     {
         [$tenant, $line, $conversation, $message] = $this->conversationFixtures();
+        $this->createWhatsappCredential($tenant);
 
         Http::fake([
             'https://api.openai.com/v1/responses' => Http::response([
@@ -207,14 +214,86 @@ class AgentRuntimeIntegrationTest extends TestCase
         );
 
         $conversation->refresh();
+        $outboundMessage = ConversationMessage::query()
+            ->where('conversation_id', $conversation->id)
+            ->where('direction', MessageDirection::Outbound)
+            ->latest('id')
+            ->firstOrFail();
 
         $this->assertSame(ConversationStatus::HumanHandoff, $conversation->status);
+        $this->assertSame(
+            __('api.agent.default_handoff_customer_message'),
+            $outboundMessage->body,
+        );
         $this->assertDatabaseHas('handoff_requests', [
             'tenant_id' => $tenant->id,
             'conversation_id' => $conversation->id,
             'requested_by_type' => 'runtime',
             'status' => 'requested',
             'reason' => 'Customer is asking for legal confirmation.',
+        ]);
+        $this->assertDatabaseHas('agent_events', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'handoff_triggered',
+            'conversation_message_id' => $message->id,
+        ]);
+    }
+
+    public function test_processing_job_blocks_out_of_scope_send_message_and_falls_back_to_public_handoff(): void
+    {
+        [$tenant, $line, $conversation, $message] = $this->conversationFixtures();
+        $this->createWhatsappCredential($tenant);
+
+        Http::fake([
+            'https://api.openai.com/v1/responses' => Http::response([
+                'output_text' => json_encode([
+                    'outcome' => 'send_message',
+                    'reply_text' => 'Aquí tienes un chiste.',
+                    'handoff_reason' => '',
+                    'tool_name' => '',
+                    'tool_arguments_json' => '{}',
+                    'missing_information_fields' => [],
+                    'current_intent' => 'small_talk',
+                    'internal_notes' => 'Reply casually.',
+                ], JSON_THROW_ON_ERROR),
+            ], 200),
+            'https://graph.facebook.com/*' => Http::response([
+                'messages' => [
+                    ['id' => 'wamid.outbound.handoff.100'],
+                ],
+            ], 200),
+        ]);
+
+        config()->set('services.openai.api_key', 'test-openai-key');
+
+        $job = new ProcessIncomingMessageJob($tenant->id, $conversation->id, $message->id);
+        $job->handle(
+            app(TenantContextManager::class),
+            app(AgentEventRecorder::class),
+            app(ConversationLockManager::class),
+            app(ConversationStateRepository::class),
+            app(AgentContextLoader::class),
+            app(AgentRuntimeInterface::class),
+            app(AgentDecisionApplier::class),
+        );
+
+        $conversation->refresh();
+        $state = $conversation->state()->firstOrFail();
+        $outboundMessage = ConversationMessage::query()
+            ->where('conversation_id', $conversation->id)
+            ->where('direction', MessageDirection::Outbound)
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame(ConversationStatus::HumanHandoff, $conversation->status);
+        $this->assertSame('request_handoff', $state->last_agent_action);
+        $this->assertSame('unsupported', $state->current_intent);
+        $this->assertSame('Aquí tienes un chiste.', $outboundMessage->body);
+        $this->assertDatabaseHas('handoff_requests', [
+            'tenant_id' => $tenant->id,
+            'conversation_id' => $conversation->id,
+            'requested_by_type' => 'runtime',
+            'status' => 'requested',
         ]);
         $this->assertDatabaseHas('agent_events', [
             'tenant_id' => $tenant->id,
@@ -300,7 +379,7 @@ class AgentRuntimeIntegrationTest extends TestCase
             'conversation_id' => $conversation->id,
             'requested_by_type' => 'runtime',
             'status' => 'requested',
-            'reason' => 'The OpenAI runtime request failed with status 500.',
+            'reason' => __('api.agent.openai_request_failed', ['status' => 500]),
         ]);
         $this->assertDatabaseHas('agent_events', [
             'tenant_id' => $tenant->id,

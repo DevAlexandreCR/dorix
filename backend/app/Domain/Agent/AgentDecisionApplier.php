@@ -51,6 +51,7 @@ class AgentDecisionApplier
                 [
                     'decision' => $decision->toArray(),
                 ],
+                $this->handoffReplyText($context, $decision->replyText),
             ),
             AgentDecisionOutcome::CallTool => $this->applyToolDecision($context, $decision, $conversation),
             AgentDecisionOutcome::Error => $this->fallbackToHumanHandoff(
@@ -61,6 +62,7 @@ class AgentDecisionApplier
                 [
                     'decision' => $decision->toArray(),
                 ],
+                $this->handoffReplyText($context, $decision->replyText),
             ),
         };
     }
@@ -74,8 +76,46 @@ class AgentDecisionApplier
         ?int $messageId,
         string $reason,
         array $payload = [],
+        string $replyText = '',
+        ?int $tenantId = null,
     ): void {
-        $conversation = $this->statusTransitioner->transition($conversation->fresh(), ConversationStatus::HumanHandoff);
+        $conversation = $conversation->fresh();
+
+        if ($whatsAppLineId !== null) {
+            $resolvedReplyText = trim($replyText) !== ''
+                ? trim($replyText)
+                : __('api.agent.default_handoff_customer_message');
+
+            if ($resolvedReplyText !== '') {
+                try {
+                    $this->sendOutboundMessageWithoutContext(
+                        $conversation,
+                        $tenantId ?? $conversation->tenant_id,
+                        $whatsAppLineId,
+                        $resolvedReplyText,
+                        sprintf('agent-runtime:%d:%s:handoff', $conversation->getKey(), $messageId ?? 'no-trigger'),
+                        [
+                            'source' => 'agent_runtime_handoff',
+                            'reason' => $reason,
+                            'payload' => $payload,
+                        ],
+                    );
+                } catch (\Throwable $exception) {
+                    $this->events->record($conversation->tenant_id, 'handoff_public_message_failed', [
+                        'whatsapp_line_id' => $whatsAppLineId,
+                        'conversation_id' => $conversation->getKey(),
+                        'conversation_message_id' => $messageId,
+                        'payload' => [
+                            'reason' => $reason,
+                            'error' => $exception->getMessage(),
+                            'exception' => $exception::class,
+                        ],
+                    ]);
+                }
+            }
+        }
+
+        $conversation = $this->statusTransitioner->transition($conversation, ConversationStatus::HumanHandoff);
 
         $this->stateRepository->update($conversation, [
             'last_agent_action' => AgentDecisionOutcome::RequestHandoff->value,
@@ -131,6 +171,7 @@ class AgentDecisionApplier
                     'decision' => $decision->toArray(),
                     'tool_result' => $result->toArray(),
                 ],
+                $this->handoffReplyText($context, $result->replyText),
             ),
             ToolNextAction::NoReply => null,
         };
@@ -145,7 +186,17 @@ class AgentDecisionApplier
         $retrievedContext = $this->normalizeRetrievedContext($result);
 
         if ($retrievedContext === []) {
-            $this->waitForCustomer($conversation);
+            $this->fallbackToHumanHandoff(
+                $conversation,
+                $context->line->getKey(),
+                $context->triggeringMessage->getKey(),
+                sprintf('The retrieval tool "%s" returned no matches.', $decision->toolName),
+                [
+                    'decision' => $decision->toArray(),
+                    'tool_result' => $result->toArray(),
+                ],
+                $this->handoffReplyText($context),
+            );
 
             return;
         }
@@ -172,6 +223,7 @@ class AgentDecisionApplier
                     'tool_result' => $result->toArray(),
                     'follow_up_decision' => $followUpDecision->toArray(),
                 ],
+                $this->handoffReplyText($context),
             );
 
             return;
@@ -254,6 +306,14 @@ class AgentDecisionApplier
         $this->statusTransitioner->transition($conversation->fresh(), ConversationStatus::WaitingCustomer);
     }
 
+    protected function handoffReplyText(AgentContext $context, string $replyText = ''): string
+    {
+        return AgentConfigSettings::handoffCustomerMessage(
+            $context->agentConfig,
+            $replyText !== '' ? $replyText : __('api.agent.default_handoff_customer_message'),
+        );
+    }
+
     protected function updateState(Conversation $conversation, AgentDecision $decision): void
     {
         $attributes = [
@@ -309,5 +369,27 @@ class AgentDecisionApplier
         $sanitized = $this->sanitizer->sanitizeForStorage($payload);
 
         return is_array($sanitized) ? $sanitized : ['value' => $sanitized];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    protected function sendOutboundMessageWithoutContext(
+        Conversation $conversation,
+        int $tenantId,
+        int $whatsAppLineId,
+        string $body,
+        string $idempotencyKey,
+        array $payload,
+    ): void {
+        $this->outboundMessageSender->send(new OutboundMessageData(
+            tenantId: $tenantId,
+            conversationId: $conversation->getKey(),
+            whatsAppLineId: $whatsAppLineId,
+            recipientPhone: $conversation->contact_phone,
+            body: $body,
+            idempotencyKey: $idempotencyKey,
+            payload: $payload,
+        ));
     }
 }

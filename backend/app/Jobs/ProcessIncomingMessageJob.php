@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Domain\Agent\AgentContextLoader;
+use App\Domain\Agent\AgentConfigSettings;
 use App\Domain\Agent\AgentDecisionApplier;
 use App\Domain\Agent\Contracts\AgentRuntimeInterface;
 use App\Domain\Conversations\Contracts\ConversationLockManager;
@@ -100,9 +101,11 @@ class ProcessIncomingMessageJob implements ShouldQueue, TenantAwareJob
                         ],
                     ]);
                 } else {
+                    $context = null;
+
                     try {
                         $context = $contextLoader->load($conversation, $this->messageId, $state);
-                        $automationEnabled = (bool) (($context->agentConfig->settings ?? [])['automation_enabled'] ?? true);
+                        $automationEnabled = AgentConfigSettings::automationEnabled($context->agentConfig);
 
                         if (! $context->line->is_enabled || ! $automationEnabled) {
                             $runtimeOutcome = 'skipped_due_to_configuration';
@@ -133,6 +136,11 @@ class ProcessIncomingMessageJob implements ShouldQueue, TenantAwareJob
                                 'conversation_status' => $conversation->status->value,
                                 'exception' => $exception::class,
                             ],
+                            $context ? AgentConfigSettings::handoffCustomerMessage(
+                                $context->agentConfig,
+                                __('api.agent.default_handoff_customer_message'),
+                            ) : __('api.agent.default_handoff_customer_message'),
+                            $context?->tenant->getKey(),
                         );
 
                         $runtimeOutcome = 'fallback_human_handoff';

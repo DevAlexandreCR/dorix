@@ -13,6 +13,7 @@ class AgentRuntime implements AgentRuntimeInterface
 {
     public function __construct(
         protected PromptBuilder $promptBuilder,
+        protected AgentDecisionPolicy $policy,
         protected LlmProviderInterface $provider,
         protected AgentEventRecorder $events,
     ) {
@@ -33,11 +34,15 @@ class AgentRuntime implements AgentRuntimeInterface
                         static fn ($tool): string => $tool->name(),
                         $context->enabledTools,
                 ),
+                    'agent_pack_key' => $this->policy->activePack($context)->key,
             ],
         ]);
 
         try {
-            $decision = $this->provider->generateDecision($context, $this->promptBuilder->build($context));
+            $decision = $this->policy->apply(
+                $context,
+                $this->provider->generateDecision($context, $this->promptBuilder->build($context)),
+            );
 
             $this->events->record($context->tenant->getKey(), 'agent_response_generated', [
                 'whatsapp_line_id' => $context->line->getKey(),
@@ -47,6 +52,8 @@ class AgentRuntime implements AgentRuntimeInterface
                     'model' => $context->agentConfig->model,
                     'prompt_version' => $context->agentConfig->prompt_version,
                     'retrieved_context_count' => count($context->retrievedContext),
+                    'agent_pack_key' => $this->policy->activePack($context)->key,
+                    'policy' => $decision->toArray()['policy'],
                     'decision' => $decision->toArray(),
                 ],
             ]);

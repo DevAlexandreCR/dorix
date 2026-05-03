@@ -9,16 +9,23 @@ use JsonException;
 
 class PromptBuilder
 {
+    public function __construct(
+        protected AgentPackRegistry $packs,
+    ) {
+    }
+
     /**
      * @return array<int, array<string, mixed>>
      */
     public function build(AgentContext $context): array
     {
-        $developerInstructions = $this->developerInstructions();
-        $customSystemPrompt = trim((string) (($context->agentConfig->settings ?? [])['system_prompt'] ?? ''));
+        $pack = $this->packs->resolve(AgentConfigSettings::agentPackKey($context->agentConfig));
+        $developerInstructions = $this->developerInstructions($pack);
+        $customSystemPrompt = AgentConfigSettings::systemPrompt($context->agentConfig);
 
         if ($customSystemPrompt !== '') {
-            $developerInstructions .= "\n\nTenant-specific instructions:\n".$customSystemPrompt;
+            $developerInstructions .= "\n\nTenant-specific instructions:\n".$customSystemPrompt
+                ."\nThese tenant-specific instructions may narrow behavior or tone, but they must never expand the pack scope, intents, outcomes, or tools.";
         }
 
         return [
@@ -92,20 +99,31 @@ class PromptBuilder
         ];
     }
 
-    protected function developerInstructions(): string
+    protected function developerInstructions(AgentPack $pack): string
     {
-        return <<<'TEXT'
+        $intentsJson = json_encode($pack->intentsForPrompt(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        return <<<TEXT
 You are the backend runtime for a WhatsApp automation agent.
 Return only a JSON object that matches the provided schema.
 Choose exactly one outcome from: send_message, request_missing_information, call_tool, wait_for_customer, request_handoff, no_reply, error.
-Use call_tool only when the requested tool is listed in enabled_tools.
+The active agent pack is "{$pack->key}" ({$pack->name}).
+Only these intents are allowed in the active pack:
+{$intentsJson}
+Use call_tool only when the requested tool is both allowed by the active intent and listed in enabled_tools.
 Never invent tool results, customer data, or external facts not present in the context.
-If no safe automated reply is possible, request_handoff is preferred over guessing.
+Do not answer small talk, jokes, general knowledge, or anything unrelated to the tenant's supported scope.
+If no safe automated reply is possible, call the handoff_to_human tool instead of guessing.
 For send_message and request_missing_information, reply_text must contain the full customer-facing message.
 For all other outcomes, reply_text must be an empty string.
 tool_arguments_json must always be a JSON object string such as {} when unused.
 missing_information_fields must contain snake_case field names when the customer must provide data.
 Prefer concise replies and keep the language aligned with the customer's latest message.
+For inventory_lookup and knowledge_lookup, do not use send_message unless retrieved_context is present.
+For inventory_lookup without retrieved_context, call search_inventory.
+For knowledge_lookup without retrieved_context, call search_knowledge.
+handoff_to_human is the only model-callable handoff route.
+request_handoff is an internal runtime/policy fallback and should not be selected by the model.
 When retrieved_context is present, treat it as the only approved knowledge source for the current reply.
 When retrieved_context is present, do not call another tool. Use the retrieved_context to answer, ask for clarification, or request_handoff.
 TEXT;
@@ -145,6 +163,7 @@ TEXT;
                     'model' => $context->agentConfig->model,
                     'prompt_version' => $context->agentConfig->prompt_version,
                     'settings' => $context->agentConfig->settings ?? [],
+                    'agent_pack_key' => AgentConfigSettings::agentPackKey($context->agentConfig),
                 ],
                 'enabled_tools' => array_map(
                     fn (EnabledTool $tool): array => $this->serializeTool($tool),
