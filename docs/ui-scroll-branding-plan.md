@@ -1,41 +1,49 @@
-# Guia UI/UX Dorix: scroll fluido, branding y lenguaje simple
+# Spec UI/UX Dorix: scroll, branding y lenguaje visible
 
-## Estado del documento
+## Objetivo y no-objetivos
 
-Este documento es una guia de implementacion futura para la SPA de `frontend/`. No describe un cambio ya aplicado en codigo y no reemplaza `docs/agent-outputs.md`, que sigue enfocado en runtime, policy, outcomes y tools.
+Este documento define una spec ejecutable para futuros cambios de UI/UX en la SPA de `frontend/`. No describe cambios ya aplicados en codigo y no reemplaza `docs/agent-outputs.md`, que sigue enfocado en runtime, policy, outcomes y tools.
 
-El objetivo es dejar una referencia clara para futuros cambios de UI/UX sin introducir logica nueva de dominio, WhatsApp, runtime, Excel ni panel admin fuera de presentacion, lenguaje y ergonomia.
+Objetivo:
 
-## Resumen
+- Resolver de forma explicita el modelo de scroll por ruta y breakpoint.
+- Cerrar la direccion visual para que el frontend tenga una referencia concreta de jerarquia, densidad y lenguaje.
+- Bajar la copia visible a lenguaje de negocio para usuarios operativos y admins no tecnicos.
+- Redefinir `Bindings` como `Herramientas` sin cambiar contratos backend ni nombres internos.
 
-- Mantener la identidad Dorix actual: acento naranja calido, superficies sobrias, soporte dark/light, densidad media y tono operativo.
-- Aplicar un modelo de **scroll hibrido controlado**: scroll nativo de pagina como regla general, con scroll interno solo en escritorio para listas o chats donde mejore productividad.
-- Reescribir la UI visible para usuarios no tecnicos, evitando jerga como `tenant`, `runtime`, `bindings`, `tools`, `logs`, `scope`, `system prompt`, `fallback`, `chunks`, `metadata` y `Phone Number ID`.
-- Convertir `Bindings` en **Herramientas** como experiencia de producto: tarjetas compactas con icono, nombre claro, estado, accion principal y soporte avanzado colapsado.
-- Usar buenas practicas publicas como referencia, no como clon visual: GOV.UK para claridad y lenguaje, Material para tabs/navegacion de secciones, Lucide para iconos consistentes.
+No-objetivos:
 
-## Principios de producto
+- No introducir logica nueva de dominio, WhatsApp, runtime, Excel ni panel admin fuera de presentacion y ergonomia.
+- No cambiar contratos backend, rutas API, payloads, enums ni semantica interna.
+- No hacer rebranding. Se preservan tokens, tipografia y tono base de Dorix.
+- No copiar markup, assets ni librerias React de referencias externas.
+- No agregar un tercer panel persistente de contacto o contexto en esta iteracion.
 
-- La experiencia principal se escribe para personas operativas y administradores no tecnicos.
-- Los detalles tecnicos siguen disponibles para soporte, pero no deben dominar la pantalla.
-- La UI debe priorizar lectura rapida, acciones claras y continuidad de flujo.
-- Las secciones deben usar nombres de negocio, no nombres de arquitectura interna.
-- La app debe sentirse como una herramienta de trabajo estable, no como una demo tecnica.
+## Estado actual verificado en el repo
 
-## Branding Dorix
+Estado real hoy, verificado en `frontend/`:
 
-### Identidad visual base
+- `frontend/src/app/AppShell.vue` aplica `xl:h-dvh` y `xl:overflow-hidden` solo cuando recibe `lockViewport=true`.
+- `frontend/src/layouts/WorkspaceLayout.vue` activa `lockViewport` solo cuando `route.meta.section` es `operations` o `sandbox`.
+- `frontend/src/modules/admin/views/AdminView.vue` no bloquea viewport hoy; sigue en flujo de pagina normal.
+- `frontend/src/modules/sandbox/views/SandboxView.vue` ya combina `xl:overflow-hidden` con listas y viewport internos scrollables.
+- `frontend/src/modules/operations/views/OperationsView.vue` sigue siendo mayormente flujo de pagina; todavia no implementa el split pane scrollable que el layout objetivo necesita.
+- `frontend/src/router/index.ts` ya resetea navegacion con `scrollBehavior() { return { top: 0 }; }`.
+- `frontend/src/modules/admin/views/AdminView.vue` renderiza configuraciones de herramientas desde `binding_tools`, aunque `frontend/src/modules/admin/types.ts` ya expone `available_tools` y `supports_data_source_binding`.
+- `frontend/src/i18n/locales/es-CO.ts` y `frontend/src/i18n/locales/en.ts` todavia muestran terminologia tecnica visible como `tenant`, `bindings`, `runtime`, `logs`, `scope`, `Phone Number ID`, `chunks` y `credentials`.
 
-- Acento principal: naranja calido existente en `--accent`.
-- Neutrales: base oscura sobria en dark mode y fondo claro calido en light mode, usando los tokens actuales de `frontend/src/style.css`.
-- Estados: mantener `--success`, `--warning` y `--danger` para semantica consistente.
-- Tipografia: conservar `"IBM Plex Sans", "Segoe UI", sans-serif`.
-- Densidad: media. Evitar pantallas vacias, pero tambien evitar paneles saturados.
-- Tono visual: operativo, claro y confiable. Reducir decoracion que compita con formularios, listas y conversaciones.
+Este estado actual debe quedar reflejado en la implementacion. El rediseño no debe asumir que `OperationsView` ya tiene resuelto el scroll interno ni que el admin ya usa `available_tools`.
 
-### Tokens base a preservar
+## Direccion visual elegida
 
-Los futuros cambios deben partir de estos tokens existentes:
+### Marca Dorix a preservar
+
+- Paleta base: mantener los tokens actuales de `frontend/src/style.css`.
+- Tipografia: mantener `"IBM Plex Sans", "Segoe UI", sans-serif`.
+- Modos: conservar soporte dark/light.
+- Tono: operativo, claro, confiable y sobrio.
+
+Tokens a preservar:
 
 - `--background`
 - `--surface`
@@ -50,47 +58,114 @@ Los futuros cambios deben partir de estos tokens existentes:
 - `--overlay`
 - `--shadow-panel`
 
-Se pueden ajustar valores para mejorar contraste o legibilidad, pero no introducir una paleta nueva sin una decision explicita de marca.
+Se permiten ajustes finos de contraste, espaciamiento y densidad. No se permite introducir una paleta nueva ni cambiar la identidad base.
 
-### Reglas visuales
+### Referencias externas adoptadas
 
-- Usar tarjetas solo para items repetidos, modales o herramientas realmente enmarcadas.
-- Evitar tarjetas dentro de tarjetas cuando una seccion, borde ligero o agrupacion simple sea suficiente.
-- Mantener radios compactos para nuevos componentes, idealmente `8px` a `16px`, salvo donde se reutilice un componente existente.
-- Usar encabezados compactos dentro de paneles. Reservar tipografia grande para vistas principales, no para controles internos.
-- Los textos largos deben truncar, envolver o pasar a soporte avanzado sin romper layout.
+La implementacion futura debe tomar patron y jerarquia de estas referencias:
 
-## Scroll y layout
+- [Untitled UI Dashboard 07](https://www.untitledui.com/react/components/dashboards/dashboard-07): referencia principal para headers, densidad, metricas compactas y polish de dashboard SaaS.
+- [Tailwind Catalyst Sidebar](https://catalyst.tailwindui.com/docs/sidebar): referencia para claridad de navegacion, estados activos y agrupacion visual del shell.
+- [Invent Inbox](https://docs.useinvent.com/guides/inbox): referencia para el patron inbox con lista izquierda y hilo principal.
+- [TalkJS Inbox](https://talkjs.com/docs/Guides/JavaScript/Classic/Add_Inbox/): referencia para inbox como pagina dedicada con lista a la izquierda y conversacion principal.
+- [TailAdmin Vue](https://tailadmin.com/vue): sanity check de stack Vue + Tailwind para confirmar que el lenguaje visual elegido es compatible con el stack actual.
 
-### Modelo objetivo
+Estas referencias se usan para decisiones de patron, ritmo visual y organizacion. No se deben clonar assets, componentes React, markup ni estructura literal.
 
-La regla general es scroll nativo de pagina. El usuario nunca debe quedar atrapado en una zona interna sin poder seguir bajando.
+### Reglas visuales cerradas
 
-Solo se permite scroll interno en escritorio para:
+- Subir la jerarquia visual hacia un estilo mas cercano a Untitled UI: encabezados mas limpios, bloques de resumen mas compactos y menos decoracion compitiendo con la informacion.
+- Reducir anidacion innecesaria: evitar tarjeta dentro de tarjeta cuando un borde, una seccion o un encabezado sean suficientes.
+- El `TopBar` actual se mantiene como shell, pero debe adelgazar su presencia visual:
+  - menos altura total;
+  - separacion mas clara entre identidad, switches y navegacion;
+  - menor peso decorativo;
+  - mas espacio util para el contenido principal.
+- No introducir sidebars persistentes nuevas.
+- No introducir un tercer rail fijo de contacto/contexto en `OperationsView` o `SandboxView`.
+- Los radios para elementos nuevos deben mantenerse compactos, en general entre `8px` y `16px`, salvo que se reutilice un componente existente.
 
-- Lista de conversaciones en `OperationsView`.
-- Hilo o chat en `OperationsView`, si el layout de escritorio necesita mantener acciones visibles.
-- Lista de conversaciones de prueba en `SandboxView`.
-- Viewport de mensajes en `SandboxView`.
+## Arquitectura de scroll por ruta y breakpoint
 
-En movil y tablet estrecha, `OperationsView`, `SandboxView` y `AdminView` deben fluir como pagina normal.
+### Decision global
 
-### Reglas para `AppShell` y `WorkspaceLayout`
+La regla general es scroll nativo de pagina. El scroll interno solo se permite donde aumente productividad y este controlado por un contenedor claramente responsable.
 
-- `AppShell` y `WorkspaceLayout` no deben bloquear el viewport por ruta si la vista hija no define correctamente sus zonas internas.
-- Cuando una ruta use viewport bloqueado en desktop, la cadena de contenedores debe incluir `min-h-0`, `flex-1` y `overflow-y-auto` donde corresponda.
-- `h-dvh` y `overflow-hidden` deben limitarse a breakpoints de escritorio y solo cuando exista un contenedor interno claro para el contenido desplazable.
-- El header global debe conservarse estable, pero no debe impedir que el contenido completo sea accesible en pantallas pequenas.
+Breakpoint oficial del documento: `xl`.
 
-### Movimiento
+No usar "desktop" como termino ambiguo. Toda decision de viewport lock o split panes debe hablar en terminos de `xl`.
 
-Agregar en estilos globales:
+### Regla de ownership
 
-- `scroll-behavior: smooth` para navegacion natural.
-- `scrollbar-gutter: stable` para evitar saltos laterales al aparecer scrollbars.
-- Respeto completo a `prefers-reduced-motion`.
+- Solo puede existir un duenio de `overflow-y` por eje visual.
+- Queda prohibido encadenar `overflow-hidden` en varios contenedores si no existe un contenedor hijo claramente definido como viewport desplazable.
+- Si una ruta usa viewport bloqueado en `xl`, la cadena de layout debe incluir `min-h-0`, `flex-1` y el contenedor exacto que toma `overflow-y-auto`.
+- Si no existe ese contenedor, la ruta debe volver a flujo de pagina normal.
 
-En `SandboxView`, el autoscroll del chat debe usar:
+### AppShell y WorkspaceLayout
+
+- `AppShell` y `WorkspaceLayout` mantienen scroll de documento en `mobile` y `tablet < xl`.
+- `lockViewport` solo puede seguir aplicandose en `xl` para `operations` y `sandbox`.
+- `AdminView` no debe activar viewport lock.
+- `h-dvh` y `overflow-hidden` deben existir solo como soporte del split pane en `xl`, nunca como condicion general del shell.
+
+### Mobile y tablet menor a `xl`
+
+En `mobile` y `tablet < xl`, estas vistas deben fluir como documento normal:
+
+- `AppShell`
+- `WorkspaceLayout`
+- `OperationsView`
+- `SandboxView`
+- `AdminView`
+
+Criterio obligatorio:
+
+- el usuario debe poder recorrer cada pantalla completa con scroll de pagina;
+- no debe quedar atrapado dentro de listas, paneles o chats internos;
+- el header global no debe impedir acceso al contenido restante.
+
+### `OperationsView` en `xl`
+
+Layout objetivo:
+
+- split en 2 columnas;
+- columna izquierda para filtros + lista de conversaciones;
+- columna derecha para hilo, resumen y acciones.
+
+Ownership del scroll:
+
+- columna izquierda: scroll interno permitido y obligatorio si excede altura;
+- columna derecha: el timeline del hilo es el scroll principal del panel derecho;
+- header de la conversacion, resumenes y acciones deben quedar dentro del panel derecho y mantenerse visibles sin crear un segundo scroll competidor.
+
+No permitido:
+
+- que toda la vista siga dependiendo del scroll del documento en `xl`;
+- que header, resumen y formulario de respuesta se mezclen con varios contenedores scrollables independientes;
+- que existan dos zonas `overflow-y-auto` compitiendo dentro del panel derecho.
+
+### `SandboxView` en `xl`
+
+Layout objetivo:
+
+- split en 2 columnas;
+- columna izquierda para lista de conversaciones de prueba;
+- columna derecha para viewport de mensajes y composer.
+
+Ownership del scroll:
+
+- lista izquierda: scroll interno permitido;
+- viewport de mensajes: scroll principal derecho;
+- panel tecnico: debe ir debajo del viewport principal o dentro de un bloque colapsable; no puede convertirse en un segundo scroll vertical competidor dentro del mismo panel derecho.
+
+Autoscroll:
+
+- mantener autoscroll del chat;
+- `scroll-behavior: smooth` solo como mejora general;
+- la logica de autoscroll debe seguir gobernada por `prefers-reduced-motion`.
+
+Implementacion esperada:
 
 ```ts
 messagesViewport.value.scrollTo({
@@ -99,43 +174,78 @@ messagesViewport.value.scrollTo({
 });
 ```
 
-El valor `prefersReducedMotion` debe salir de `window.matchMedia('(prefers-reduced-motion: reduce)')` o de un helper equivalente.
+`prefersReducedMotion` debe salir de `window.matchMedia('(prefers-reduced-motion: reduce)')` o de un helper frontend equivalente.
 
-## Lenguaje e i18n
+### `AdminView`
 
-Actualizar `frontend/src/i18n/locales/es-CO.ts` y `frontend/src/i18n/locales/en.ts` juntos. El espanol debe ser claro para usuarios no tecnicos; el ingles debe mantener equivalencia funcional, no traduccion literal de jerga interna.
+- `AdminView` debe seguir con scroll de pagina en todos los breakpoints.
+- No debe introducir viewport lock.
+- Las tabs, resumenes y formularios deben resolverse con flujo normal y navegacion clara, no con layout atrapado.
 
-### Diccionario visible recomendado
+### Movimiento y navegacion
+
+- Mantener `route.scrollBehavior -> { top: 0 }`.
+- Agregar `scroll-behavior: smooth` solo como mejora global no critica.
+- Agregar `scrollbar-gutter: stable` para reducir saltos laterales al aparecer scrollbars.
+- Respetar completamente `prefers-reduced-motion`.
+
+## Lenguaje visible e i18n
+
+### Regla general
+
+La copia visible debe escribirse para usuarios operativos y admins no tecnicos. El implementador debe actualizar `frontend/src/i18n/locales/es-CO.ts` y `frontend/src/i18n/locales/en.ts` juntos.
+
+El espanol debe priorizar claridad operativa. El ingles debe mantener equivalencia funcional, no traduccion literal de jerga interna.
+
+### Glosario visible obligatorio
 
 | Concepto interno | ES visible | EN visible |
 | --- | --- | --- |
 | Tenant | Negocio | Business |
 | Tenant admin | Admin del negocio | Business admin |
-| Runtime | Respuesta del asistente | Assistant response |
 | Bindings | Herramientas | Tools |
-| Logs | Actividad | Activity |
 | Credentials | Conexiones | Connections |
+| Logs | Actividad | Activity |
+| Runtime state | Estado del asistente | Assistant state |
 | System prompt | Instrucciones del asistente | Assistant instructions |
-| Scope | Alcance avanzado | Advanced scope |
-| Metadata | Detalles tecnicos | Technical details |
-| Chunks | Fragmentos procesados | Processed fragments |
-| Fallback | Opcion automatica | Automatic option |
-| Handoff | Revision humana | Human review |
 | Phone Number ID | ID tecnico del numero | Technical phone ID |
+| Chunks | Fragmentos procesados | Processed fragments |
+| Metadata | Detalles tecnicos | Technical details |
+| Fallback | Opcion automatica | Automatic option |
+| Scope | Alcance avanzado | Advanced scope |
+| Handoff | Revision humana | Human review |
+
+### Prioridad de reemplazo
+
+El cambio de lenguaje visible cubre toda la SPA:
+
+- shell y top bar;
+- operations;
+- sandbox;
+- admin.
+
+No basta con renombrar tabs del admin. La implementacion debe limpiar texto visible en `common`, `operations`, `sandbox` y `admin`.
+
+### Regla de clasificacion de copy
+
+Todo termino tecnico visible debe caer en una de estas dos categorias:
+
+- Visible por defecto si ayuda a operar.
+- Movido a `Soporte avanzado` si solo sirve para soporte, debugging o configuracion experta.
 
 ### Reglas de contenido
 
-- Los nombres internos pueden seguir en codigo, tipos, payloads y logs tecnicos.
-- La UI principal no debe mostrar nombres internos como texto principal.
-- Si un valor interno es necesario para soporte, mostrarlo dentro de **Soporte avanzado**.
-- Evitar frases que expliquen arquitectura. Preferir acciones concretas y resultados visibles.
-- Mantener mensajes de error comprensibles y accionables.
+- Los nombres internos pueden seguir existiendo en codigo, tipos, payloads, query params y logs tecnicos.
+- La UI principal no debe mostrar nombres internos como texto dominante.
+- Evitar explicar arquitectura en labels, ayudas o empty states.
+- Preferir texto accionable y orientado a resultado.
+- Los errores visibles deben ser comprensibles y accionables.
 
-## Admin y herramientas
+## Admin / Herramientas / Soporte avanzado
 
-### Navegacion admin objetivo
+### Navegacion visible del admin
 
-Renombrar los paneles visibles del admin a:
+Los tabs visibles del admin deben ser:
 
 - `Negocio`
 - `Equipo`
@@ -146,13 +256,31 @@ Renombrar los paneles visibles del admin a:
 - `Conexiones`
 - `Actividad`
 
-Los nombres de rutas, query params y claves internas pueden mantenerse si no afectan la UI visible.
+Los nombres internos de panel, las claves y los `query params` pueden mantenerse. El cambio es de presentacion.
 
 ### Herramientas como experiencia de producto
 
-La seccion **Herramientas** debe usar `adminOverview.available_tools` como catalogo completo. No debe limitarse a `binding_tools`, porque `binding_tools` solo representa las herramientas vinculables a fuentes.
+La seccion `Herramientas` debe tomar `adminOverview.available_tools` como catalogo principal.
 
-Mostrar las 5 tools MVP como tarjetas:
+Reglas:
+
+- `available_tools` es el source of truth de la UI para el catalogo visible.
+- `binding_tools` no desaparece del contrato; queda como compatibilidad y migracion.
+- `supports_data_source_binding` decide si la UI muestra selector de fuente.
+
+La UI objetivo para herramientas es de tarjetas compactas, no de lista tecnica de bindings.
+
+Cada tarjeta debe mostrar:
+
+- icono;
+- nombre visible claro;
+- descripcion corta;
+- estado habilitada/deshabilitada;
+- accion principal para guardar;
+- fuente asociada solo cuando `supports_data_source_binding === true`;
+- acceso a `Soporte avanzado`.
+
+### Catalogo MVP de tools visibles
 
 | Tool interna | Nombre visible | Icono Lucide | Fuente asociada |
 | --- | --- | --- | --- |
@@ -162,19 +290,11 @@ Mostrar las 5 tools MVP como tarjetas:
 | `search_inventory` | Consultar inventario | `PackageSearch` | Si |
 | `search_knowledge` | Buscar respuestas | `BookOpen` | Si |
 
-La tarjeta debe incluir:
+### Contrato frontend recomendado
 
-- Icono.
-- Nombre claro.
-- Descripcion corta.
-- Estado habilitada/deshabilitada.
-- Accion principal para guardar cambios.
-- Fuente asociada solo cuando `supports_data_source_binding === true`.
-- **Soporte avanzado** colapsado con nombre interno, timeout, override por linea y detalles tecnicos.
+La implementacion futura debe introducir una capa de presentacion equivalente a `toolPresentation.ts` para mapear nombre interno a nombre visible, icono y descripcion.
 
-### Capa de presentacion
-
-Agregar en una implementacion futura una capa frontend como `toolPresentation.ts` para mapear nombres internos a UI:
+Contrato esperado:
 
 ```ts
 export const toolPresentation = {
@@ -206,36 +326,36 @@ export const toolPresentation = {
 } as const;
 ```
 
-El texto real debe vivir en i18n si el componente se entrega en ES/EN.
+El texto visible final debe vivir en i18n si el componente se entrega en ES/EN.
 
-## Soporte avanzado
+### Soporte avanzado
 
-Usar un bloque colapsado llamado **Soporte avanzado** para informacion que ayuda a admins tecnicos o soporte, pero no a la operacion diaria.
+`Soporte avanzado` debe ser el unico contenedor permitido para informacion cruda o interna.
 
-Contenido permitido dentro de soporte avanzado:
+Contenido permitido dentro de `Soporte avanzado`:
 
-- Nombres internos de tools.
-- Timeouts.
-- Overrides por linea.
-- `scope_type`, `scope_key` y otros alcances internos.
-- Eventos de agente.
-- Ejecuciones de tools.
-- Payload previews.
-- Metadatos.
-- IDs tecnicos de proveedor.
-- Errores crudos cuando sean necesarios para diagnostico.
+- nombres internos de tools;
+- `scope_type`, `scope_key` y alcances internos;
+- timeouts;
+- overrides por linea;
+- payload previews;
+- tool executions;
+- eventos de agente;
+- metadatos;
+- IDs tecnicos de proveedor;
+- errores crudos cuando hagan falta para diagnostico.
 
-Contenido que debe permanecer visible:
+Contenido que debe quedar visible por defecto:
 
-- Estado de negocio.
-- Nombre claro de la herramienta o seccion.
-- Accion principal.
-- Fuente asociada cuando aplica.
-- Resultado o alerta que el usuario deba entender.
+- nombre claro de la seccion o herramienta;
+- estado de negocio;
+- accion principal;
+- fuente asociada cuando aplica;
+- resultado o alerta que el usuario deba entender.
 
-## Iconos y dependencia
+### Dependencia futura de iconos
 
-`lucide-vue-next` no existe todavia en `frontend/package.json`. Debe tratarse como dependencia futura y agregarse dentro de Docker:
+`lucide-vue-next` no existe hoy en `frontend/package.json`. Debe tratarse como dependencia futura opcional del rediseño y agregarse dentro de Docker:
 
 ```bash
 docker compose exec frontend npm install lucide-vue-next
@@ -243,74 +363,56 @@ docker compose exec frontend npm install lucide-vue-next
 
 Reglas:
 
-- Importar iconos concretos, no todo el paquete.
-- Usar iconos como apoyo visual, no como unica senal.
-- Mantener texto visible en acciones principales.
-- Evitar iconos decorativos sin funcion.
+- importar iconos concretos;
+- no importar el paquete completo;
+- usar iconos como apoyo visual, no como unica senal;
+- mantener texto visible en acciones principales.
 
-## Interfaces y compatibilidad
+## Compatibilidad y no-cambios
 
-- No cambiar contratos backend, rutas API ni payloads.
-- No cambiar nombres internos de tools, tipos o enums.
-- Usar `adminOverview.available_tools` para el catalogo completo de herramientas.
-- Usar `supports_data_source_binding` para decidir si se muestra selector de fuente.
-- Mantener `binding_tools` solo como compatibilidad si una parte existente todavia lo necesita durante la migracion.
+- No cambiar contratos backend, rutas API, payloads ni enums.
+- No cambiar semantica interna de `tool_name`, `scope_type`, `route.meta.section` ni `query params`.
+- No renombrar internamente tools, tipos ni claves de configuracion.
+- `available_tools` pasa a ser la referencia principal de presentacion para la UI de herramientas.
+- `binding_tools` se mantiene como parte del contrato mientras siga siendo necesario para compatibilidad.
 - No introducir nuevas capacidades de dominio ni integraciones.
+- No mover la app a otro sistema de componentes ni a otro framework.
 
-## Plan de implementacion futuro
+Contratos frontend esperados como shape futura:
 
-1. Ajustar estilos globales de scroll y movimiento en `frontend/src/style.css`.
-2. Revisar `AppShell` y `WorkspaceLayout` para que el bloqueo de viewport solo aplique con contenedores internos correctos.
-3. Ajustar `OperationsView` y `SandboxView` para que desktop mantenga listas/chat productivos y movil use scroll de pagina.
-4. Cambiar autoscroll del chat de `SandboxView` a `scrollTo({ top, behavior })` con `prefers-reduced-motion`.
-5. Reescribir i18n ES/EN con lenguaje no tecnico.
-6. Agregar `lucide-vue-next` desde Docker.
-7. Crear la capa `toolPresentation.ts`.
-8. Redisenar la seccion admin de herramientas con tarjetas para las 5 tools MVP.
-9. Mover configuracion tecnica a **Soporte avanzado**.
-10. Validar build y recorridos manuales en desktop y movil.
+- `toolPresentation.ts` o equivalente como mapa de presentacion de tools.
+- Helper de reduced motion para autoscroll de chat.
+- `available_tools` como source of truth de UI para herramientas.
+- `supports_data_source_binding` como switch de selector de fuente.
 
-## Validacion
+## Criterios de aceptacion
 
 ### Validacion documental
 
-- Este documento existe en `docs/ui-scroll-branding-plan.md`.
-- El documento no reemplaza `docs/agent-outputs.md`.
-- El documento deja claro que los cambios futuros son UI/UX y presentacion.
-- El documento no pide cambios de backend, rutas API, payloads ni logica de dominio.
+- El archivo distingue explicitamente estado actual del repo y estado objetivo.
+- El documento ya no usa `desktop`, `dashboard moderno` o `scroll hibrido` como conceptos vagos; cada decision queda atada a `xl`, rutas y contenedores concretos.
+- El documento termina con criterios de aceptacion completos y no queda truncado.
 
-### Validacion futura de implementacion
+### Aceptacion UX futura
 
-Ejecutar dentro de Docker:
+- En `mobile` y `tablet < xl`, el usuario puede recorrer completa cada vista con scroll de pagina sin quedar atrapado dentro de paneles internos.
+- En `xl`, `OperationsView` usa split en 2 columnas con lista izquierda scrollable y timeline derecho como scroll principal del panel derecho.
+- En `xl`, `SandboxView` usa split en 2 columnas con lista izquierda scrollable y viewport de mensajes como scroll principal derecho.
+- En `xl`, `AdminView` sigue en scroll de pagina y no introduce viewport lock.
+- El `TopBar` ocupa menos altura visual y deja mas protagonismo al contenido principal.
+- La UI de `Herramientas` usa nombres claros, descripcion corta y estado accionable; el detalle crudo aparece solo en `Soporte avanzado`.
+- El reemplazo de copy no tecnica cubre shell, operations, sandbox y admin en `es-CO` y `en`.
 
-```bash
-docker compose exec frontend npm install lucide-vue-next
-docker compose exec frontend npm run build
-```
+### Comprobaciones de compatibilidad
 
-Validar manualmente:
+- No se cambian contratos API.
+- No se cambia la semantica interna de `tool_name`, `scope_type`, `route.meta.section` ni `query params`.
+- La incorporacion de `lucide-vue-next` queda documentada como dependencia opcional instalada via Docker.
 
-- `/operations` tiene scroll fluido en desktop y movil.
-- `/sandbox` tiene scroll fluido en desktop y movil.
-- `/admin` tiene scroll nativo y no queda atrapado en paneles internos.
-- En movil, listas y chats fluyen como pagina normal.
-- En escritorio, listas/chat con scroll interno no bloquean el resto del flujo.
-- La UI visible en espanol no muestra jerga tecnica salvo dentro de **Soporte avanzado**.
-- La seccion **Herramientas** muestra las 5 tools MVP.
-- Solo `search_inventory` y `search_knowledge` muestran selector de fuente.
-- Cada herramienta tiene icono, nombre claro, estado y accion principal.
+### Assumptions operativas
 
-## Fuentes UX
-
-- GOV.UK Design Principles: https://www.gov.uk/guidance/government-design-principles
-- GOV.UK Design System Patterns: https://design-system.service.gov.uk/patterns/
-- Material Design 3 Tabs: https://m3.material.io/components/tabs/overview
-- Lucide Vue package: https://www.npmjs.com/package/lucide-vue-next
-
-## Supuestos
-
-- El documento nuevo vive separado de `docs/ui-tailwind-plan.md`, pero toma ese plan como contexto visual previo.
-- Espanol e ingles se actualizan juntos porque el frontend ya usa i18n.
-- Dorix conserva su identidad visual actual salvo decision explicita posterior.
-- La experiencia principal es para usuarios no tecnicos.
-- Soporte avanzado sigue disponible para diagnostico y administracion tecnica.
+- El deliverable de esta tarea documental es un unico archivo: `docs/ui-scroll-branding-plan.md`.
+- Se preservan los tokens actuales de `frontend/src/style.css`.
+- La inspiracion Untitled UI se aplica a jerarquia, densidad, headers, metricas y settings pages; no a React Aria ni a copiar componentes textualmente.
+- El patron de inbox de Invent/TalkJS se usa para resolver `OperationsView` y `SandboxView` en dos paneles; no se agrega un tercer rail en esta iteracion.
+- La implementacion posterior debe seguir ejecutandose dentro de Docker, pero este cambio documental no requiere correr builds ni editar codigo ahora.
