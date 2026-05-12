@@ -16,11 +16,11 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <label class="grid min-w-0 w-full gap-1 text-sm sm:min-w-[220px]">
-    <span class="text-xs font-medium text-[var(--text-muted)]">{{ t('common.scopes.tenant') }}</span>
+  <label class="grid min-w-0 w-full gap-1.5 text-sm sm:min-w-[220px]">
+    <span class="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">{{ t('common.scopes.tenant') }}</span>
     <select
       :value="modelValue ?? ''"
-      class="input-base min-h-10 py-2"
+      class="input-base py-2"
       @change="$emit('update:modelValue', Number(($event.target as HTMLSelectElement).value) || null)"
     >
       <option v-for="membership in memberships" :key="membership.tenant_id" :value="membership.tenant_id">

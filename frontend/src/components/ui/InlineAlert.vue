@@ -21,7 +21,7 @@ const classes = computed(() => {
 </script>
 
 <template>
-  <p class="rounded-2xl border px-4 py-3 text-sm" :class="classes">
+  <p class="rounded-[18px] border px-4 py-3 text-sm leading-6" :class="classes">
     {{ message }}
   </p>
 </template>

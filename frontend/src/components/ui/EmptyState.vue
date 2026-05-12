@@ -6,10 +6,10 @@ defineProps<{
 </script>
 
 <template>
-  <div class="flex min-h-[240px] flex-col items-center justify-center rounded-[24px] border border-dashed px-6 py-10 text-center" :style="{ borderColor: 'var(--border)' }">
-    <div class="mb-4 h-10 w-10 rounded-full bg-[color:color-mix(in_srgb,var(--accent)_16%,transparent)]" />
+  <div class="flex min-h-[220px] flex-col items-center justify-center rounded-[20px] border border-dashed px-6 py-10 text-center" :style="{ borderColor: 'var(--border)' }">
+    <div class="mb-4 flex h-11 w-11 items-center justify-center rounded-[14px] bg-[var(--surface-muted)] text-sm font-bold text-[var(--accent)]">0</div>
     <h3 class="text-lg font-semibold">{{ title }}</h3>
-    <p class="mt-2 max-w-lg text-sm text-[var(--text-muted)]">
+    <p class="mt-2 max-w-lg text-sm leading-6 text-[var(--text-muted)]">
       {{ description }}
     </p>
     <div v-if="$slots.default" class="mt-5">

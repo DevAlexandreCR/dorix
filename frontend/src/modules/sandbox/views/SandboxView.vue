@@ -438,8 +438,120 @@ watch(
     </SurfaceCard>
   </section>
 
-  <section v-else class="grid w-full min-w-0 gap-3 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_280px] xl:overflow-hidden">
-    <SurfaceCard padding="md" class="order-1 w-full min-w-0 overflow-hidden xl:flex xl:h-full xl:min-h-0 xl:flex-col">
+  <section v-else class="grid w-full min-w-0 gap-3 xl:min-h-0 xl:flex-1 xl:grid-cols-[290px_minmax(0,1fr)] xl:overflow-hidden">
+    <SurfaceCard padding="sm" class="order-1 w-full min-w-0 overflow-hidden xl:flex xl:h-full xl:min-h-0 xl:flex-col">
+      <div class="shrink-0">
+        <div class="flex min-w-0 items-start justify-between gap-2">
+          <div class="min-w-0">
+            <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--accent)]">
+              {{ t('sandbox.eyebrow') }}
+            </p>
+            <div class="mt-1 flex min-w-0 items-center gap-2">
+              <h2 class="min-w-0 truncate text-lg font-semibold tracking-tight">{{ t('sandbox.compactListTitle') }}</h2>
+              <span
+                class="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full border px-1.5 text-[11px] font-semibold text-[var(--text-muted)]"
+                :aria-label="t('sandbox.sessionsCount', { count: sandboxSessions.length })"
+                :style="{ borderColor: 'var(--border)' }"
+              >
+                {{ sandboxSessions.length }}
+              </span>
+            </div>
+          </div>
+
+          <InfoPopover :content="t('sandbox.description')" :label="t('common.moreInfo')" />
+        </div>
+
+        <div class="mt-3 grid gap-2">
+          <button
+            class="btn-primary w-full justify-center px-3 py-2 text-[13px] font-semibold leading-none text-white"
+            type="button"
+            :disabled="!canCreateConversation"
+            @click="createSandboxChat"
+          >
+            {{ sandboxActionLoading ? t('sandbox.creating') : t('sandbox.newSession') }}
+          </button>
+
+          <label
+            class="grid min-w-0 gap-1 rounded-xl border bg-[var(--surface-muted)] px-3 py-2"
+            :style="{ borderColor: 'var(--border)' }"
+          >
+            <span class="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+              {{ t('sandbox.line') }}
+            </span>
+            <select
+              v-model.number="sandboxLineId"
+              class="min-w-0 bg-transparent text-[13px] font-medium text-[var(--text)] outline-none"
+              :disabled="sandboxActionLoading"
+            >
+              <option v-for="line in sandboxAvailableLines" :key="line.id" :value="line.id">
+                {{ line.name }}{{ line.display_phone_number ? ` · ${line.display_phone_number}` : '' }}
+              </option>
+            </select>
+          </label>
+        </div>
+
+        <div class="mt-3 grid gap-2">
+          <InlineAlert v-if="sandboxError" :message="sandboxError" tone="danger" />
+          <InlineAlert v-if="sandboxActionError && !selectedSandboxConversation" :message="sandboxActionError" tone="danger" />
+          <InlineAlert v-if="sandboxActionSuccess && !selectedSandboxConversation" :message="sandboxActionSuccess" tone="success" />
+        </div>
+      </div>
+
+      <div class="mt-3 flex min-w-0 flex-col xl:min-h-0 xl:flex-1 xl:overflow-hidden">
+        <LoadingState v-if="sandboxLoading" :label="t('sandbox.loadingSessions')" />
+
+        <div v-else class="max-h-[38vh] min-w-0 overflow-y-auto overscroll-contain pr-1 xl:min-h-0 xl:max-h-none xl:flex-1">
+          <ul v-if="sandboxSessions.length > 0" class="space-y-1.5">
+            <li v-for="conversation in sandboxSessions" :key="conversation.id">
+              <button
+                class="w-full min-w-0 overflow-hidden rounded-xl border px-3 py-2 text-left transition hover:border-[color:color-mix(in_srgb,var(--accent)_30%,var(--border))]"
+                :class="selectedSandboxConversationId === conversation.id ? 'bg-[var(--surface-muted)] shadow-[0_10px_24px_rgba(15,23,42,0.1)]' : 'bg-transparent'"
+                :style="{ borderColor: 'var(--border)' }"
+                type="button"
+                @click="replaceQuery({ conversation: String(conversation.id) })"
+              >
+                <div class="flex min-w-0 items-start justify-between gap-2">
+                  <strong class="min-w-0 flex-1 truncate text-[13px] font-semibold leading-5">{{ conversation.label }}</strong>
+                  <span class="shrink-0 whitespace-nowrap text-[10px] text-[var(--text-muted)]">
+                    {{ formatTimestamp(conversation.last_message_at || conversation.created_at) }}
+                  </span>
+                </div>
+
+                <p class="mt-0.5 truncate text-xs text-[var(--text-muted)]">
+                  {{ conversation.last_message_preview || t('sandbox.noMessagesYet') }}
+                </p>
+
+                <div class="mt-1.5 flex min-w-0 items-center justify-between gap-2">
+                  <span class="min-w-0 flex-1 truncate text-[10px] text-[var(--text-muted)]">
+                    {{ conversation.whatsapp_line?.name ?? t('sandbox.noLine') }}
+                  </span>
+                  <span
+                    class="inline-flex max-w-[52%] shrink-0 overflow-hidden text-ellipsis whitespace-nowrap rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em]"
+                    :class="compactStatusClasses(conversation.status)"
+                  >
+                    {{ translateSandboxStatus(conversation.status) }}
+                  </span>
+                </div>
+              </button>
+            </li>
+          </ul>
+
+          <div
+            v-else
+            class="flex min-h-full flex-col items-center justify-center rounded-2xl border border-dashed px-4 py-8 text-center"
+            :style="{ borderColor: 'var(--border)' }"
+          >
+            <div class="mb-3 h-7 w-7 rounded-full bg-[color:color-mix(in_srgb,var(--accent)_16%,transparent)]" />
+            <h3 class="text-sm font-semibold">{{ t('sandbox.compactEmptyTitle') }}</h3>
+            <p class="mt-2 text-xs leading-5 text-[var(--text-muted)]">
+              {{ t('sandbox.compactEmptyDescription') }}
+            </p>
+          </div>
+        </div>
+      </div>
+    </SurfaceCard>
+
+    <SurfaceCard padding="md" class="order-2 w-full min-w-0 overflow-hidden xl:flex xl:h-full xl:min-h-0 xl:flex-col">
       <template v-if="selectedSandboxConversation && sandboxThread">
         <div class="shrink-0 border-b pb-2.5" :style="{ borderColor: 'var(--border)' }">
           <div class="flex min-w-0 flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
@@ -645,118 +757,6 @@ watch(
           <EmptyState :title="t('states.selectTitle')" :description="t('sandbox.emptyState')" />
         </div>
       </template>
-    </SurfaceCard>
-
-    <SurfaceCard padding="sm" class="order-2 w-full min-w-0 overflow-hidden xl:flex xl:h-full xl:min-h-0 xl:flex-col">
-      <div class="shrink-0">
-        <div class="flex min-w-0 items-start justify-between gap-2">
-          <div class="min-w-0">
-            <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--accent)]">
-              {{ t('sandbox.eyebrow') }}
-            </p>
-            <div class="mt-1 flex min-w-0 items-center gap-2">
-              <h2 class="min-w-0 truncate text-lg font-semibold tracking-tight">{{ t('sandbox.compactListTitle') }}</h2>
-              <span
-                class="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full border px-1.5 text-[11px] font-semibold text-[var(--text-muted)]"
-                :aria-label="t('sandbox.sessionsCount', { count: sandboxSessions.length })"
-                :style="{ borderColor: 'var(--border)' }"
-              >
-                {{ sandboxSessions.length }}
-              </span>
-            </div>
-          </div>
-
-          <InfoPopover :content="t('sandbox.description')" :label="t('common.moreInfo')" />
-        </div>
-
-        <div class="mt-3 grid gap-2">
-          <button
-            class="btn-primary w-full justify-center px-3 py-2 text-[13px] font-semibold leading-none text-white"
-            type="button"
-            :disabled="!canCreateConversation"
-            @click="createSandboxChat"
-          >
-            {{ sandboxActionLoading ? t('sandbox.creating') : t('sandbox.newSession') }}
-          </button>
-
-          <label
-            class="grid min-w-0 gap-1 rounded-xl border bg-[color:color-mix(in_srgb,var(--surface-muted)_78%,transparent)] px-3 py-2"
-            :style="{ borderColor: 'var(--border)' }"
-          >
-            <span class="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-              {{ t('sandbox.line') }}
-            </span>
-            <select
-              v-model.number="sandboxLineId"
-              class="min-w-0 bg-transparent text-[13px] font-medium text-[var(--text)] outline-none"
-              :disabled="sandboxActionLoading"
-            >
-              <option v-for="line in sandboxAvailableLines" :key="line.id" :value="line.id">
-                {{ line.name }}{{ line.display_phone_number ? ` · ${line.display_phone_number}` : '' }}
-              </option>
-            </select>
-          </label>
-        </div>
-
-        <div class="mt-3 grid gap-2">
-          <InlineAlert v-if="sandboxError" :message="sandboxError" tone="danger" />
-          <InlineAlert v-if="sandboxActionError && !selectedSandboxConversation" :message="sandboxActionError" tone="danger" />
-          <InlineAlert v-if="sandboxActionSuccess && !selectedSandboxConversation" :message="sandboxActionSuccess" tone="success" />
-        </div>
-      </div>
-
-      <div class="mt-3 flex min-w-0 flex-col xl:min-h-0 xl:flex-1 xl:overflow-hidden">
-        <LoadingState v-if="sandboxLoading" :label="t('sandbox.loadingSessions')" />
-
-        <div v-else class="max-h-[38vh] min-w-0 overflow-y-auto overscroll-contain pr-1 xl:min-h-0 xl:max-h-none xl:flex-1">
-          <ul v-if="sandboxSessions.length > 0" class="space-y-1.5">
-            <li v-for="conversation in sandboxSessions" :key="conversation.id">
-              <button
-                class="w-full min-w-0 overflow-hidden rounded-xl border px-3 py-2 text-left transition hover:border-[color:color-mix(in_srgb,var(--accent)_30%,var(--border))]"
-                :class="selectedSandboxConversationId === conversation.id ? 'bg-[var(--surface-muted)] shadow-[0_10px_24px_rgba(0,0,0,0.12)]' : 'bg-transparent'"
-                :style="{ borderColor: 'var(--border)' }"
-                type="button"
-                @click="replaceQuery({ conversation: String(conversation.id) })"
-              >
-                <div class="flex min-w-0 items-start justify-between gap-2">
-                  <strong class="min-w-0 flex-1 truncate text-[13px] font-semibold leading-5">{{ conversation.label }}</strong>
-                  <span class="shrink-0 whitespace-nowrap text-[10px] text-[var(--text-muted)]">
-                    {{ formatTimestamp(conversation.last_message_at || conversation.created_at) }}
-                  </span>
-                </div>
-
-                <p class="mt-0.5 truncate text-xs text-[var(--text-muted)]">
-                  {{ conversation.last_message_preview || t('sandbox.noMessagesYet') }}
-                </p>
-
-                <div class="mt-1.5 flex min-w-0 items-center justify-between gap-2">
-                  <span class="min-w-0 flex-1 truncate text-[10px] text-[var(--text-muted)]">
-                    {{ conversation.whatsapp_line?.name ?? t('sandbox.noLine') }}
-                  </span>
-                  <span
-                    class="inline-flex max-w-[52%] shrink-0 overflow-hidden text-ellipsis whitespace-nowrap rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em]"
-                    :class="compactStatusClasses(conversation.status)"
-                  >
-                    {{ translateSandboxStatus(conversation.status) }}
-                  </span>
-                </div>
-              </button>
-            </li>
-          </ul>
-
-          <div
-            v-else
-            class="flex min-h-full flex-col items-center justify-center rounded-2xl border border-dashed px-4 py-8 text-center"
-            :style="{ borderColor: 'var(--border)' }"
-          >
-            <div class="mb-3 h-7 w-7 rounded-full bg-[color:color-mix(in_srgb,var(--accent)_16%,transparent)]" />
-            <h3 class="text-sm font-semibold">{{ t('sandbox.compactEmptyTitle') }}</h3>
-            <p class="mt-2 text-xs leading-5 text-[var(--text-muted)]">
-              {{ t('sandbox.compactEmptyDescription') }}
-            </p>
-          </div>
-        </div>
-      </div>
     </SurfaceCard>
   </section>
 </template>

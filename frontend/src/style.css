@@ -1,39 +1,39 @@
 @import "tailwindcss";
 
 :root {
-  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  font-family: "Manrope", "IBM Plex Sans", "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --background: #11131a;
-  --surface: rgba(20, 24, 34, 0.88);
-  --surface-muted: rgba(32, 38, 52, 0.7);
-  --border: rgba(255, 255, 255, 0.1);
-  --text: #f4f1ec;
-  --text-muted: #aab4c7;
-  --accent: #ff8f4d;
-  --success: #57c691;
-  --warning: #f4be5c;
-  --danger: #ef7f86;
-  --overlay: rgba(7, 10, 16, 0.7);
-  --shadow-panel: 0 24px 70px rgba(0, 0, 0, 0.28);
+  --background: #0f172a;
+  --surface: #121b2e;
+  --surface-muted: #1a2740;
+  --border: rgba(148, 163, 184, 0.22);
+  --text: #e8eef9;
+  --text-muted: #93a4c2;
+  --accent: #4880ff;
+  --success: #00b69b;
+  --warning: #ffb648;
+  --danger: #f05a7e;
+  --overlay: rgba(15, 23, 42, 0.74);
+  --shadow-panel: 0 18px 38px rgba(15, 23, 42, 0.2);
   color-scheme: dark;
 }
 
 :root[data-theme="light"] {
-  --background: #f6efe7;
-  --surface: rgba(255, 251, 247, 0.92);
-  --surface-muted: rgba(243, 234, 225, 0.88);
-  --border: rgba(48, 41, 34, 0.12);
-  --text: #1b212d;
-  --text-muted: #627086;
-  --accent: #d7651e;
-  --success: #1f9a63;
-  --warning: #b97716;
-  --danger: #d14652;
-  --overlay: rgba(244, 235, 228, 0.74);
-  --shadow-panel: 0 20px 55px rgba(122, 83, 49, 0.14);
+  --background: #f5f6fa;
+  --surface: #ffffff;
+  --surface-muted: #f0f3fa;
+  --border: rgba(148, 163, 184, 0.28);
+  --text: #202224;
+  --text-muted: #6b7280;
+  --accent: #4880ff;
+  --success: #00b69b;
+  --warning: #ffb648;
+  --danger: #f93c65;
+  --overlay: rgba(15, 23, 42, 0.08);
+  --shadow-panel: 0 14px 30px rgba(15, 23, 42, 0.08);
   color-scheme: light;
 }
 
@@ -52,9 +52,7 @@
     margin: 0;
     min-width: 320px;
     background:
-      radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 18%, transparent), transparent 26%),
-      radial-gradient(circle at 88% 10%, rgba(61, 127, 255, 0.14), transparent 24%),
-      linear-gradient(180deg, color-mix(in srgb, var(--background) 88%, #0a1220 12%) 0%, var(--background) 100%);
+      linear-gradient(180deg, color-mix(in srgb, var(--background) 95%, #ffffff 5%) 0%, var(--background) 100%);
     color: var(--text);
   }
 
@@ -81,8 +79,10 @@
 
 @layer components {
   .btn-base {
-    @apply inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-medium transition duration-150 ease-out;
+    @apply inline-flex items-center justify-center rounded-xl border px-4 py-2.5 text-sm font-semibold transition duration-150 ease-out;
     border-color: var(--border);
+    background: var(--surface);
+    color: var(--text);
   }
 
   .btn-base:hover {
@@ -90,29 +90,31 @@
   }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-medium transition duration-150 ease-out;
-    color: #fff8f4;
-    background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 88%, #f5b86a 12%), color-mix(in srgb, var(--accent) 78%, #7a3110 22%));
-    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+    @apply inline-flex items-center justify-center rounded-xl border px-4 py-2.5 text-sm font-semibold transition duration-150 ease-out;
+    color: #f8fbff;
+    background: color-mix(in srgb, var(--accent) 88%, #2954d7 12%);
+    border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+    box-shadow: 0 10px 22px color-mix(in srgb, var(--accent) 24%, transparent);
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-medium transition duration-150 ease-out;
-    background: color-mix(in srgb, var(--surface-muted) 88%, transparent);
+    @apply inline-flex items-center justify-center rounded-xl border px-4 py-2.5 text-sm font-semibold transition duration-150 ease-out;
+    background: var(--surface-muted);
     color: var(--text);
     border-color: var(--border);
   }
 
   .btn-danger {
-    @apply inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-medium transition duration-150 ease-out;
+    @apply inline-flex items-center justify-center rounded-xl border px-4 py-2.5 text-sm font-semibold transition duration-150 ease-out;
     background: color-mix(in srgb, var(--danger) 16%, var(--surface));
-    color: color-mix(in srgb, var(--danger) 88%, white 12%);
+    color: color-mix(in srgb, var(--danger) 86%, white 14%);
     border-color: color-mix(in srgb, var(--danger) 30%, var(--border));
   }
 
   .input-base {
-    @apply w-full rounded-2xl border px-4 py-3 text-sm outline-none transition duration-150 ease-out;
-    background: color-mix(in srgb, var(--surface-muted) 92%, transparent);
+    @apply w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none transition duration-150 ease-out;
+    min-height: 44px;
+    background: var(--surface);
     color: var(--text);
     border-color: var(--border);
   }
@@ -123,10 +125,44 @@
 
   .input-base:focus {
     border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
   }
 
   .panel-grid {
-    @apply grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)];
+    @apply grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)];
+  }
+
+  .shell-control {
+    @apply inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium;
+    border-color: var(--border);
+    background: var(--surface-muted);
+    color: var(--text);
+  }
+
+  .surface-subtle {
+    border: 1px solid var(--border);
+    background: var(--surface-muted);
+  }
+
+  .table-dashstack thead {
+    background: color-mix(in srgb, var(--surface-muted) 72%, transparent);
+  }
+
+  .table-dashstack th {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .table-dashstack th,
+  .table-dashstack td {
+    padding: 0.9rem 1rem;
+    border-color: var(--border);
+  }
+
+  .table-dashstack tbody tr + tr td {
+    border-top: 1px solid var(--border);
   }
 }

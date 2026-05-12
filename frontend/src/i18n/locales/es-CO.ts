@@ -66,6 +66,7 @@ export const esCO = {
     loadingSession: 'Cargando sesión operativa…',
     title: 'Iniciar sesión',
     subtitle: 'Usa la sesión mínima con Sanctum para entrar al panel.',
+    workspaceNote: 'La interfaz conserva rutas, permisos, tenants, idioma y tema. El rediseño solo reorganiza la experiencia para trabajo operativo.',
     email: 'Correo',
     password: 'Contraseña',
     submit: 'Entrar al panel',

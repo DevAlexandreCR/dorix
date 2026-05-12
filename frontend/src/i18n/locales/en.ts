@@ -66,6 +66,7 @@ export const en = {
     loadingSession: 'Loading operator session…',
     title: 'Sign in',
     subtitle: 'Use the minimal Sanctum session to enter the panel.',
+    workspaceNote: 'The interface keeps the same routes, permissions, tenants, locale, and theme. The redesign only reorganizes the operational workflow.',
     email: 'Email',
     password: 'Password',
     submit: 'Enter panel',

@@ -82,7 +82,7 @@ onBeforeUnmount(() => {
     @mouseleave="hideFromHover"
   >
     <button
-      class="inline-flex h-5 w-5 items-center justify-center rounded-full border text-[11px] font-semibold text-[var(--text-muted)] transition hover:text-[var(--text)]"
+      class="inline-flex h-5 w-5 items-center justify-center rounded-md border text-[11px] font-semibold text-[var(--text-muted)] transition hover:text-[var(--text)]"
       :style="{ borderColor: 'var(--border)' }"
       type="button"
       :aria-expanded="open"
@@ -94,7 +94,7 @@ onBeforeUnmount(() => {
 
     <div
       v-if="open"
-      class="absolute left-1/2 top-full z-30 mt-2 w-56 -translate-x-1/2 rounded-2xl border bg-[var(--surface)] p-3 text-left text-xs leading-5 text-[var(--text-muted)] shadow-[var(--shadow-panel)] backdrop-blur-sm"
+      class="absolute left-1/2 top-full z-30 mt-2 w-56 -translate-x-1/2 rounded-[18px] border bg-[var(--surface)] p-3 text-left text-xs leading-5 text-[var(--text-muted)] shadow-[var(--shadow-panel)]"
       :style="{ borderColor: 'var(--border)' }"
       role="tooltip"
     >

@@ -35,7 +35,7 @@ const tone = computed(() => {
 });
 
 const classes = computed(() => {
-  const size = props.large ? 'px-3.5 py-1.5 text-xs' : 'px-3 py-1 text-[11px]';
+  const size = props.large ? 'px-3.5 py-1.5 text-xs' : 'px-2.5 py-1 text-[10px]';
 
   switch (tone.value) {
     case 'success':
@@ -53,7 +53,7 @@ const classes = computed(() => {
 </script>
 
 <template>
-  <span class="inline-flex rounded-full border font-semibold uppercase tracking-[0.14em]" :class="classes">
+  <span class="inline-flex rounded-xl border font-semibold uppercase tracking-[0.12em]" :class="classes">
     {{ label }}
   </span>
 </template>

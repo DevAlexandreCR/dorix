@@ -320,9 +320,9 @@ watch(
     </SurfaceCard>
   </section>
 
-  <section v-else class="panel-grid">
-    <SurfaceCard>
-      <div class="flex items-start justify-between gap-4">
+  <section v-else class="panel-grid xl:min-h-0 xl:flex-1 xl:overflow-hidden">
+    <SurfaceCard class="xl:flex xl:min-h-0 xl:flex-col">
+      <div class="flex items-start justify-between gap-4 border-b pb-4" :style="{ borderColor: 'var(--border)' }">
         <div>
           <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">
             {{ t('operations.eyebrow') }}
@@ -332,7 +332,7 @@ watch(
         <StatusBadge :label="t('operations.threadsCount', { count: conversations.length })" tone="neutral" />
       </div>
 
-      <form class="mt-6 grid gap-4" @submit.prevent="applyFilters">
+      <form class="mt-5 grid gap-4 rounded-[20px] border bg-[var(--surface-muted)] p-4" :style="{ borderColor: 'var(--border)' }" @submit.prevent="applyFilters">
         <FormField :label="t('operations.search')">
           <input
             v-model="searchInput"
@@ -342,7 +342,7 @@ watch(
           />
         </FormField>
 
-        <div class="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <div class="grid gap-4">
           <FormField :label="t('operations.status')">
             <select v-model="statusFilter" class="input-base" @change="applyFilters">
               <option v-for="option in statusOptions" :key="option" :value="option">
@@ -351,7 +351,7 @@ watch(
             </select>
           </FormField>
 
-          <label class="flex items-end gap-3 rounded-2xl border px-4 py-3 text-sm" :style="{ borderColor: 'var(--border)' }">
+          <label class="flex items-center gap-3 rounded-xl border px-3.5 py-3 text-sm" :style="{ borderColor: 'var(--border)' }">
             <input v-model="assignedToMeOnly" type="checkbox" class="h-4 w-4" @change="applyFilters" />
             <span>{{ t('operations.assignedToMe') }}</span>
           </label>
@@ -362,24 +362,34 @@ watch(
         </button>
       </form>
 
-      <div class="mt-6">
+      <div class="mt-5 grid gap-3">
         <InlineAlert v-if="inboxError" :message="inboxError" tone="danger" />
-        <LoadingState v-else-if="inboxLoading" :label="t('operations.loadingInbox')" />
+      </div>
 
-        <ul v-else-if="conversations.length > 0" class="grid gap-3">
+      <div class="mt-5 flex min-h-0 flex-1 flex-col">
+        <LoadingState v-if="inboxLoading" :label="t('operations.loadingInbox')" />
+
+        <ul v-else-if="conversations.length > 0" class="grid max-h-[52vh] gap-2 overflow-y-auto pr-1 xl:max-h-none xl:min-h-0 xl:flex-1">
           <li v-for="conversation in conversations" :key="conversation.id">
             <button
-              class="w-full rounded-[24px] border p-4 text-left transition hover:border-[color:color-mix(in_srgb,var(--accent)_30%,var(--border))]"
-              :class="selectedConversationId === conversation.id ? 'bg-[var(--surface-muted)]' : 'bg-transparent'"
-              :style="{ borderColor: 'var(--border)' }"
+              class="w-full rounded-[20px] border px-4 py-4 text-left transition hover:border-[color:color-mix(in_srgb,var(--accent)_30%,var(--border))]"
+              :class="
+                selectedConversationId === conversation.id
+                  ? 'border-[color:color-mix(in_srgb,var(--accent)_28%,var(--border))] bg-[var(--surface-muted)] shadow-[0_12px_24px_rgba(15,23,42,0.08)]'
+                  : 'bg-transparent'
+              "
+              :style="selectedConversationId === conversation.id ? undefined : { borderColor: 'var(--border)' }"
               type="button"
               @click="replaceQuery({ conversation: String(conversation.id) })"
             >
               <div class="flex items-start justify-between gap-3">
-                <strong class="text-sm">{{ conversation.contact_name || conversation.contact_phone }}</strong>
+                <div class="min-w-0">
+                  <strong class="block truncate text-sm">{{ conversation.contact_name || conversation.contact_phone }}</strong>
+                  <p class="mt-1 truncate text-xs text-[var(--text-muted)]">{{ conversation.contact_phone }}</p>
+                </div>
                 <StatusBadge :label="translateConversationStatus(conversation.status)" :status="conversation.status" />
               </div>
-              <p class="mt-3 line-clamp-2 text-sm text-[var(--text-muted)]">
+              <p class="mt-3 line-clamp-2 text-sm leading-6 text-[var(--text-muted)]">
                 {{ conversation.last_message_preview || t('operations.noMessagesVisible') }}
               </p>
               <div class="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
@@ -404,9 +414,9 @@ watch(
       </div>
     </SurfaceCard>
 
-    <SurfaceCard padding="lg">
+    <SurfaceCard padding="lg" class="xl:flex xl:min-h-0 xl:flex-col">
       <template v-if="selectedConversation && thread">
-        <div class="flex flex-col gap-4 border-b pb-6 lg:flex-row lg:items-start lg:justify-between" :style="{ borderColor: 'var(--border)' }">
+        <div class="flex shrink-0 flex-col gap-4 border-b pb-5 lg:flex-row lg:items-start lg:justify-between" :style="{ borderColor: 'var(--border)' }">
           <div>
             <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">
               {{ t('operations.threadEyebrow') }}
@@ -429,8 +439,8 @@ watch(
           />
         </div>
 
-        <div class="mt-6 grid gap-4 xl:grid-cols-3">
-          <div class="rounded-[24px] border p-4" :style="{ borderColor: 'var(--border)' }">
+        <div class="mt-5 grid gap-3 md:grid-cols-3">
+          <div class="rounded-[18px] border bg-[var(--surface-muted)] p-4" :style="{ borderColor: 'var(--border)' }">
             <p class="text-xs uppercase tracking-[0.2em] text-[var(--text-muted)]">{{ t('operations.currentOwner') }}</p>
             <strong class="mt-3 block text-base">
               {{ selectedConversation.assigned_to_user?.name ?? t('operations.noAssignment') }}
@@ -440,7 +450,7 @@ watch(
             </p>
           </div>
 
-          <div class="rounded-[24px] border p-4" :style="{ borderColor: 'var(--border)' }">
+          <div class="rounded-[18px] border bg-[var(--surface-muted)] p-4" :style="{ borderColor: 'var(--border)' }">
             <p class="text-xs uppercase tracking-[0.2em] text-[var(--text-muted)]">{{ t('operations.latestHandoff') }}</p>
             <strong class="mt-3 block text-base">
               {{ translateHandoffStatus(selectedConversation.latest_handoff?.status) }}
@@ -450,7 +460,7 @@ watch(
             </p>
           </div>
 
-          <div class="rounded-[24px] border p-4" :style="{ borderColor: 'var(--border)' }">
+          <div class="rounded-[18px] border bg-[var(--surface-muted)] p-4" :style="{ borderColor: 'var(--border)' }">
             <p class="text-xs uppercase tracking-[0.2em] text-[var(--text-muted)]">{{ t('operations.runtimeState') }}</p>
             <strong class="mt-3 block text-base">
               {{ selectedConversation.state?.last_agent_action ?? t('operations.noSnapshot') }}
@@ -461,8 +471,8 @@ watch(
           </div>
         </div>
 
-        <div class="mt-6 grid gap-4 xl:grid-cols-2">
-          <div class="rounded-[24px] border p-4" :style="{ borderColor: 'var(--border)' }">
+        <div class="mt-5 grid gap-4 xl:grid-cols-2">
+          <div class="rounded-[20px] border bg-[var(--surface-muted)] p-4" :style="{ borderColor: 'var(--border)' }">
             <FormField :label="t('operations.handoffReason')">
               <input
                 v-model="handoffReason"
@@ -483,7 +493,7 @@ watch(
             </button>
           </div>
 
-          <div class="rounded-[24px] border p-4" :style="{ borderColor: 'var(--border)' }">
+          <div class="rounded-[20px] border bg-[var(--surface-muted)] p-4" :style="{ borderColor: 'var(--border)' }">
             <FormField :label="t('operations.assignOperator')">
               <select v-model.number="selectedAssigneeId" class="input-base" :disabled="!canManageHandoffs || actionLoading">
                 <option v-for="operator in availableOperators" :key="operator.user_id" :value="operator.user_id">
@@ -511,63 +521,67 @@ watch(
 
         <LoadingState v-if="threadLoading" class="mt-6" :label="t('operations.loadingThread')" />
 
-        <div v-else class="mt-6 space-y-3">
-          <article
-            v-for="message in thread.messages"
-            :key="message.id"
-            class="max-w-3xl rounded-[24px] border px-4 py-4"
-            :class="message.direction === 'outbound' ? 'ml-auto bg-[color:color-mix(in_srgb,var(--accent)_10%,transparent)]' : 'bg-[var(--surface-muted)]'"
-            :style="{ borderColor: 'var(--border)' }"
-          >
-            <header class="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.14em] text-[var(--text-muted)]">
-              <strong class="text-[11px] font-semibold text-[var(--text)]">
-                {{ message.direction === 'outbound' ? t('operations.outbound') : t('operations.inbound') }}
-              </strong>
-              <span>{{ message.source || t('common.unknown') }}</span>
-            </header>
-            <p class="mt-3 whitespace-pre-wrap text-sm leading-6">
-              {{ message.body || t('common.messageWithoutBody') }}
-            </p>
-            <footer class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
-              <span>{{ message.status || t('common.notAvailable') }}</span>
-              <span>{{ formatTimestamp(message.created_at) }}</span>
-            </footer>
-          </article>
-        </div>
-
-        <form class="mt-8 rounded-[28px] border p-5" :style="{ borderColor: 'var(--border)' }" @submit.prevent="submitManualReply">
-          <FormField :label="t('operations.manualReply')">
-            <textarea
-              v-model="manualReplyBody"
-              class="input-base min-h-32 resize-y"
-              rows="4"
-              :disabled="!canManuallyReply || actionLoading"
-              :placeholder="t('operations.manualReplyPlaceholder')"
-            />
-          </FormField>
-
-          <div class="mt-5 flex flex-wrap gap-3">
-            <button
-              class="btn-primary"
-              type="submit"
-              :disabled="!canManuallyReply || manualReplyBody.trim() === '' || actionLoading"
-            >
-              {{ t('operations.sendManualReply') }}
-            </button>
-
-            <button class="btn-secondary" type="button" :disabled="!canManageHandoffs || actionLoading" @click="resumeBot('BOT_ACTIVE')">
-              {{ t('operations.resumeBot') }}
-            </button>
-
-            <button class="btn-secondary" type="button" :disabled="!canManageHandoffs || actionLoading" @click="resumeBot('WAITING_CUSTOMER')">
-              {{ t('operations.resumeWaiting') }}
-            </button>
+        <div v-else class="mt-5 flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div class="min-h-[42vh] flex-1 overflow-y-auto rounded-[20px] border bg-[var(--surface-muted)] p-3 sm:p-4 xl:min-h-0" :style="{ borderColor: 'var(--border)' }">
+            <div class="space-y-3">
+              <article
+                v-for="message in thread.messages"
+                :key="message.id"
+                class="max-w-3xl rounded-[20px] border px-4 py-4"
+                :class="message.direction === 'outbound' ? 'ml-auto bg-[color:color-mix(in_srgb,var(--accent)_10%,transparent)]' : 'bg-[var(--surface)]'"
+                :style="{ borderColor: 'var(--border)' }"
+              >
+                <header class="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                  <strong class="text-[11px] font-semibold text-[var(--text)]">
+                    {{ message.direction === 'outbound' ? t('operations.outbound') : t('operations.inbound') }}
+                  </strong>
+                  <span>{{ message.source || t('common.unknown') }}</span>
+                </header>
+                <p class="mt-3 whitespace-pre-wrap text-sm leading-6">
+                  {{ message.body || t('common.messageWithoutBody') }}
+                </p>
+                <footer class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
+                  <span>{{ message.status || t('common.notAvailable') }}</span>
+                  <span>{{ formatTimestamp(message.created_at) }}</span>
+                </footer>
+              </article>
+            </div>
           </div>
 
-          <p class="mt-4 text-sm text-[var(--text-muted)]">
-            {{ t('operations.helper') }}
-          </p>
-        </form>
+          <form class="mt-4 shrink-0 rounded-[20px] border bg-[var(--surface)] p-5" :style="{ borderColor: 'var(--border)' }" @submit.prevent="submitManualReply">
+            <FormField :label="t('operations.manualReply')">
+              <textarea
+                v-model="manualReplyBody"
+                class="input-base min-h-32 resize-y"
+                rows="4"
+                :disabled="!canManuallyReply || actionLoading"
+                :placeholder="t('operations.manualReplyPlaceholder')"
+              />
+            </FormField>
+
+            <div class="mt-5 flex flex-wrap gap-3">
+              <button
+                class="btn-primary"
+                type="submit"
+                :disabled="!canManuallyReply || manualReplyBody.trim() === '' || actionLoading"
+              >
+                {{ t('operations.sendManualReply') }}
+              </button>
+
+              <button class="btn-secondary" type="button" :disabled="!canManageHandoffs || actionLoading" @click="resumeBot('BOT_ACTIVE')">
+                {{ t('operations.resumeBot') }}
+              </button>
+
+              <button class="btn-secondary" type="button" :disabled="!canManageHandoffs || actionLoading" @click="resumeBot('WAITING_CUSTOMER')">
+                {{ t('operations.resumeWaiting') }}
+              </button>
+            </div>
+
+            <p class="mt-4 text-sm leading-6 text-[var(--text-muted)]">
+              {{ t('operations.helper') }}
+            </p>
+          </form>
+        </div>
       </template>
 
       <template v-else-if="threadLoading">
