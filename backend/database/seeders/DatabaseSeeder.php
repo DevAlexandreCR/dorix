@@ -87,7 +87,7 @@ class DatabaseSeeder extends Seeder
             'scope_type' => 'tenant',
             'scope_key' => TenantScopeKey::forTenant($tenant),
             'name' => 'Default Tenant Agent',
-            'model' => 'gpt-5.1',
+            'model_key' => 'balanced',
             'prompt_version' => 'v1',
             'is_active' => true,
             'settings' => [
@@ -101,7 +101,7 @@ class DatabaseSeeder extends Seeder
             'scope_type' => 'whatsapp_line',
             'scope_key' => TenantScopeKey::forWhatsAppLine($line),
             'name' => 'Primary Line Override',
-            'model' => 'gpt-5.1',
+            'model_key' => 'balanced',
             'prompt_version' => 'v1',
             'is_active' => true,
             'settings' => [

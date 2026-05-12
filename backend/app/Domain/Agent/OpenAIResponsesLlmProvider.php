@@ -13,6 +13,7 @@ class OpenAIResponsesLlmProvider implements LlmProviderInterface
     public function __construct(
         protected HttpFactory $http,
         protected PromptBuilder $promptBuilder,
+        protected AgentModelCatalog $models,
     ) {
     }
 
@@ -24,13 +25,17 @@ class OpenAIResponsesLlmProvider implements LlmProviderInterface
             throw new LlmProviderException(__('api.agent.openai_key_missing'));
         }
 
+        $resolvedModel = $context->resolvedModel !== []
+            ? $context->resolvedModel
+            : $this->models->effectiveForConfigs($context->lineAgentConfig, $context->tenantAgentConfig);
+
         $response = $this->http
             ->baseUrl(rtrim((string) config('services.openai.base_url', 'https://api.openai.com'), '/'))
             ->withToken($apiKey)
             ->acceptJson()
             ->timeout((int) config('services.openai.timeout', 30))
             ->post('/v1/responses', [
-                'model' => $context->agentConfig->model ?: (string) config('services.openai.default_model', 'gpt-5.1'),
+                'model' => $resolvedModel['model_id'],
                 'input' => $prompt,
                 'reasoning' => [
                     'effort' => (string) config('services.openai.reasoning_effort', 'low'),

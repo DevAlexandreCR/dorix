@@ -3,6 +3,7 @@
 namespace App\Support\Admin;
 
 use App\Domain\Agent\AgentConfigSettings;
+use App\Domain\Agent\AgentModelCatalog;
 use App\Domain\Agent\AgentPackRegistry;
 use App\Domain\Tools\ToolRegistry;
 use App\Models\AgentConfig;
@@ -22,6 +23,7 @@ class AdminPanelDataBuilder
 {
     public function __construct(
         protected AgentPackRegistry $packs,
+        protected AgentModelCatalog $models,
         protected ToolRegistry $toolRegistry,
         protected ObservabilityPayloadSanitizer $sanitizer,
     ) {
@@ -32,6 +34,16 @@ class AdminPanelDataBuilder
      */
     public function overview(Tenant $tenant): array
     {
+        $agentConfigs = AgentConfig::query()
+            ->forTenant($tenant->getKey())
+            ->with('whatsappLine:id,name,display_phone_number')
+            ->orderBy('scope_type')
+            ->orderBy('id')
+            ->get();
+
+        /** @var AgentConfig|null $tenantAgentConfig */
+        $tenantAgentConfig = $agentConfigs->firstWhere('scope_type', 'tenant');
+
         return [
             'tenant' => $this->serializeTenant($tenant->fresh()),
             'tenant_users' => TenantUser::query()
@@ -58,13 +70,8 @@ class AdminPanelDataBuilder
                 ->get()
                 ->map(fn (ApiCredential $credential): array => $this->serializeCredentialMetadata($credential))
                 ->all(),
-            'agent_configs' => AgentConfig::query()
-                ->forTenant($tenant->getKey())
-                ->with('whatsappLine:id,name,display_phone_number')
-                ->orderBy('scope_type')
-                ->orderBy('id')
-                ->get()
-                ->map(fn (AgentConfig $config): array => $this->serializeAgentConfig($config))
+            'agent_configs' => $agentConfigs
+                ->map(fn (AgentConfig $config): array => $this->serializeAgentConfig($config, $tenantAgentConfig))
                 ->all(),
             'tool_configs' => TenantToolConfig::query()
                 ->forTenant($tenant->getKey())
@@ -111,6 +118,7 @@ class AdminPanelDataBuilder
                 'viewer',
             ],
             'available_agent_packs' => $this->packs->available(),
+            'available_models' => $this->models->available(),
             'binding_tools' => [
                 'search_inventory',
                 'search_knowledge',
@@ -227,9 +235,13 @@ class AdminPanelDataBuilder
     /**
      * @return array<string, mixed>
      */
-    public function serializeAgentConfig(AgentConfig $config): array
+    public function serializeAgentConfig(AgentConfig $config, ?AgentConfig $tenantConfig = null): array
     {
         $settings = $config->settings ?? [];
+        $effectiveModel = $this->models->effectiveForConfigs(
+            $config->scope_type === 'whatsapp_line' ? $config : null,
+            $config->scope_type === 'tenant' ? $config : $tenantConfig,
+        );
 
         return [
             'id' => $config->getKey(),
@@ -239,6 +251,11 @@ class AdminPanelDataBuilder
             'scope_key' => $config->scope_key,
             'name' => $config->name,
             'model' => $config->model,
+            'model_key' => $this->models->keyFromConfig($config),
+            'effective_model_key' => $effectiveModel['key'],
+            'effective_model_label' => $effectiveModel['label'],
+            'effective_model_id' => $effectiveModel['model_id'],
+            'model_source' => $effectiveModel['source'],
             'prompt_version' => $config->prompt_version,
             'is_active' => $config->is_active,
             'settings' => $settings,

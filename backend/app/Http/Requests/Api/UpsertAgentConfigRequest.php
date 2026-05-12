@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api;
 
+use App\Domain\Agent\AgentModelCatalog;
 use App\Domain\Agent\AgentPackRegistry;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -20,7 +21,12 @@ class UpsertAgentConfigRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:120'],
-            'model' => ['nullable', 'string', 'max:120'],
+            'model' => ['prohibited'],
+            'model_key' => [
+                'nullable',
+                'string',
+                Rule::in(app(AgentModelCatalog::class)->keys()),
+            ],
             'prompt_version' => ['nullable', 'string', 'max:120'],
             'is_active' => ['required', 'boolean'],
             'automation_enabled' => ['required', 'boolean'],

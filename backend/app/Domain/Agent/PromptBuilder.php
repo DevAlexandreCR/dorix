@@ -160,7 +160,9 @@ TEXT;
                 ],
                 'agent_config' => [
                     'name' => $context->agentConfig->name,
-                    'model' => $context->agentConfig->model,
+                    'model_key' => $context->resolvedModel['key'] ?? null,
+                    'resolved_model_id' => $context->resolvedModel['model_id'] ?? null,
+                    'model_source' => $context->resolvedModel['source'] ?? null,
                     'prompt_version' => $context->agentConfig->prompt_version,
                     'settings' => $context->agentConfig->settings ?? [],
                     'agent_pack_key' => AgentConfigSettings::agentPackKey($context->agentConfig),

@@ -176,7 +176,7 @@ export async function updateTenantAgentConfig(
   tenantId: number,
   payload: {
     name: string;
-    model?: string;
+    model_key?: string;
     prompt_version?: string;
     is_active: boolean;
     automation_enabled: boolean;
@@ -200,7 +200,7 @@ export async function updateLineAgentConfig(
   lineId: number,
   payload: {
     name: string;
-    model?: string;
+    model_key?: string;
     prompt_version?: string;
     is_active: boolean;
     automation_enabled: boolean;

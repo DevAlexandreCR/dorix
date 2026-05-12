@@ -126,7 +126,7 @@ class AdminPanelTest extends TestCase
             ->withHeader('X-Tenant-Id', (string) $tenant->id)
             ->putJson('/api/v1/admin/agent-configs/tenant', [
                 'name' => 'Tenant Agent',
-                'model' => 'gpt-5.1',
+                'model_key' => 'high_accuracy',
                 'prompt_version' => 'v2',
                 'is_active' => true,
                 'automation_enabled' => false,
@@ -137,9 +137,14 @@ class AdminPanelTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.automation_enabled', false)
             ->assertJsonPath('data.system_prompt', 'Habla solo con información confirmada.')
+            ->assertJsonPath('data.model_key', 'high_accuracy')
+            ->assertJsonPath('data.effective_model_key', 'high_accuracy')
+            ->assertJsonPath('data.effective_model_label', 'Alta precisión')
+            ->assertJsonPath('data.model_source', 'tenant')
             ->assertJsonPath('data.agent_pack_key', 'sales_support_v1')
             ->assertJsonPath('data.handoff_customer_message', 'Te conectaré con una persona del equipo.')
-            ->assertJsonPath('meta.available_agent_packs.0.key', 'sales_support_v1');
+            ->assertJsonPath('meta.available_agent_packs.0.key', 'sales_support_v1')
+            ->assertJsonPath('meta.available_models.0.key', 'balanced');
 
         $this->actingAs($tenantAdmin)
             ->withCsrf()
@@ -159,12 +164,15 @@ class AdminPanelTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('data.tenant.id', $tenant->id)
             ->assertJsonPath('data.agent_configs.0.automation_enabled', false)
+            ->assertJsonPath('data.agent_configs.0.model_key', 'high_accuracy')
+            ->assertJsonPath('data.agent_configs.0.effective_model_label', 'Alta precisión')
             ->assertJsonPath('data.agent_configs.0.agent_pack_key', 'sales_support_v1')
             ->assertJsonPath('data.agent_configs.0.handoff_customer_message', 'Te conectaré con una persona del equipo.')
             ->assertJsonPath('data.tool_configs.0.data_source_id', $dataSource->id)
             ->assertJsonPath('data.credential_metadata.0.provider', 'whatsapp_meta')
             ->assertJsonPath('data.credential_metadata.0.has_secret', true)
-            ->assertJsonPath('data.available_agent_packs.0.key', 'sales_support_v1');
+            ->assertJsonPath('data.available_agent_packs.0.key', 'sales_support_v1')
+            ->assertJsonPath('data.available_models.0.key', 'balanced');
 
         $response->assertJsonFragment([
             'email' => 'operator-added@example.com',
@@ -186,6 +194,27 @@ class AdminPanelTest extends TestCase
             'tenant_id' => $tenant->id,
             'event_type' => 'tenant_user_added',
         ]);
+    }
+
+    public function test_admin_agent_config_rejects_legacy_free_text_model_input(): void
+    {
+        $tenant = Tenant::query()->create([
+            'name' => 'Acme Validation',
+            'slug' => 'acme-validation',
+        ]);
+        $tenantAdmin = $this->tenantUser($tenant, TenantRole::TenantAdmin);
+
+        $this->actingAs($tenantAdmin)
+            ->withCsrf()
+            ->withHeader('X-Tenant-Id', (string) $tenant->id)
+            ->putJson('/api/v1/admin/agent-configs/tenant', [
+                'name' => 'Tenant Agent',
+                'model' => 'gpt-5.5',
+                'is_active' => true,
+                'automation_enabled' => true,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['model']);
     }
 
     public function test_platform_admin_can_upsert_credentials_but_tenant_admin_cannot(): void
@@ -269,7 +298,7 @@ class AdminPanelTest extends TestCase
             ->withHeader('X-Tenant-Id', (string) $tenant->id)
             ->putJson('/api/v1/admin/agent-configs/tenant', [
                 'name' => 'General Assistant',
-                'model' => 'gpt-5.1',
+                'model_key' => 'balanced',
                 'prompt_version' => 'v1',
                 'is_active' => true,
                 'automation_enabled' => true,
@@ -284,7 +313,7 @@ class AdminPanelTest extends TestCase
             ->withHeader('X-Tenant-Id', (string) $tenant->id)
             ->putJson("/api/v1/admin/agent-configs/lines/{$line->id}", [
                 'name' => 'Line Assistant',
-                'model' => 'gpt-5.1',
+                'model_key' => 'high_accuracy',
                 'prompt_version' => 'v2',
                 'is_active' => true,
                 'automation_enabled' => false,
@@ -344,7 +373,7 @@ class AdminPanelTest extends TestCase
             'scope_type' => 'tenant',
             'scope_key' => TenantScopeKey::forTenant($tenant),
             'name' => 'General Assistant',
-            'model' => 'gpt-5.1',
+            'model_key' => 'balanced',
             'prompt_version' => 'v1',
             'is_active' => true,
             'settings' => [

@@ -39,6 +39,7 @@ import { isLegacyAdminPanel, normalizeAdminPanel, type AdminPanelKey } from '../
 import type {
   AdminOverview,
   AgentConfigRecord,
+  AgentModelOption,
   DataSourceRecord,
   TenantRecord,
   ToolConfigRecord,
@@ -47,7 +48,7 @@ import type {
 
 type AgentConfigForm = {
   name: string;
-  model: string;
+  modelKey: string;
   promptVersion: string;
   agentPackKey: string;
   isActive: boolean;
@@ -178,6 +179,7 @@ const activePanel = computed<AdminPanelKey>({
 });
 
 const agentPackOptions = computed(() => adminOverview.value?.available_agent_packs ?? []);
+const modelOptions = computed(() => adminOverview.value?.available_models ?? []);
 const bindingTools = computed(() => {
   const overview = adminOverview.value;
 
@@ -206,10 +208,22 @@ function defaultLineForm(): LineForm {
   };
 }
 
-function defaultAgentConfigForm(name = '', agentPackKey = 'sales_support_v1'): AgentConfigForm {
+function preferredModelKey(options: AgentModelOption[] = []): string {
+  return options.find((option) => option.recommended)?.key ?? options[0]?.key ?? 'balanced';
+}
+
+function findModelOption(modelKey: string): AgentModelOption | null {
+  return modelOptions.value.find((option) => option.key === modelKey) ?? null;
+}
+
+function defaultAgentConfigForm(
+  name = '',
+  agentPackKey = 'sales_support_v1',
+  modelKey = 'balanced',
+): AgentConfigForm {
   return {
     name,
-    model: 'gpt-5.1',
+    modelKey,
     promptVersion: 'v1',
     agentPackKey,
     isActive: true,
@@ -231,14 +245,15 @@ function agentConfigFormFromRecord(
   record: AgentConfigRecord | null | undefined,
   fallbackName: string,
   fallbackAgentPackKey = 'sales_support_v1',
+  fallbackModelKey = preferredModelKey(),
 ): AgentConfigForm {
   if (!record) {
-    return defaultAgentConfigForm(fallbackName, fallbackAgentPackKey);
+    return defaultAgentConfigForm(fallbackName, fallbackAgentPackKey, fallbackModelKey);
   }
 
   return {
     name: record.name,
-    model: record.model ?? 'gpt-5.1',
+    modelKey: record.model_key ?? record.effective_model_key ?? fallbackModelKey,
     promptVersion: record.prompt_version ?? 'v1',
     agentPackKey: record.agent_pack_key || fallbackAgentPackKey,
     isActive: record.is_active,
@@ -291,6 +306,7 @@ function toolDraftKey(lineId: number, toolName: string): string {
 
 function syncAdminForms(overview: AdminOverview): void {
   const fallbackAgentPackKey = overview.available_agent_packs[0]?.key ?? 'sales_support_v1';
+  const fallbackModelKey = preferredModelKey(overview.available_models);
 
   tenantForm.value = {
     name: overview.tenant.name,
@@ -320,6 +336,7 @@ function syncAdminForms(overview: AdminOverview): void {
     resolveTenantAgentConfig(overview),
     `${overview.tenant.name} Assistant`,
     fallbackAgentPackKey,
+    fallbackModelKey,
   );
 
   lineAgentConfigDrafts.value = Object.fromEntries(
@@ -329,6 +346,7 @@ function syncAdminForms(overview: AdminOverview): void {
         resolveEffectiveLineAgentConfig(overview, line.id),
         line.name,
         fallbackAgentPackKey,
+        fallbackModelKey,
       ),
     ]),
   );
@@ -498,10 +516,19 @@ function assistantAutomationLabel(record: AgentConfigRecord | null): string {
     : t('admin.agentConfig.statusLabels.automaticOff');
 }
 
+function assistantModelSummary(record: AgentConfigRecord | null, customized: boolean): string {
+  const modelLabel = record?.effective_model_label ?? findModelOption(preferredModelKey(modelOptions.value))?.label ?? '';
+
+  return customized
+    ? t('admin.agentConfig.summary.customized', { model: modelLabel })
+    : t('admin.agentConfig.summary.general', { model: modelLabel });
+}
+
 function assistantSummary(lineId: number): string {
   const record = effectiveLineAgentConfig(lineId);
+  const customized = lineHasAgentCustomization(lineId);
 
-  return `${assistantEnabledLabel(record)} · ${assistantAutomationLabel(record)}`;
+  return `${assistantModelSummary(record, customized)} · ${assistantAutomationLabel(record)} · ${assistantEnabledLabel(record)}`;
 }
 
 function toolSetupStatusLabel(toolName: string): string {
@@ -792,7 +819,7 @@ async function saveTenantAgentSettings(): Promise<void> {
   await withAdminAction(t('admin.success.tenantAssistantUpdated'), async () => {
     await updateTenantAgentConfig(tenantId, {
       name: tenantAgentConfigForm.value.name.trim(),
-      model: tenantAgentConfigForm.value.model.trim() || undefined,
+      model_key: tenantAgentConfigForm.value.modelKey || undefined,
       prompt_version: tenantAgentConfigForm.value.promptVersion.trim() || undefined,
       is_active: tenantAgentConfigForm.value.isActive,
       automation_enabled: tenantAgentConfigForm.value.automationEnabled,
@@ -824,7 +851,7 @@ async function saveLineAgentSettings(lineId: number): Promise<void> {
     async () => {
       await updateLineAgentConfig(tenantId, lineId, {
         name: draft.name.trim(),
-        model: draft.model.trim() || undefined,
+        model_key: draft.modelKey || undefined,
         prompt_version: draft.promptVersion.trim() || undefined,
         is_active: draft.isActive,
         automation_enabled: draft.automationEnabled,
@@ -1310,6 +1337,30 @@ watch(
           </label>
         </div>
 
+        <FormField :label="t('admin.agentConfig.modelLabel')" :hint="t('admin.agentConfig.modelHelp')">
+          <select v-model="tenantAgentConfigForm.modelKey" class="input-base" :disabled="!canManageAgentConfig || adminSaving">
+            <option v-for="option in modelOptions" :key="option.key" :value="option.key">
+              {{ option.label }}
+            </option>
+          </select>
+        </FormField>
+
+        <div
+          v-if="findModelOption(tenantAgentConfigForm.modelKey)"
+          class="rounded-[24px] border px-4 py-4"
+          :style="{ borderColor: 'var(--border)' }"
+        >
+          <div class="flex flex-wrap items-center gap-2">
+            <strong>{{ findModelOption(tenantAgentConfigForm.modelKey)?.label }}</strong>
+            <StatusBadge
+              v-if="findModelOption(tenantAgentConfigForm.modelKey)?.recommended"
+              :label="t('admin.agentConfig.recommendedBadge')"
+              tone="success"
+            />
+          </div>
+          <p class="mt-2 text-sm text-[var(--text-muted)]">{{ findModelOption(tenantAgentConfigForm.modelKey)?.description }}</p>
+        </div>
+
         <FormField :label="t('admin.agentConfig.systemPromptLabel')" :hint="t('admin.agentConfig.systemPromptHelp')">
           <textarea v-model="tenantAgentConfigForm.systemPrompt" class="input-base min-h-40 resize-y" rows="5" :disabled="!canManageAgentConfig || adminSaving" />
         </FormField>
@@ -1326,8 +1377,8 @@ watch(
             <FormField :label="t('admin.agentConfig.internalName')">
               <input v-model="tenantAgentConfigForm.name" class="input-base" type="text" :disabled="!canManageAgentConfig || adminSaving" />
             </FormField>
-            <FormField :label="t('admin.agentConfig.modelLabel')">
-              <input v-model="tenantAgentConfigForm.model" class="input-base" type="text" :disabled="!canManageAgentConfig || adminSaving" />
+            <FormField :label="t('admin.agentConfig.modelIdLabel')" :hint="t('admin.agentConfig.modelIdHelp')">
+              <input :value="findModelOption(tenantAgentConfigForm.modelKey)?.model_id ?? ''" class="input-base" type="text" disabled readonly />
             </FormField>
             <FormField :label="t('admin.agentConfig.promptVersionLabel')">
               <input v-model="tenantAgentConfigForm.promptVersion" class="input-base" type="text" :disabled="!canManageAgentConfig || adminSaving" />
@@ -1391,6 +1442,30 @@ watch(
                 <textarea v-model="lineAgentConfigDrafts[line.id].systemPrompt" class="input-base min-h-32 resize-y" rows="4" :disabled="!canManageAgentConfig || adminSaving" />
               </FormField>
 
+              <FormField :label="t('admin.agentConfig.modelLabel')" :hint="t('admin.agentConfig.modelHelp')">
+                <select v-model="lineAgentConfigDrafts[line.id].modelKey" class="input-base" :disabled="!canManageAgentConfig || adminSaving">
+                  <option v-for="option in modelOptions" :key="option.key" :value="option.key">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </FormField>
+
+              <div
+                v-if="findModelOption(lineAgentConfigDrafts[line.id].modelKey)"
+                class="rounded-[24px] border px-4 py-4"
+                :style="{ borderColor: 'var(--border)' }"
+              >
+                <div class="flex flex-wrap items-center gap-2">
+                  <strong>{{ findModelOption(lineAgentConfigDrafts[line.id].modelKey)?.label }}</strong>
+                  <StatusBadge
+                    v-if="findModelOption(lineAgentConfigDrafts[line.id].modelKey)?.recommended"
+                    :label="t('admin.agentConfig.recommendedBadge')"
+                    tone="success"
+                  />
+                </div>
+                <p class="mt-2 text-sm text-[var(--text-muted)]">{{ findModelOption(lineAgentConfigDrafts[line.id].modelKey)?.description }}</p>
+              </div>
+
               <FormField :label="t('admin.agentConfig.handoffLabel')" :hint="t('admin.agentConfig.handoffHelp')">
                 <textarea v-model="lineAgentConfigDrafts[line.id].handoffCustomerMessage" class="input-base min-h-24 resize-y" rows="3" :disabled="!canManageAgentConfig || adminSaving" />
               </FormField>
@@ -1403,8 +1478,8 @@ watch(
                   <FormField :label="t('admin.agentConfig.internalName')">
                     <input v-model="lineAgentConfigDrafts[line.id].name" class="input-base" type="text" :disabled="!canManageAgentConfig || adminSaving" />
                   </FormField>
-                  <FormField :label="t('admin.agentConfig.modelLabel')">
-                    <input v-model="lineAgentConfigDrafts[line.id].model" class="input-base" type="text" :disabled="!canManageAgentConfig || adminSaving" />
+                  <FormField :label="t('admin.agentConfig.modelIdLabel')" :hint="t('admin.agentConfig.modelIdHelp')">
+                    <input :value="findModelOption(lineAgentConfigDrafts[line.id].modelKey)?.model_id ?? ''" class="input-base" type="text" disabled readonly />
                   </FormField>
                   <FormField :label="t('admin.agentConfig.promptVersionLabel')">
                     <input v-model="lineAgentConfigDrafts[line.id].promptVersion" class="input-base" type="text" :disabled="!canManageAgentConfig || adminSaving" />

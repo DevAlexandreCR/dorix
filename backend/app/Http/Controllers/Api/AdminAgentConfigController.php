@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Domain\Agent\AgentConfigSettings;
+use App\Domain\Agent\AgentModelCatalog;
 use App\Domain\Agent\AgentPackRegistry;
 use App\Enums\Permission;
 use App\Http\Controllers\Api\Concerns\ResolvesTenantFromRequest;
@@ -23,6 +24,7 @@ class AdminAgentConfigController
 
     public function __construct(
         protected AgentPackRegistry $packs,
+        protected AgentModelCatalog $models,
         protected AdminPanelDataBuilder $builder,
         protected AuditEventRecorder $audit,
     ) {
@@ -59,6 +61,7 @@ class AdminAgentConfigController
             'data' => $this->builder->serializeAgentConfig($config->fresh()),
             'meta' => [
                 'available_agent_packs' => $this->packs->available(),
+                'available_models' => $this->models->available(),
             ],
         ]);
     }
@@ -95,10 +98,19 @@ class AdminAgentConfigController
             ],
         );
 
+        $tenantConfig = AgentConfig::query()
+            ->forTenant($tenant->getKey())
+            ->where('scope_type', 'tenant')
+            ->first();
+
         return response()->json([
-            'data' => $this->builder->serializeAgentConfig($config->fresh()->load('whatsappLine:id,name,display_phone_number')),
+            'data' => $this->builder->serializeAgentConfig(
+                $config->fresh()->load('whatsappLine:id,name,display_phone_number'),
+                $tenantConfig,
+            ),
             'meta' => [
                 'available_agent_packs' => $this->packs->available(),
+                'available_models' => $this->models->available(),
             ],
         ]);
     }
@@ -151,7 +163,8 @@ class AdminAgentConfigController
         $config->forceFill([
             ...$scope,
             'name' => $payload['name'],
-            'model' => $payload['model'] ?: null,
+            'model' => null,
+            'model_key' => $payload['model_key'] ?: null,
             'prompt_version' => $payload['prompt_version'] ?: null,
             'is_active' => (bool) $payload['is_active'],
             'settings' => $settings,

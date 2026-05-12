@@ -64,6 +64,7 @@ class AgentRuntimeIntegrationTest extends TestCase
         $this->assertSame(AgentDecisionOutcome::SendMessage, $decision->outcome);
         $this->assertSame('Hola, te ayudo con eso.', $decision->replyText);
         $this->assertSame('knowledge_lookup', $decision->currentIntent);
+        $this->assertSame('tenant', $context->resolvedModel['source']);
         $this->assertDatabaseHas('agent_events', [
             'tenant_id' => $tenant->id,
             'event_type' => 'agent_started',
@@ -74,6 +75,85 @@ class AgentRuntimeIntegrationTest extends TestCase
             'event_type' => 'agent_response_generated',
             'conversation_message_id' => $message->id,
         ]);
+        Http::assertSent(fn ($request) => $request->data()['model'] === 'gpt-5.4-mini');
+    }
+
+    public function test_runtime_prefers_the_line_model_over_the_tenant_model(): void
+    {
+        [$tenant, $line, $conversation, $message] = $this->conversationFixtures();
+
+        AgentConfig::query()->create([
+            'tenant_id' => $tenant->id,
+            'whatsapp_line_id' => $line->id,
+            'scope_type' => 'whatsapp_line',
+            'scope_key' => TenantScopeKey::forWhatsAppLine($line),
+            'name' => 'Line Agent',
+            'model_key' => 'high_accuracy',
+            'prompt_version' => 'v2',
+            'is_active' => true,
+            'settings' => [
+                'automation_enabled' => true,
+            ],
+        ]);
+
+        $state = app(ConversationStateRepository::class)->getOrCreate($conversation);
+
+        Http::fake([
+            'https://api.openai.com/v1/responses' => Http::response([
+                'output_text' => json_encode([
+                    'outcome' => 'send_message',
+                    'reply_text' => 'Listo.',
+                    'handoff_reason' => '',
+                    'tool_name' => '',
+                    'tool_arguments_json' => '{}',
+                    'missing_information_fields' => [],
+                    'current_intent' => 'knowledge_lookup',
+                    'internal_notes' => 'Respond directly.',
+                ], JSON_THROW_ON_ERROR),
+            ], 200),
+        ]);
+
+        config()->set('services.openai.api_key', 'test-openai-key');
+
+        $context = app(AgentContextLoader::class)->load($conversation, $message->id, $state);
+
+        app(AgentRuntimeInterface::class)->run($context);
+
+        $this->assertSame('line', $context->resolvedModel['source']);
+        $this->assertSame('high_accuracy', $context->resolvedModel['key']);
+        Http::assertSent(fn ($request) => $request->data()['model'] === 'gpt-5.5');
+    }
+
+    public function test_runtime_uses_the_system_default_model_when_no_config_model_is_defined(): void
+    {
+        [$tenant, $line, $conversation, $message] = $this->conversationFixtures(false);
+        $state = app(ConversationStateRepository::class)->getOrCreate($conversation);
+
+        Http::fake([
+            'https://api.openai.com/v1/responses' => Http::response([
+                'output_text' => json_encode([
+                    'outcome' => 'send_message',
+                    'reply_text' => 'Listo.',
+                    'handoff_reason' => '',
+                    'tool_name' => '',
+                    'tool_arguments_json' => '{}',
+                    'missing_information_fields' => [],
+                    'current_intent' => 'knowledge_lookup',
+                    'internal_notes' => 'Respond directly.',
+                ], JSON_THROW_ON_ERROR),
+            ], 200),
+        ]);
+
+        config()->set('services.openai.api_key', 'test-openai-key');
+        config()->set('services.openai.default_model_key', 'savings');
+
+        $context = app(AgentContextLoader::class)->load($conversation, $message->id, $state);
+
+        app(AgentRuntimeInterface::class)->run($context);
+
+        $this->assertSame('system_default', $context->resolvedModel['source']);
+        $this->assertSame('savings', $context->resolvedModel['key']);
+        Http::assertSent(fn ($request) => $request->data()['model'] === 'gpt-5.4-nano');
     }
 
     public function test_runtime_maps_a_call_tool_decision_and_decodes_arguments(): void
@@ -396,7 +476,7 @@ class AgentRuntimeIntegrationTest extends TestCase
     /**
      * @return array{0: Tenant, 1: WhatsAppLine, 2: Conversation, 3: ConversationMessage}
      */
-    protected function conversationFixtures(): array
+    protected function conversationFixtures(bool $withTenantModel = true): array
     {
         $tenant = Tenant::query()->create([
             'name' => 'Acme',
@@ -418,7 +498,7 @@ class AgentRuntimeIntegrationTest extends TestCase
             'scope_type' => 'tenant',
             'scope_key' => TenantScopeKey::forTenant($tenant),
             'name' => 'Default Agent',
-            'model' => 'gpt-5.1',
+            'model_key' => $withTenantModel ? 'balanced' : null,
             'prompt_version' => 'v1',
             'is_active' => true,
             'settings' => [

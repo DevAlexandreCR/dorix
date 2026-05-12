@@ -18,6 +18,7 @@ class AgentContextLoader
 {
     public function __construct(
         protected ToolRegistry $toolRegistry,
+        protected AgentModelCatalog $models,
     ) {
     }
 
@@ -33,12 +34,14 @@ class AgentContextLoader
             ->where('conversation_id', $conversation->getKey())
             ->findOrFail($messageId);
 
+        [$agentConfig, $lineAgentConfig, $tenantAgentConfig] = $this->resolveAgentConfigs($conversation, $line);
+
         return new AgentContext(
             tenant: $line->tenant,
             line: $line,
             conversation: $conversation->fresh(),
             state: $state->fresh(),
-            agentConfig: $this->resolveAgentConfig($conversation, $line),
+            agentConfig: $agentConfig,
             triggeringMessage: $triggeringMessage,
             recentMessages: ConversationMessage::query()
                 ->forTenant($conversation->tenant_id)
@@ -51,12 +54,18 @@ class AgentContextLoader
                 ->values()
                 ->all(),
             enabledTools: $this->resolveEnabledTools($conversation, $line),
+            lineAgentConfig: $lineAgentConfig,
+            tenantAgentConfig: $tenantAgentConfig,
+            resolvedModel: $this->models->effectiveForConfigs($lineAgentConfig, $tenantAgentConfig),
         );
     }
 
-    protected function resolveAgentConfig(Conversation $conversation, WhatsAppLine $line): AgentConfig
+    /**
+     * @return array{0: AgentConfig, 1: AgentConfig|null, 2: AgentConfig|null}
+     */
+    protected function resolveAgentConfigs(Conversation $conversation, WhatsAppLine $line): array
     {
-        $agentConfig = AgentConfig::query()
+        $configs = AgentConfig::query()
             ->forTenant($conversation->tenant_id)
             ->where('is_active', true)
             ->whereIn('scope_key', [
@@ -67,13 +76,20 @@ class AgentContextLoader
                 'case when scope_key = ? then 0 else 1 end',
                 [TenantScopeKey::forWhatsAppLine($line)]
             )
-            ->first();
+            ->get()
+            ->keyBy('scope_key');
+
+        /** @var AgentConfig|null $lineConfig */
+        $lineConfig = $configs->get(TenantScopeKey::forWhatsAppLine($line));
+        /** @var AgentConfig|null $tenantConfig */
+        $tenantConfig = $configs->get(TenantScopeKey::forTenant($conversation->tenant_id));
+        $agentConfig = $lineConfig ?? $tenantConfig;
 
         if (! $agentConfig) {
             throw new MissingAgentConfigurationException(__('api.agent.missing_configuration'));
         }
 
-        return $agentConfig;
+        return [$agentConfig, $lineConfig, $tenantConfig];
     }
 
     /**

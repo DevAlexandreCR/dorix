@@ -63,6 +63,11 @@ export interface AgentConfigRecord {
   scope_key: string;
   name: string;
   model: string | null;
+  model_key: string | null;
+  effective_model_key: string;
+  effective_model_label: string;
+  effective_model_id: string;
+  model_source: 'line' | 'tenant' | 'system_default';
   prompt_version: string | null;
   is_active: boolean;
   settings: Record<string, unknown>;
@@ -170,6 +175,16 @@ export interface ToolExecutionLog {
   created_at: string | null;
 }
 
+export interface AgentModelOption {
+  key: string;
+  model_id: string;
+  label: string;
+  description: string;
+  recommended: boolean;
+  visible_in_ui: boolean;
+  sort_order: number;
+}
+
 export interface AdminOverview {
   tenant: TenantRecord;
   tenant_users: TenantUserRecord[];
@@ -188,6 +203,7 @@ export interface AdminOverview {
     key: string;
     name: string;
   }[];
+  available_models: AgentModelOption[];
   binding_tools: string[];
   available_tools: {
     name: string;

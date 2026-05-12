@@ -41,6 +41,7 @@ return [
         'label' => 'etiqueta',
         'metadata' => 'metadata',
         'model' => 'modelo',
+        'model_key' => 'nivel del asistente',
         'name' => 'nombre',
         'password' => 'contraseña',
         'phone_number_id' => 'Phone Number ID',

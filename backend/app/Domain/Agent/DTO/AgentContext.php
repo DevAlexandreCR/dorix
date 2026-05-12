@@ -29,6 +29,9 @@ final readonly class AgentContext
         public array $enabledTools,
         public array $retrievedContext = [],
         public array $retrievalMetadata = [],
+        public ?AgentConfig $lineAgentConfig = null,
+        public ?AgentConfig $tenantAgentConfig = null,
+        public array $resolvedModel = [],
     ) {
     }
 
@@ -60,6 +63,9 @@ final readonly class AgentContext
             enabledTools: $this->enabledTools,
             retrievedContext: $retrievedContext,
             retrievalMetadata: $retrievalMetadata,
+            lineAgentConfig: $this->lineAgentConfig,
+            tenantAgentConfig: $this->tenantAgentConfig,
+            resolvedModel: $this->resolvedModel,
         );
     }
 }

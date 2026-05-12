@@ -41,6 +41,7 @@ return [
         'label' => 'label',
         'metadata' => 'metadata',
         'model' => 'model',
+        'model_key' => 'assistant level',
         'name' => 'name',
         'password' => 'password',
         'phone_number_id' => 'phone number ID',

@@ -717,7 +717,7 @@ class ToolExecutionIntegrationTest extends TestCase
             'scope_type' => 'tenant',
             'scope_key' => TenantScopeKey::forTenant($tenant),
             'name' => 'Default Agent',
-            'model' => 'gpt-5.1',
+            'model_key' => 'balanced',
             'prompt_version' => 'v1',
             'is_active' => true,
             'settings' => [
