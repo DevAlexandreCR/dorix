@@ -68,6 +68,8 @@ export interface AgentConfigRecord {
   settings: Record<string, unknown>;
   automation_enabled: boolean;
   system_prompt: string;
+  agent_pack_key: string;
+  handoff_customer_message: string;
   created_at: string | null;
   updated_at: string | null;
   whatsapp_line: {
@@ -182,6 +184,10 @@ export interface AdminOverview {
     tool_executions: ToolExecutionLog[];
   };
   available_roles: string[];
+  available_agent_packs: {
+    key: string;
+    name: string;
+  }[];
   binding_tools: string[];
   available_tools: {
     name: string;

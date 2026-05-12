@@ -17,6 +17,8 @@ import {
   createTenant,
   createTenantUser,
   createWhatsAppLine,
+  deleteLineAgentConfig,
+  deleteLineToolConfig,
   deleteTenantUser,
   deleteWhatsAppLine,
   fetchAdminOverview,
@@ -32,6 +34,8 @@ import {
   uploadDataSource,
   upsertCredential,
 } from '../api';
+import AdminSectionTabs from '../components/AdminSectionTabs.vue';
+import { isLegacyAdminPanel, normalizeAdminPanel, type AdminPanelKey } from '../presentation';
 import type {
   AdminOverview,
   AgentConfigRecord,
@@ -40,15 +44,16 @@ import type {
   ToolConfigRecord,
   WhatsAppLineRecord,
 } from '../types';
-import AdminSectionTabs from '../components/AdminSectionTabs.vue';
 
 type AgentConfigForm = {
   name: string;
   model: string;
   promptVersion: string;
+  agentPackKey: string;
   isActive: boolean;
   automationEnabled: boolean;
   systemPrompt: string;
+  handoffCustomerMessage: string;
 };
 
 type ToolConfigForm = {
@@ -64,6 +69,23 @@ type LineForm = {
   wabaId: string;
   status: string;
   isEnabled: boolean;
+};
+
+type UsageSummary = {
+  tenantUsesSource: boolean;
+  inheritedLines: WhatsAppLineRecord[];
+  customizedLines: WhatsAppLineRecord[];
+};
+
+const toolCopyKeys: Record<string, { title: string; description: string }> = {
+  search_knowledge: {
+    title: 'admin.dataSources.toolLabels.search_knowledge.title',
+    description: 'admin.dataSources.toolLabels.search_knowledge.description',
+  },
+  search_inventory: {
+    title: 'admin.dataSources.toolLabels.search_inventory.title',
+    description: 'admin.dataSources.toolLabels.search_inventory.description',
+  },
 };
 
 const { t, locale } = useI18n();
@@ -125,7 +147,6 @@ const panelOptions = computed(() => [
   { key: 'lines', label: t('admin.panels.lines') },
   { key: 'agent', label: t('admin.panels.agent') },
   { key: 'sources', label: t('admin.panels.sources') },
-  { key: 'bindings', label: t('admin.panels.bindings') },
   { key: 'credentials', label: t('admin.panels.credentials') },
   { key: 'logs', label: t('admin.panels.logs') },
 ]);
@@ -144,9 +165,9 @@ function routeString(key: string): string {
   return '';
 }
 
-const activePanel = computed({
-  get: () => routeString('panel') || 'tenant',
-  set: (value: string) => {
+const activePanel = computed<AdminPanelKey>({
+  get: () => normalizeAdminPanel(routeString('panel')),
+  set: (value) => {
     void router.replace({
       query: {
         ...route.query,
@@ -156,11 +177,22 @@ const activePanel = computed({
   },
 });
 
-const bindingTools = computed(() => adminOverview.value?.binding_tools ?? []);
+const agentPackOptions = computed(() => adminOverview.value?.available_agent_packs ?? []);
+const bindingTools = computed(() => {
+  const overview = adminOverview.value;
+
+  if (!overview) {
+    return [];
+  }
+
+  const supportedToolNames = overview.available_tools
+    .filter((tool) => tool.supports_data_source_binding)
+    .map((tool) => tool.name);
+
+  return overview.binding_tools.filter((toolName) => supportedToolNames.includes(toolName));
+});
 const readyDataSources = computed(() =>
-  (adminOverview.value?.data_sources ?? []).filter(
-    (source) => source.status === 'ready' || source.status === 'pending' || source.status === 'failed',
-  ),
+  (adminOverview.value?.data_sources ?? []).filter((source) => source.status === 'ready'),
 );
 
 function defaultLineForm(): LineForm {
@@ -174,14 +206,16 @@ function defaultLineForm(): LineForm {
   };
 }
 
-function defaultAgentConfigForm(name = ''): AgentConfigForm {
+function defaultAgentConfigForm(name = '', agentPackKey = 'sales_support_v1'): AgentConfigForm {
   return {
     name,
     model: 'gpt-5.1',
     promptVersion: 'v1',
+    agentPackKey,
     isActive: true,
     automationEnabled: true,
     systemPrompt: '',
+    handoffCustomerMessage: '',
   };
 }
 
@@ -193,18 +227,24 @@ function defaultToolConfigForm(record?: ToolConfigRecord | null): ToolConfigForm
   };
 }
 
-function agentConfigFormFromRecord(record: AgentConfigRecord | null | undefined, fallbackName: string): AgentConfigForm {
+function agentConfigFormFromRecord(
+  record: AgentConfigRecord | null | undefined,
+  fallbackName: string,
+  fallbackAgentPackKey = 'sales_support_v1',
+): AgentConfigForm {
   if (!record) {
-    return defaultAgentConfigForm(fallbackName);
+    return defaultAgentConfigForm(fallbackName, fallbackAgentPackKey);
   }
 
   return {
     name: record.name,
     model: record.model ?? 'gpt-5.1',
     promptVersion: record.prompt_version ?? 'v1',
+    agentPackKey: record.agent_pack_key || fallbackAgentPackKey,
     isActive: record.is_active,
     automationEnabled: record.automation_enabled,
     systemPrompt: record.system_prompt,
+    handoffCustomerMessage: record.handoff_customer_message,
   };
 }
 
@@ -216,6 +256,10 @@ function resolveLineAgentConfig(overview: AdminOverview, lineId: number): AgentC
   return overview.agent_configs.find(
     (config) => config.scope_type === 'whatsapp_line' && config.whatsapp_line_id === lineId,
   ) ?? null;
+}
+
+function resolveEffectiveLineAgentConfig(overview: AdminOverview, lineId: number): AgentConfigRecord | null {
+  return resolveLineAgentConfig(overview, lineId) ?? resolveTenantAgentConfig(overview);
 }
 
 function resolveTenantToolConfig(overview: AdminOverview, toolName: string): ToolConfigRecord | null {
@@ -233,11 +277,21 @@ function resolveLineToolConfig(overview: AdminOverview, lineId: number, toolName
   ) ?? null;
 }
 
+function resolveEffectiveLineToolConfig(
+  overview: AdminOverview,
+  lineId: number,
+  toolName: string,
+): ToolConfigRecord | null {
+  return resolveLineToolConfig(overview, lineId, toolName) ?? resolveTenantToolConfig(overview, toolName);
+}
+
 function toolDraftKey(lineId: number, toolName: string): string {
   return `${lineId}:${toolName}`;
 }
 
 function syncAdminForms(overview: AdminOverview): void {
+  const fallbackAgentPackKey = overview.available_agent_packs[0]?.key ?? 'sales_support_v1';
+
   tenantForm.value = {
     name: overview.tenant.name,
     slug: overview.tenant.slug,
@@ -262,12 +316,20 @@ function syncAdminForms(overview: AdminOverview): void {
     ]),
   );
 
-  tenantAgentConfigForm.value = agentConfigFormFromRecord(resolveTenantAgentConfig(overview), `${overview.tenant.name} Agent`);
+  tenantAgentConfigForm.value = agentConfigFormFromRecord(
+    resolveTenantAgentConfig(overview),
+    `${overview.tenant.name} Assistant`,
+    fallbackAgentPackKey,
+  );
 
   lineAgentConfigDrafts.value = Object.fromEntries(
     overview.whatsapp_lines.map((line) => [
       line.id,
-      agentConfigFormFromRecord(resolveLineAgentConfig(overview, line.id), `${line.name} Override`),
+      agentConfigFormFromRecord(
+        resolveEffectiveLineAgentConfig(overview, line.id),
+        line.name,
+        fallbackAgentPackKey,
+      ),
     ]),
   );
 
@@ -279,7 +341,7 @@ function syncAdminForms(overview: AdminOverview): void {
     overview.whatsapp_lines.flatMap((line) =>
       overview.binding_tools.map((toolName) => [
         toolDraftKey(line.id, toolName),
-        defaultToolConfigForm(resolveLineToolConfig(overview, line.id, toolName)),
+        defaultToolConfigForm(resolveEffectiveLineToolConfig(overview, line.id, toolName)),
       ]),
     ),
   );
@@ -298,7 +360,7 @@ function formatTimestamp(value: string | null): string {
 
 function lineLabel(line: Pick<WhatsAppLineRecord, 'name' | 'display_phone_number'> | null): string {
   if (!line) {
-    return t('common.scopes.tenant');
+    return t('admin.shared.generalLabel');
   }
 
   return `${line.name}${line.display_phone_number ? ` · ${line.display_phone_number}` : ''}`;
@@ -324,8 +386,202 @@ function translateScope(scope: 'tenant' | 'whatsapp_line'): string {
   return t(`common.scopes.${scope}`);
 }
 
+function translateToolName(toolName: string): string {
+  const entry = toolCopyKeys[toolName];
+
+  return entry ? t(entry.title) : toolName;
+}
+
+function translateToolDescription(toolName: string): string {
+  const entry = toolCopyKeys[toolName];
+
+  return entry ? t(entry.description) : toolName;
+}
+
 function resolveErrorMessage(error: unknown, fallbackKey: string): string {
   return error instanceof Error && error.message !== '' ? error.message : t(fallbackKey);
+}
+
+function sourceStatusTone(status: string): 'danger' | 'neutral' | 'success' | 'warning' {
+  switch (status) {
+    case 'ready':
+      return 'success';
+    case 'failed':
+      return 'danger';
+    case 'pending':
+    case 'importing':
+      return 'warning';
+    default:
+      return 'neutral';
+  }
+}
+
+function sourceStatusHeadline(source: DataSourceRecord): string {
+  return t(`admin.dataSources.statusHeadlines.${source.status}`);
+}
+
+function sourceStatusDescription(source: DataSourceRecord): string {
+  return t(`admin.dataSources.statusDescriptions.${source.status}`);
+}
+
+function latestSourceDate(source: DataSourceRecord): string | null {
+  return source.last_synced_at ?? source.latest_upload?.created_at ?? source.latest_import?.finished_at ?? null;
+}
+
+function sourceCurrentFileLabel(source: DataSourceRecord): string {
+  return source.latest_upload?.original_name || t('common.noFile');
+}
+
+function sourceSupportDetails(source: DataSourceRecord): string {
+  const details = {
+    import_status: source.latest_import?.status ?? null,
+    raw_error: source.latest_import?.error_message ?? null,
+    metadata: source.latest_import?.metadata ?? {},
+  };
+
+  return JSON.stringify(details, null, 2);
+}
+
+function hasSourceSupportDetails(source: DataSourceRecord): boolean {
+  return Boolean(source.latest_import?.error_message) || Object.keys(source.latest_import?.metadata ?? {}).length > 0;
+}
+
+function resolveSourceName(dataSourceId: number | null): string {
+  if (!dataSourceId) {
+    return t('admin.dataSources.noSourceSelected');
+  }
+
+  const source = adminOverview.value?.data_sources.find((item) => item.id === dataSourceId);
+
+  return source?.name ?? t('common.notAvailable');
+}
+
+function lineHasAgentCustomization(lineId: number): boolean {
+  const overview = adminOverview.value;
+
+  return overview ? resolveLineAgentConfig(overview, lineId) !== null : false;
+}
+
+function lineHasToolCustomization(lineId: number, toolName: string): boolean {
+  const overview = adminOverview.value;
+
+  return overview ? resolveLineToolConfig(overview, lineId, toolName) !== null : false;
+}
+
+function effectiveLineAgentConfig(lineId: number): AgentConfigRecord | null {
+  const overview = adminOverview.value;
+
+  return overview ? resolveEffectiveLineAgentConfig(overview, lineId) : null;
+}
+
+function effectiveLineToolConfig(lineId: number, toolName: string): ToolConfigRecord | null {
+  const overview = adminOverview.value;
+
+  return overview ? resolveEffectiveLineToolConfig(overview, lineId, toolName) : null;
+}
+
+function assistantModeLabel(lineId: number): string {
+  return lineHasAgentCustomization(lineId)
+    ? t('admin.agentConfig.customizationStatus.customized')
+    : t('admin.agentConfig.customizationStatus.general');
+}
+
+function assistantEnabledLabel(record: AgentConfigRecord | null): string {
+  return record?.is_active
+    ? t('admin.agentConfig.statusLabels.active')
+    : t('admin.agentConfig.statusLabels.paused');
+}
+
+function assistantAutomationLabel(record: AgentConfigRecord | null): string {
+  return record?.automation_enabled
+    ? t('admin.agentConfig.statusLabels.automaticOn')
+    : t('admin.agentConfig.statusLabels.automaticOff');
+}
+
+function assistantSummary(lineId: number): string {
+  const record = effectiveLineAgentConfig(lineId);
+
+  return `${assistantEnabledLabel(record)} · ${assistantAutomationLabel(record)}`;
+}
+
+function toolSetupStatusLabel(toolName: string): string {
+  const record = adminOverview.value ? resolveTenantToolConfig(adminOverview.value, toolName) : null;
+
+  if (!record?.enabled) {
+    return t('admin.dataSources.useStatuses.paused');
+  }
+
+  if (record?.data_source_id) {
+    return t('admin.dataSources.useStatuses.ready');
+  }
+
+  return t('admin.dataSources.useStatuses.missingSource');
+}
+
+function lineToolModeLabel(lineId: number, toolName: string): string {
+  return lineHasToolCustomization(lineId, toolName)
+    ? t('admin.dataSources.customizationStatus.customized')
+    : t('admin.dataSources.customizationStatus.general');
+}
+
+function lineToolSummary(lineId: number, toolName: string): string {
+  const record = effectiveLineToolConfig(lineId, toolName);
+  const sourceName = resolveSourceName(record?.data_source_id ?? null);
+
+  return `${record?.enabled ? t('admin.dataSources.lineStatus.enabled') : t('admin.dataSources.lineStatus.disabled')} · ${t('admin.dataSources.currentSource', { sourceName })}`;
+}
+
+function usageSummary(sourceId: number, toolName: string): UsageSummary {
+  const overview = adminOverview.value;
+
+  if (!overview) {
+    return {
+      tenantUsesSource: false,
+      inheritedLines: [],
+      customizedLines: [],
+    };
+  }
+
+  const tenantConfig = resolveTenantToolConfig(overview, toolName);
+  const tenantUsesSource = tenantConfig?.data_source_id === sourceId;
+  const inheritedLines: WhatsAppLineRecord[] = [];
+  const customizedLines: WhatsAppLineRecord[] = [];
+
+  overview.whatsapp_lines.forEach((line) => {
+    const lineConfig = resolveLineToolConfig(overview, line.id, toolName);
+    const effectiveConfig = lineConfig ?? tenantConfig;
+
+    if (effectiveConfig?.data_source_id !== sourceId) {
+      return;
+    }
+
+    if (lineConfig) {
+      customizedLines.push(line);
+      return;
+    }
+
+    inheritedLines.push(line);
+  });
+
+  return {
+    tenantUsesSource,
+    inheritedLines,
+    customizedLines,
+  };
+}
+
+function usageSummaryLabel(sourceId: number, toolName: string): string {
+  const summary = usageSummary(sourceId, toolName);
+
+  if (summary.tenantUsesSource || summary.inheritedLines.length > 0 || summary.customizedLines.length > 0) {
+    return t('admin.dataSources.usageReady');
+  }
+
+  return t('admin.dataSources.usageIdle');
+}
+
+function formatLineList(lines: WhatsAppLineRecord[]): string {
+  return lines.map((line) => lineLabel(line)).join(', ');
 }
 
 async function loadAdminWorkspace(): Promise<void> {
@@ -370,8 +626,10 @@ async function saveTenantSettings(): Promise<void> {
     return;
   }
 
+  const tenantId = selectedTenantId.value;
+
   await withAdminAction(t('admin.success.tenantUpdated'), async () => {
-    await updateTenant(selectedTenantId.value!, {
+    await updateTenant(tenantId, {
       name: tenantForm.value.name.trim(),
       slug: tenantForm.value.slug.trim(),
       status: tenantForm.value.status.trim(),
@@ -413,8 +671,10 @@ async function addTenantUser(): Promise<void> {
     return;
   }
 
+  const tenantId = selectedTenantId.value;
+
   await withAdminAction(t('admin.success.tenantUserAdded'), async () => {
-    await createTenantUser(selectedTenantId.value!, {
+    await createTenantUser(tenantId, {
       name: newTenantUserForm.value.name.trim(),
       email: newTenantUserForm.value.email.trim(),
       password: newTenantUserForm.value.password.trim() || undefined,
@@ -437,8 +697,10 @@ async function saveTenantUserRole(tenantUserId: number): Promise<void> {
     return;
   }
 
+  const tenantId = selectedTenantId.value;
+
   await withAdminAction(t('admin.success.roleUpdated'), async () => {
-    await updateTenantUser(selectedTenantId.value!, tenantUserId, {
+    await updateTenantUser(tenantId, tenantUserId, {
       role: tenantUserRoles.value[tenantUserId] ?? 'viewer',
     });
 
@@ -451,8 +713,10 @@ async function removeTenantUser(tenantUserId: number): Promise<void> {
     return;
   }
 
+  const tenantId = selectedTenantId.value;
+
   await withAdminAction(t('admin.success.tenantUserRemoved'), async () => {
-    await deleteTenantUser(selectedTenantId.value!, tenantUserId);
+    await deleteTenantUser(tenantId, tenantUserId);
     await loadAdminWorkspace();
   });
 }
@@ -462,8 +726,10 @@ async function createLine(): Promise<void> {
     return;
   }
 
+  const tenantId = selectedTenantId.value;
+
   await withAdminAction(t('admin.success.lineCreated'), async () => {
-    await createWhatsAppLine(selectedTenantId.value!, {
+    await createWhatsAppLine(tenantId, {
       name: newLineForm.value.name.trim(),
       phone_number_id: newLineForm.value.phoneNumberId.trim(),
       display_phone_number: newLineForm.value.displayPhoneNumber.trim() || undefined,
@@ -482,13 +748,15 @@ async function saveLine(lineId: number): Promise<void> {
     return;
   }
 
+  const tenantId = selectedTenantId.value;
   const draft = lineDrafts.value[lineId];
+
   if (!draft) {
     return;
   }
 
   await withAdminAction(t('admin.success.lineUpdated'), async () => {
-    await updateWhatsAppLine(selectedTenantId.value!, lineId, {
+    await updateWhatsAppLine(tenantId, lineId, {
       name: draft.name.trim(),
       phone_number_id: draft.phoneNumberId.trim(),
       display_phone_number: draft.displayPhoneNumber.trim() || undefined,
@@ -506,8 +774,10 @@ async function removeLine(lineId: number): Promise<void> {
     return;
   }
 
+  const tenantId = selectedTenantId.value;
+
   await withAdminAction(t('admin.success.lineDeleted'), async () => {
-    await deleteWhatsAppLine(selectedTenantId.value!, lineId);
+    await deleteWhatsAppLine(tenantId, lineId);
     await loadAdminWorkspace();
   });
 }
@@ -517,14 +787,18 @@ async function saveTenantAgentSettings(): Promise<void> {
     return;
   }
 
-  await withAdminAction(t('admin.success.tenantConfigUpdated'), async () => {
-    await updateTenantAgentConfig(selectedTenantId.value!, {
+  const tenantId = selectedTenantId.value;
+
+  await withAdminAction(t('admin.success.tenantAssistantUpdated'), async () => {
+    await updateTenantAgentConfig(tenantId, {
       name: tenantAgentConfigForm.value.name.trim(),
       model: tenantAgentConfigForm.value.model.trim() || undefined,
       prompt_version: tenantAgentConfigForm.value.promptVersion.trim() || undefined,
       is_active: tenantAgentConfigForm.value.isActive,
       automation_enabled: tenantAgentConfigForm.value.automationEnabled,
       system_prompt: tenantAgentConfigForm.value.systemPrompt.trim() || undefined,
+      agent_pack_key: tenantAgentConfigForm.value.agentPackKey.trim() || undefined,
+      handoff_customer_message: tenantAgentConfigForm.value.handoffCustomerMessage.trim() || undefined,
     });
 
     await loadAdminWorkspace();
@@ -536,21 +810,43 @@ async function saveLineAgentSettings(lineId: number): Promise<void> {
     return;
   }
 
+  const tenantId = selectedTenantId.value;
   const draft = lineAgentConfigDrafts.value[lineId];
+
   if (!draft) {
     return;
   }
 
-  await withAdminAction(t('admin.success.lineOverrideUpdated'), async () => {
-    await updateLineAgentConfig(selectedTenantId.value!, lineId, {
-      name: draft.name.trim(),
-      model: draft.model.trim() || undefined,
-      prompt_version: draft.promptVersion.trim() || undefined,
-      is_active: draft.isActive,
-      automation_enabled: draft.automationEnabled,
-      system_prompt: draft.systemPrompt.trim() || undefined,
-    });
+  await withAdminAction(
+    lineHasAgentCustomization(lineId)
+      ? t('admin.success.lineAssistantUpdated')
+      : t('admin.success.lineAssistantCreated'),
+    async () => {
+      await updateLineAgentConfig(tenantId, lineId, {
+        name: draft.name.trim(),
+        model: draft.model.trim() || undefined,
+        prompt_version: draft.promptVersion.trim() || undefined,
+        is_active: draft.isActive,
+        automation_enabled: draft.automationEnabled,
+        system_prompt: draft.systemPrompt.trim() || undefined,
+        agent_pack_key: draft.agentPackKey.trim() || undefined,
+        handoff_customer_message: draft.handoffCustomerMessage.trim() || undefined,
+      });
 
+      await loadAdminWorkspace();
+    },
+  );
+}
+
+async function removeLineAgentCustomization(lineId: number): Promise<void> {
+  if (!selectedTenantId.value) {
+    return;
+  }
+
+  const tenantId = selectedTenantId.value;
+
+  await withAdminAction(t('admin.success.lineAssistantRemoved'), async () => {
+    await deleteLineAgentConfig(tenantId, lineId);
     await loadAdminWorkspace();
   });
 }
@@ -560,20 +856,25 @@ async function saveTenantToolBinding(toolName: string): Promise<void> {
     return;
   }
 
+  const tenantId = selectedTenantId.value;
   const draft = tenantToolDrafts.value[toolName];
+
   if (!draft) {
     return;
   }
 
-  await withAdminAction(t('admin.success.tenantBindingUpdated', { toolName }), async () => {
-    await updateTenantToolConfig(selectedTenantId.value!, toolName, {
-      enabled: draft.enabled,
-      timeout_seconds: draft.timeoutSeconds ? Number(draft.timeoutSeconds) : null,
-      data_source_id: draft.dataSourceId ? Number(draft.dataSourceId) : null,
-    });
+  await withAdminAction(
+    t('admin.success.generalSourceUsageUpdated', { area: translateToolName(toolName) }),
+    async () => {
+      await updateTenantToolConfig(tenantId, toolName, {
+        enabled: draft.enabled,
+        timeout_seconds: draft.timeoutSeconds ? Number(draft.timeoutSeconds) : null,
+        data_source_id: draft.dataSourceId ? Number(draft.dataSourceId) : null,
+      });
 
-    await loadAdminWorkspace();
-  });
+      await loadAdminWorkspace();
+    },
+  );
 }
 
 async function saveLineToolBinding(lineId: number, toolName: string): Promise<void> {
@@ -581,20 +882,43 @@ async function saveLineToolBinding(lineId: number, toolName: string): Promise<vo
     return;
   }
 
+  const tenantId = selectedTenantId.value;
   const draft = lineToolDrafts.value[toolDraftKey(lineId, toolName)];
+
   if (!draft) {
     return;
   }
 
-  await withAdminAction(t('admin.success.lineBindingUpdated', { toolName }), async () => {
-    await updateLineToolConfig(selectedTenantId.value!, lineId, toolName, {
-      enabled: draft.enabled,
-      timeout_seconds: draft.timeoutSeconds ? Number(draft.timeoutSeconds) : null,
-      data_source_id: draft.dataSourceId ? Number(draft.dataSourceId) : null,
-    });
+  await withAdminAction(
+    lineHasToolCustomization(lineId, toolName)
+      ? t('admin.success.lineSourceUsageUpdated', { area: translateToolName(toolName) })
+      : t('admin.success.lineSourceUsageCreated', { area: translateToolName(toolName) }),
+    async () => {
+      await updateLineToolConfig(tenantId, lineId, toolName, {
+        enabled: draft.enabled,
+        timeout_seconds: draft.timeoutSeconds ? Number(draft.timeoutSeconds) : null,
+        data_source_id: draft.dataSourceId ? Number(draft.dataSourceId) : null,
+      });
 
-    await loadAdminWorkspace();
-  });
+      await loadAdminWorkspace();
+    },
+  );
+}
+
+async function removeLineToolCustomization(lineId: number, toolName: string): Promise<void> {
+  if (!selectedTenantId.value) {
+    return;
+  }
+
+  const tenantId = selectedTenantId.value;
+
+  await withAdminAction(
+    t('admin.success.lineSourceUsageRemoved', { area: translateToolName(toolName) }),
+    async () => {
+      await deleteLineToolConfig(tenantId, lineId, toolName);
+      await loadAdminWorkspace();
+    },
+  );
 }
 
 async function saveCredential(): Promise<void> {
@@ -602,8 +926,10 @@ async function saveCredential(): Promise<void> {
     return;
   }
 
+  const tenantId = selectedTenantId.value;
+
   await withAdminAction(t('admin.success.credentialSaved'), async () => {
-    await upsertCredential(selectedTenantId.value!, {
+    await upsertCredential(tenantId, {
       scope_type: credentialForm.value.scopeType as 'tenant' | 'whatsapp_line',
       whatsapp_line_id:
         credentialForm.value.scopeType === 'whatsapp_line' && credentialForm.value.whatsappLineId
@@ -629,10 +955,13 @@ async function submitDataSource(): Promise<void> {
     return;
   }
 
+  const tenantId = selectedTenantId.value;
+  const file = uploadDataSourceFile.value;
+
   await withAdminAction(t('admin.success.dataSourceUploaded'), async () => {
-    await uploadDataSource(selectedTenantId.value!, {
+    await uploadDataSource(tenantId, {
       name: uploadDataSourceName.value.trim(),
-      file: uploadDataSourceFile.value!,
+      file,
     });
 
     uploadDataSourceName.value = '';
@@ -646,11 +975,31 @@ async function retryImport(source: DataSourceRecord): Promise<void> {
     return;
   }
 
+  const tenantId = selectedTenantId.value;
+  const latestImport = source.latest_import;
+
   await withAdminAction(t('admin.success.importRetried'), async () => {
-    await retryDataSourceImport(selectedTenantId.value!, source.id, source.latest_import!.id);
+    await retryDataSourceImport(tenantId, source.id, latestImport.id);
     await loadAdminWorkspace();
   });
 }
+
+watch(
+  () => routeString('panel'),
+  async (panel) => {
+    if (!isLegacyAdminPanel(panel)) {
+      return;
+    }
+
+    await router.replace({
+      query: {
+        ...route.query,
+        panel: 'sources',
+      },
+    });
+  },
+  { immediate: true },
+);
 
 watch(
   [selectedTenantId, () => canAccessAdmin.value],
@@ -930,73 +1279,158 @@ watch(
     </SurfaceCard>
 
     <SurfaceCard v-else-if="activePanel === 'agent'" padding="lg">
-      <div>
-        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">{{ t('admin.agentConfig.eyebrow') }}</p>
-        <h3 class="mt-2 text-xl font-semibold">{{ t('admin.agentConfig.title') }}</h3>
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">{{ t('admin.agentConfig.eyebrow') }}</p>
+          <h3 class="mt-2 text-xl font-semibold">{{ t('admin.agentConfig.title') }}</h3>
+          <p class="mt-2 max-w-3xl text-sm text-[var(--text-muted)]">{{ t('admin.agentConfig.description') }}</p>
+        </div>
+        <StatusBadge
+          :label="tenantAgentConfigForm.isActive ? t('admin.agentConfig.statusLabels.active') : t('admin.agentConfig.statusLabels.paused')"
+          :tone="tenantAgentConfigForm.isActive ? 'success' : 'warning'"
+        />
       </div>
 
       <form class="mt-6 grid gap-4" @submit.prevent="saveTenantAgentSettings">
-        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <FormField :label="t('admin.tenant.name')">
-            <input v-model="tenantAgentConfigForm.name" class="input-base" type="text" :disabled="!canManageAgentConfig || adminSaving" />
-          </FormField>
-          <FormField :label="t('admin.agentConfig.model')">
-            <input v-model="tenantAgentConfigForm.model" class="input-base" type="text" :disabled="!canManageAgentConfig || adminSaving" />
-          </FormField>
-          <FormField :label="t('admin.agentConfig.promptVersion')">
-            <input v-model="tenantAgentConfigForm.promptVersion" class="input-base" type="text" :disabled="!canManageAgentConfig || adminSaving" />
-          </FormField>
-          <label class="flex items-end gap-3 rounded-2xl border px-4 py-3 text-sm" :style="{ borderColor: 'var(--border)' }">
-            <input v-model="tenantAgentConfigForm.isActive" type="checkbox" class="h-4 w-4" :disabled="!canManageAgentConfig || adminSaving" />
-            <span>{{ t('admin.agentConfig.active') }}</span>
+        <div class="grid gap-4 md:grid-cols-2">
+          <label class="flex items-start gap-3 rounded-[24px] border px-4 py-4 text-sm" :style="{ borderColor: 'var(--border)' }">
+            <input v-model="tenantAgentConfigForm.isActive" type="checkbox" class="mt-1 h-4 w-4" :disabled="!canManageAgentConfig || adminSaving" />
+            <div>
+              <strong class="block">{{ t('admin.agentConfig.activeLabel') }}</strong>
+              <p class="mt-1 text-[var(--text-muted)]">{{ t('admin.agentConfig.activeHelp') }}</p>
+            </div>
           </label>
-          <label class="flex items-end gap-3 rounded-2xl border px-4 py-3 text-sm" :style="{ borderColor: 'var(--border)' }">
-            <input v-model="tenantAgentConfigForm.automationEnabled" type="checkbox" class="h-4 w-4" :disabled="!canManageAgentConfig || adminSaving" />
-            <span>{{ t('admin.agentConfig.automationEnabled') }}</span>
+
+          <label class="flex items-start gap-3 rounded-[24px] border px-4 py-4 text-sm" :style="{ borderColor: 'var(--border)' }">
+            <input v-model="tenantAgentConfigForm.automationEnabled" type="checkbox" class="mt-1 h-4 w-4" :disabled="!canManageAgentConfig || adminSaving" />
+            <div>
+              <strong class="block">{{ t('admin.agentConfig.automationLabel') }}</strong>
+              <p class="mt-1 text-[var(--text-muted)]">{{ t('admin.agentConfig.automationHelp') }}</p>
+            </div>
           </label>
         </div>
 
-        <FormField :label="t('admin.agentConfig.systemPrompt')">
+        <FormField :label="t('admin.agentConfig.systemPromptLabel')" :hint="t('admin.agentConfig.systemPromptHelp')">
           <textarea v-model="tenantAgentConfigForm.systemPrompt" class="input-base min-h-40 resize-y" rows="5" :disabled="!canManageAgentConfig || adminSaving" />
         </FormField>
+
+        <FormField :label="t('admin.agentConfig.handoffLabel')" :hint="t('admin.agentConfig.handoffHelp')">
+          <textarea v-model="tenantAgentConfigForm.handoffCustomerMessage" class="input-base min-h-28 resize-y" rows="4" :disabled="!canManageAgentConfig || adminSaving" />
+        </FormField>
+
+        <details class="rounded-[24px] border p-5" :style="{ borderColor: 'var(--border)' }">
+          <summary class="cursor-pointer text-sm font-semibold">{{ t('admin.shared.advancedTitle') }}</summary>
+          <p class="mt-2 text-sm text-[var(--text-muted)]">{{ t('admin.agentConfig.advancedDescription') }}</p>
+
+          <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <FormField :label="t('admin.agentConfig.internalName')">
+              <input v-model="tenantAgentConfigForm.name" class="input-base" type="text" :disabled="!canManageAgentConfig || adminSaving" />
+            </FormField>
+            <FormField :label="t('admin.agentConfig.modelLabel')">
+              <input v-model="tenantAgentConfigForm.model" class="input-base" type="text" :disabled="!canManageAgentConfig || adminSaving" />
+            </FormField>
+            <FormField :label="t('admin.agentConfig.promptVersionLabel')">
+              <input v-model="tenantAgentConfigForm.promptVersion" class="input-base" type="text" :disabled="!canManageAgentConfig || adminSaving" />
+            </FormField>
+            <FormField :label="t('admin.agentConfig.agentPackLabel')">
+              <select v-if="agentPackOptions.length > 0" v-model="tenantAgentConfigForm.agentPackKey" class="input-base" :disabled="!canManageAgentConfig || adminSaving">
+                <option v-for="option in agentPackOptions" :key="option.key" :value="option.key">
+                  {{ option.name }}
+                </option>
+              </select>
+              <input v-else v-model="tenantAgentConfigForm.agentPackKey" class="input-base" type="text" :disabled="!canManageAgentConfig || adminSaving" />
+            </FormField>
+          </div>
+        </details>
 
         <button class="btn-primary w-full justify-center md:w-auto" type="submit" :disabled="!canManageAgentConfig || adminSaving">
           {{ t('admin.agentConfig.saveTenant') }}
         </button>
       </form>
 
-      <div class="mt-8 grid gap-4">
-        <article v-for="line in adminOverview.whatsapp_lines" :key="line.id" class="rounded-[24px] border p-4" :style="{ borderColor: 'var(--border)' }">
-          <strong>{{ lineLabel(line) }}</strong>
-
-          <div v-if="lineAgentConfigDrafts[line.id]" class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <FormField :label="t('admin.tenant.name')">
-              <input v-model="lineAgentConfigDrafts[line.id].name" class="input-base" type="text" :disabled="!canManageAgentConfig || adminSaving" />
-            </FormField>
-            <FormField :label="t('admin.agentConfig.model')">
-              <input v-model="lineAgentConfigDrafts[line.id].model" class="input-base" type="text" :disabled="!canManageAgentConfig || adminSaving" />
-            </FormField>
-            <FormField :label="t('admin.agentConfig.promptVersion')">
-              <input v-model="lineAgentConfigDrafts[line.id].promptVersion" class="input-base" type="text" :disabled="!canManageAgentConfig || adminSaving" />
-            </FormField>
-            <label class="flex items-end gap-3 rounded-2xl border px-4 py-3 text-sm" :style="{ borderColor: 'var(--border)' }">
-              <input v-model="lineAgentConfigDrafts[line.id].isActive" type="checkbox" class="h-4 w-4" :disabled="!canManageAgentConfig || adminSaving" />
-              <span>{{ t('admin.agentConfig.active') }}</span>
-            </label>
-            <label class="flex items-end gap-3 rounded-2xl border px-4 py-3 text-sm" :style="{ borderColor: 'var(--border)' }">
-              <input v-model="lineAgentConfigDrafts[line.id].automationEnabled" type="checkbox" class="h-4 w-4" :disabled="!canManageAgentConfig || adminSaving" />
-              <span>{{ t('admin.agentConfig.automationEnabled') }}</span>
-            </label>
+      <div class="mt-8">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <strong>{{ t('admin.agentConfig.linesTitle') }}</strong>
+            <p class="mt-1 text-sm text-[var(--text-muted)]">{{ t('admin.agentConfig.linesDescription') }}</p>
           </div>
+        </div>
 
-          <FormField v-if="lineAgentConfigDrafts[line.id]" class="mt-5" :label="t('admin.agentConfig.systemPrompt')">
-            <textarea v-model="lineAgentConfigDrafts[line.id].systemPrompt" class="input-base min-h-32 resize-y" rows="4" :disabled="!canManageAgentConfig || adminSaving" />
-          </FormField>
+        <div class="mt-5 grid gap-4">
+          <article v-for="line in adminOverview.whatsapp_lines" :key="line.id" class="rounded-[24px] border p-5" :style="{ borderColor: 'var(--border)' }">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <strong>{{ lineLabel(line) }}</strong>
+                <p class="mt-1 text-sm text-[var(--text-muted)]">{{ assistantSummary(line.id) }}</p>
+              </div>
+              <StatusBadge :label="assistantModeLabel(line.id)" tone="neutral" />
+            </div>
 
-          <button class="btn-secondary mt-5" type="button" :disabled="!canManageAgentConfig || adminSaving" @click="saveLineAgentSettings(line.id)">
-            {{ t('admin.agentConfig.saveOverride') }}
-          </button>
-        </article>
+            <p class="mt-4 text-sm text-[var(--text-muted)]">{{ t('admin.agentConfig.lineHelper') }}</p>
+
+            <div v-if="lineAgentConfigDrafts[line.id]" class="mt-5 grid gap-4">
+              <div class="grid gap-4 md:grid-cols-2">
+                <label class="flex items-start gap-3 rounded-[24px] border px-4 py-4 text-sm" :style="{ borderColor: 'var(--border)' }">
+                  <input v-model="lineAgentConfigDrafts[line.id].isActive" type="checkbox" class="mt-1 h-4 w-4" :disabled="!canManageAgentConfig || adminSaving" />
+                  <div>
+                    <strong class="block">{{ t('admin.agentConfig.activeLabel') }}</strong>
+                    <p class="mt-1 text-[var(--text-muted)]">{{ t('admin.agentConfig.activeHelp') }}</p>
+                  </div>
+                </label>
+
+                <label class="flex items-start gap-3 rounded-[24px] border px-4 py-4 text-sm" :style="{ borderColor: 'var(--border)' }">
+                  <input v-model="lineAgentConfigDrafts[line.id].automationEnabled" type="checkbox" class="mt-1 h-4 w-4" :disabled="!canManageAgentConfig || adminSaving" />
+                  <div>
+                    <strong class="block">{{ t('admin.agentConfig.automationLabel') }}</strong>
+                    <p class="mt-1 text-[var(--text-muted)]">{{ t('admin.agentConfig.automationHelp') }}</p>
+                  </div>
+                </label>
+              </div>
+
+              <FormField :label="t('admin.agentConfig.systemPromptLabel')" :hint="t('admin.agentConfig.systemPromptHelp')">
+                <textarea v-model="lineAgentConfigDrafts[line.id].systemPrompt" class="input-base min-h-32 resize-y" rows="4" :disabled="!canManageAgentConfig || adminSaving" />
+              </FormField>
+
+              <FormField :label="t('admin.agentConfig.handoffLabel')" :hint="t('admin.agentConfig.handoffHelp')">
+                <textarea v-model="lineAgentConfigDrafts[line.id].handoffCustomerMessage" class="input-base min-h-24 resize-y" rows="3" :disabled="!canManageAgentConfig || adminSaving" />
+              </FormField>
+
+              <details class="rounded-[24px] border p-5" :style="{ borderColor: 'var(--border)' }">
+                <summary class="cursor-pointer text-sm font-semibold">{{ t('admin.shared.advancedTitle') }}</summary>
+                <p class="mt-2 text-sm text-[var(--text-muted)]">{{ t('admin.agentConfig.advancedDescription') }}</p>
+
+                <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <FormField :label="t('admin.agentConfig.internalName')">
+                    <input v-model="lineAgentConfigDrafts[line.id].name" class="input-base" type="text" :disabled="!canManageAgentConfig || adminSaving" />
+                  </FormField>
+                  <FormField :label="t('admin.agentConfig.modelLabel')">
+                    <input v-model="lineAgentConfigDrafts[line.id].model" class="input-base" type="text" :disabled="!canManageAgentConfig || adminSaving" />
+                  </FormField>
+                  <FormField :label="t('admin.agentConfig.promptVersionLabel')">
+                    <input v-model="lineAgentConfigDrafts[line.id].promptVersion" class="input-base" type="text" :disabled="!canManageAgentConfig || adminSaving" />
+                  </FormField>
+                  <FormField :label="t('admin.agentConfig.agentPackLabel')">
+                    <select v-if="agentPackOptions.length > 0" v-model="lineAgentConfigDrafts[line.id].agentPackKey" class="input-base" :disabled="!canManageAgentConfig || adminSaving">
+                      <option v-for="option in agentPackOptions" :key="option.key" :value="option.key">
+                        {{ option.name }}
+                      </option>
+                    </select>
+                    <input v-else v-model="lineAgentConfigDrafts[line.id].agentPackKey" class="input-base" type="text" :disabled="!canManageAgentConfig || adminSaving" />
+                  </FormField>
+                </div>
+              </details>
+            </div>
+
+            <div class="mt-5 flex flex-wrap gap-3">
+              <button class="btn-secondary" type="button" :disabled="!canManageAgentConfig || adminSaving" @click="saveLineAgentSettings(line.id)">
+                {{ lineHasAgentCustomization(line.id) ? t('admin.agentConfig.saveCustomization') : t('admin.agentConfig.createCustomization') }}
+              </button>
+              <button v-if="lineHasAgentCustomization(line.id)" class="btn-danger" type="button" :disabled="!canManageAgentConfig || adminSaving" @click="removeLineAgentCustomization(line.id)">
+                {{ t('admin.agentConfig.removeCustomization') }}
+              </button>
+            </div>
+          </article>
+        </div>
       </div>
     </SurfaceCard>
 
@@ -1004,10 +1438,28 @@ watch(
       <div>
         <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">{{ t('admin.dataSources.eyebrow') }}</p>
         <h3 class="mt-2 text-xl font-semibold">{{ t('admin.dataSources.title') }}</h3>
+        <p class="mt-2 max-w-3xl text-sm text-[var(--text-muted)]">{{ t('admin.dataSources.description') }}</p>
       </div>
 
-      <form class="mt-6 grid gap-4" @submit.prevent="submitDataSource">
-        <div class="grid gap-4 md:grid-cols-2">
+      <div class="mt-6 grid gap-4 xl:grid-cols-3">
+        <article v-for="step in ['upload', 'review', 'use']" :key="step" class="rounded-[24px] border p-5" :style="{ borderColor: 'var(--border)' }">
+          <span class="inline-flex h-8 w-8 items-center justify-center rounded-full border text-sm font-semibold" :style="{ borderColor: 'var(--border)' }">
+            {{ step === 'upload' ? 1 : step === 'review' ? 2 : 3 }}
+          </span>
+          <strong class="mt-4 block">{{ t(`admin.dataSources.steps.${step}.title`) }}</strong>
+          <p class="mt-2 text-sm text-[var(--text-muted)]">{{ t(`admin.dataSources.steps.${step}.description`) }}</p>
+        </article>
+      </div>
+
+      <form class="mt-8 rounded-[24px] border p-5" :style="{ borderColor: 'var(--border)' }" @submit.prevent="submitDataSource">
+        <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <strong>{{ t('admin.dataSources.uploadTitle') }}</strong>
+            <p class="mt-1 text-sm text-[var(--text-muted)]">{{ t('admin.dataSources.uploadDescription') }}</p>
+          </div>
+        </div>
+
+        <div class="mt-5 grid gap-4 md:grid-cols-2">
           <FormField :label="t('admin.dataSources.visibleName')">
             <input v-model="uploadDataSourceName" class="input-base" type="text" :disabled="!canManageAgentConfig || adminSaving" />
           </FormField>
@@ -1016,101 +1468,197 @@ watch(
           </FormField>
         </div>
 
-        <button class="btn-primary w-full justify-center md:w-auto" type="submit" :disabled="!canManageAgentConfig || adminSaving || !uploadDataSourceFile">
+        <button class="btn-primary mt-5 w-full justify-center md:w-auto" type="submit" :disabled="!canManageAgentConfig || adminSaving || !uploadDataSourceFile">
           {{ t('admin.dataSources.upload') }}
         </button>
       </form>
 
+      <div class="mt-8 rounded-[24px] border p-5" :style="{ borderColor: 'var(--border)' }">
+        <div>
+          <strong>{{ t('admin.dataSources.usageTitle') }}</strong>
+          <p class="mt-1 text-sm text-[var(--text-muted)]">{{ t('admin.dataSources.usageDescription') }}</p>
+        </div>
+
+        <InlineAlert v-if="readyDataSources.length === 0" class="mt-5" :message="t('admin.dataSources.noReadySources')" tone="info" />
+
+        <div class="mt-5 grid gap-4 xl:grid-cols-2">
+          <article v-for="toolName in bindingTools" :key="toolName" class="rounded-[24px] border p-5" :style="{ borderColor: 'var(--border)' }">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <strong>{{ translateToolName(toolName) }}</strong>
+                <p class="mt-1 text-sm text-[var(--text-muted)]">{{ translateToolDescription(toolName) }}</p>
+              </div>
+              <StatusBadge :label="toolSetupStatusLabel(toolName)" tone="neutral" />
+            </div>
+
+            <div v-if="tenantToolDrafts[toolName]" class="mt-5 grid gap-4">
+              <label class="flex items-start gap-3 rounded-[24px] border px-4 py-4 text-sm" :style="{ borderColor: 'var(--border)' }">
+                <input v-model="tenantToolDrafts[toolName].enabled" type="checkbox" class="mt-1 h-4 w-4" :disabled="!canManageAgentConfig || adminSaving" />
+                <div>
+                  <strong class="block">{{ t('admin.dataSources.enabledLabel') }}</strong>
+                  <p class="mt-1 text-[var(--text-muted)]">{{ t('admin.dataSources.enabledHelp') }}</p>
+                </div>
+              </label>
+
+              <FormField :label="t('admin.dataSources.generalSourceLabel')" :hint="t('admin.dataSources.generalSourceHelp')">
+                <select v-model="tenantToolDrafts[toolName].dataSourceId" class="input-base" :disabled="!canManageAgentConfig || adminSaving">
+                  <option value="">{{ t('admin.dataSources.noSourceSelected') }}</option>
+                  <option v-for="source in readyDataSources" :key="source.id" :value="String(source.id)">
+                    {{ source.name }}
+                  </option>
+                </select>
+              </FormField>
+
+              <details class="rounded-[24px] border p-4" :style="{ borderColor: 'var(--border)' }">
+                <summary class="cursor-pointer text-sm font-semibold">{{ t('admin.shared.advancedTitle') }}</summary>
+
+                <div class="mt-4">
+                  <FormField :label="t('admin.dataSources.waitTimeLabel')" :hint="t('admin.dataSources.waitTimeHelp')">
+                    <input v-model="tenantToolDrafts[toolName].timeoutSeconds" class="input-base" type="number" min="1" max="120" :disabled="!canManageAgentConfig || adminSaving" />
+                  </FormField>
+                </div>
+              </details>
+
+              <button class="btn-secondary w-full justify-center md:w-auto" type="button" :disabled="!canManageAgentConfig || adminSaving" @click="saveTenantToolBinding(toolName)">
+                {{ t('admin.dataSources.saveGeneralUsage') }}
+              </button>
+            </div>
+
+            <div class="mt-6">
+              <strong>{{ t('admin.dataSources.byLineTitle') }}</strong>
+              <p class="mt-1 text-sm text-[var(--text-muted)]">{{ t('admin.dataSources.byLineDescription') }}</p>
+
+              <div class="mt-4 grid gap-3">
+                <article v-for="line in adminOverview.whatsapp_lines" :key="toolDraftKey(line.id, toolName)" class="rounded-[20px] border p-4" :style="{ borderColor: 'var(--border)' }">
+                  <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <strong>{{ lineLabel(line) }}</strong>
+                      <p class="mt-1 text-sm text-[var(--text-muted)]">{{ lineToolSummary(line.id, toolName) }}</p>
+                    </div>
+                    <StatusBadge :label="lineToolModeLabel(line.id, toolName)" tone="neutral" />
+                  </div>
+
+                  <div v-if="lineToolDrafts[toolDraftKey(line.id, toolName)]" class="mt-4 grid gap-4">
+                    <label class="flex items-start gap-3 rounded-[24px] border px-4 py-4 text-sm" :style="{ borderColor: 'var(--border)' }">
+                      <input v-model="lineToolDrafts[toolDraftKey(line.id, toolName)].enabled" type="checkbox" class="mt-1 h-4 w-4" :disabled="!canManageAgentConfig || adminSaving" />
+                      <div>
+                        <strong class="block">{{ t('admin.dataSources.enabledLabel') }}</strong>
+                        <p class="mt-1 text-[var(--text-muted)]">{{ t('admin.dataSources.lineEnabledHelp') }}</p>
+                      </div>
+                    </label>
+
+                    <FormField :label="t('admin.dataSources.lineSourceLabel')" :hint="t('admin.dataSources.lineSourceHelp')">
+                      <select v-model="lineToolDrafts[toolDraftKey(line.id, toolName)].dataSourceId" class="input-base" :disabled="!canManageAgentConfig || adminSaving">
+                        <option value="">{{ t('admin.dataSources.useGeneralSource') }}</option>
+                        <option v-for="source in readyDataSources" :key="source.id" :value="String(source.id)">
+                          {{ source.name }}
+                        </option>
+                      </select>
+                    </FormField>
+
+                    <details class="rounded-[24px] border p-4" :style="{ borderColor: 'var(--border)' }">
+                      <summary class="cursor-pointer text-sm font-semibold">{{ t('admin.shared.advancedTitle') }}</summary>
+
+                      <div class="mt-4">
+                        <FormField :label="t('admin.dataSources.waitTimeLabel')" :hint="t('admin.dataSources.waitTimeHelp')">
+                          <input v-model="lineToolDrafts[toolDraftKey(line.id, toolName)].timeoutSeconds" class="input-base" type="number" min="1" max="120" :disabled="!canManageAgentConfig || adminSaving" />
+                        </FormField>
+                      </div>
+                    </details>
+                  </div>
+
+                  <div class="mt-4 flex flex-wrap gap-3">
+                    <button class="btn-secondary" type="button" :disabled="!canManageAgentConfig || adminSaving" @click="saveLineToolBinding(line.id, toolName)">
+                      {{ lineHasToolCustomization(line.id, toolName) ? t('admin.dataSources.saveCustomization') : t('admin.dataSources.createCustomization') }}
+                    </button>
+                    <button v-if="lineHasToolCustomization(line.id, toolName)" class="btn-danger" type="button" :disabled="!canManageAgentConfig || adminSaving" @click="removeLineToolCustomization(line.id, toolName)">
+                      {{ t('admin.dataSources.removeCustomization') }}
+                    </button>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+
       <div class="mt-8 grid gap-4">
-        <article v-for="source in adminOverview.data_sources" :key="source.id" class="rounded-[24px] border p-4" :style="{ borderColor: 'var(--border)' }">
+        <article v-for="source in adminOverview.data_sources" :key="source.id" class="rounded-[24px] border p-5" :style="{ borderColor: 'var(--border)' }">
           <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <strong>{{ source.name }}</strong>
               <p class="mt-1 text-sm text-[var(--text-muted)]">
-                {{ source.latest_upload?.original_name || t('common.noFile') }} · {{ formatBytes(source.latest_upload?.size_bytes) }}
+                {{ sourceCurrentFileLabel(source) }} · {{ formatBytes(source.latest_upload?.size_bytes) }}
               </p>
             </div>
-            <StatusBadge :label="translateDataSourceStatus(source.status)" tone="neutral" />
+            <StatusBadge :label="translateDataSourceStatus(source.status)" :tone="sourceStatusTone(source.status)" />
           </div>
 
-          <div class="mt-4 flex flex-wrap gap-4 text-sm text-[var(--text-muted)]">
-            <span>{{ t('admin.dataSources.chunkCount', { count: source.chunk_count }) }}</span>
-            <span>{{ t('admin.dataSources.attempts', { count: source.latest_import?.attempts_count ?? 0 }) }}</span>
-            <span>{{ t('admin.dataSources.lastSync', { value: formatTimestamp(source.last_synced_at) }) }}</span>
+          <div class="mt-4 rounded-[20px] border px-4 py-4" :style="{ borderColor: 'var(--border)' }">
+            <strong>{{ sourceStatusHeadline(source) }}</strong>
+            <p class="mt-1 text-sm text-[var(--text-muted)]">{{ sourceStatusDescription(source) }}</p>
+
+            <div class="mt-4 flex flex-wrap gap-4 text-sm text-[var(--text-muted)]">
+              <span>{{ t('admin.dataSources.preparedContent', { count: source.chunk_count }) }}</span>
+              <span>{{ t('admin.dataSources.updatedAt', { value: formatTimestamp(latestSourceDate(source)) }) }}</span>
+              <span>{{ t('admin.dataSources.lastAttempt', { count: source.latest_import?.attempts_count ?? 0 }) }}</span>
+            </div>
           </div>
 
-          <InlineAlert v-if="source.latest_import?.error_message" class="mt-4" :message="source.latest_import.error_message" tone="danger" />
+          <InlineAlert
+            v-if="source.status === 'failed'"
+            class="mt-4"
+            :message="t('admin.dataSources.importFailedHuman')"
+            tone="danger"
+          />
+
+          <details v-if="hasSourceSupportDetails(source)" class="mt-4 rounded-[20px] border p-4" :style="{ borderColor: 'var(--border)' }">
+            <summary class="cursor-pointer text-sm font-semibold">{{ t('admin.dataSources.supportDetailsTitle') }}</summary>
+            <pre class="mt-3 whitespace-pre-wrap break-words text-xs text-[var(--text-muted)]">{{ sourceSupportDetails(source) }}</pre>
+          </details>
+
+          <div v-if="source.status === 'ready'" class="mt-6 rounded-[20px] border p-4" :style="{ borderColor: 'var(--border)' }">
+            <strong>{{ t('admin.dataSources.whereUsedTitle') }}</strong>
+            <p class="mt-1 text-sm text-[var(--text-muted)]">{{ t('admin.dataSources.whereUsedDescription') }}</p>
+
+            <div class="mt-4 grid gap-3 xl:grid-cols-2">
+              <article v-for="toolName in bindingTools" :key="`${source.id}:${toolName}`" class="rounded-[18px] border p-4" :style="{ borderColor: 'var(--border)' }">
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <strong>{{ translateToolName(toolName) }}</strong>
+                    <p class="mt-1 text-sm text-[var(--text-muted)]">{{ translateToolDescription(toolName) }}</p>
+                  </div>
+                  <StatusBadge :label="usageSummaryLabel(source.id, toolName)" tone="neutral" />
+                </div>
+
+                <div class="mt-4 grid gap-2 text-sm text-[var(--text-muted)]">
+                  <p>
+                    {{
+                      usageSummary(source.id, toolName).tenantUsesSource
+                        ? t('admin.dataSources.usedInGeneral')
+                        : t('admin.dataSources.notUsedInGeneral')
+                    }}
+                  </p>
+                  <p>
+                    {{ t('admin.dataSources.inheritedLinesUsage', { count: usageSummary(source.id, toolName).inheritedLines.length }) }}
+                  </p>
+                  <p v-if="usageSummary(source.id, toolName).inheritedLines.length > 0">
+                    {{ formatLineList(usageSummary(source.id, toolName).inheritedLines) }}
+                  </p>
+                  <p>
+                    {{ t('admin.dataSources.customLinesUsage', { count: usageSummary(source.id, toolName).customizedLines.length }) }}
+                  </p>
+                  <p v-if="usageSummary(source.id, toolName).customizedLines.length > 0">
+                    {{ formatLineList(usageSummary(source.id, toolName).customizedLines) }}
+                  </p>
+                </div>
+              </article>
+            </div>
+          </div>
 
           <button class="btn-secondary mt-4" type="button" :disabled="!canManageAgentConfig || adminSaving || source.latest_import?.status !== 'failed'" @click="retryImport(source)">
             {{ t('admin.dataSources.retry') }}
           </button>
-        </article>
-      </div>
-    </SurfaceCard>
-
-    <SurfaceCard v-else-if="activePanel === 'bindings'" padding="lg">
-      <div>
-        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">{{ t('admin.bindings.eyebrow') }}</p>
-        <h3 class="mt-2 text-xl font-semibold">{{ t('admin.bindings.title') }}</h3>
-      </div>
-
-      <div class="mt-6 grid gap-4">
-        <article v-for="toolName in bindingTools" :key="toolName" class="rounded-[24px] border p-4" :style="{ borderColor: 'var(--border)' }">
-          <strong>{{ t('admin.bindings.tenantScope', { toolName }) }}</strong>
-
-          <div v-if="tenantToolDrafts[toolName]" class="mt-5 grid gap-4 md:grid-cols-3">
-            <label class="flex items-end gap-3 rounded-2xl border px-4 py-3 text-sm" :style="{ borderColor: 'var(--border)' }">
-              <input v-model="tenantToolDrafts[toolName].enabled" type="checkbox" class="h-4 w-4" :disabled="!canManageAgentConfig || adminSaving" />
-              <span>{{ t('admin.bindings.enabled') }}</span>
-            </label>
-            <FormField :label="t('admin.bindings.timeout')">
-              <input v-model="tenantToolDrafts[toolName].timeoutSeconds" class="input-base" type="number" min="1" max="120" :disabled="!canManageAgentConfig || adminSaving" />
-            </FormField>
-            <FormField :label="t('admin.bindings.dataSource')">
-              <select v-model="tenantToolDrafts[toolName].dataSourceId" class="input-base" :disabled="!canManageAgentConfig || adminSaving">
-                <option value="">{{ t('admin.bindings.automaticFallback') }}</option>
-                <option v-for="source in readyDataSources" :key="source.id" :value="String(source.id)">
-                  {{ source.name }} · {{ translateDataSourceStatus(source.status) }}
-                </option>
-              </select>
-            </FormField>
-          </div>
-
-          <button class="btn-secondary mt-5" type="button" :disabled="!canManageAgentConfig || adminSaving" @click="saveTenantToolBinding(toolName)">
-            {{ t('admin.bindings.saveTenant') }}
-          </button>
-        </article>
-      </div>
-
-      <div class="mt-8 grid gap-4">
-        <article v-for="line in adminOverview.whatsapp_lines" :key="line.id" class="rounded-[24px] border p-4" :style="{ borderColor: 'var(--border)' }">
-          <strong>{{ lineLabel(line) }}</strong>
-
-          <div v-for="toolName in bindingTools" :key="toolDraftKey(line.id, toolName)" class="mt-5 rounded-[20px] border p-4" :style="{ borderColor: 'var(--border)' }">
-            <strong>{{ toolName }}</strong>
-
-            <div v-if="lineToolDrafts[toolDraftKey(line.id, toolName)]" class="mt-4 grid gap-4 md:grid-cols-3">
-              <label class="flex items-end gap-3 rounded-2xl border px-4 py-3 text-sm" :style="{ borderColor: 'var(--border)' }">
-                <input v-model="lineToolDrafts[toolDraftKey(line.id, toolName)].enabled" type="checkbox" class="h-4 w-4" :disabled="!canManageAgentConfig || adminSaving" />
-                <span>{{ t('admin.bindings.enabled') }}</span>
-              </label>
-              <FormField :label="t('admin.bindings.timeout')">
-                <input v-model="lineToolDrafts[toolDraftKey(line.id, toolName)].timeoutSeconds" class="input-base" type="number" min="1" max="120" :disabled="!canManageAgentConfig || adminSaving" />
-              </FormField>
-              <FormField :label="t('admin.bindings.dataSource')">
-                <select v-model="lineToolDrafts[toolDraftKey(line.id, toolName)].dataSourceId" class="input-base" :disabled="!canManageAgentConfig || adminSaving">
-                  <option value="">{{ t('admin.bindings.tenantFallback') }}</option>
-                  <option v-for="source in readyDataSources" :key="source.id" :value="String(source.id)">
-                    {{ source.name }} · {{ translateDataSourceStatus(source.status) }}
-                  </option>
-                </select>
-              </FormField>
-            </div>
-
-            <button class="btn-secondary mt-4" type="button" :disabled="!canManageAgentConfig || adminSaving" @click="saveLineToolBinding(line.id, toolName)">
-              {{ t('admin.bindings.saveOverride') }}
-            </button>
-          </div>
         </article>
       </div>
     </SurfaceCard>
@@ -1217,7 +1765,7 @@ watch(
           <div class="mt-4 grid gap-3">
             <article v-for="execution in adminOverview.logs.tool_executions" :key="`tool-${execution.id}`" class="rounded-[20px] border p-3" :style="{ borderColor: 'var(--border)' }">
               <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
-                <span>{{ execution.tool_name }} · {{ execution.status }}</span>
+                <span>{{ translateToolName(execution.tool_name) }} · {{ execution.status }}</span>
                 <span>{{ formatTimestamp(execution.executed_at || execution.created_at) }}</span>
               </div>
               <p class="mt-2 text-sm">{{ execution.error_message || eventPreview(execution.output_summary) }}</p>

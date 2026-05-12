@@ -13,8 +13,10 @@ use App\Support\Admin\AdminPanelDataBuilder;
 use App\Support\Audit\AuditEventRecorder;
 use App\Support\Tenancy\TenantScopeKey;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\Response;
 
 class AdminToolConfigController
 {
@@ -100,6 +102,41 @@ class AdminToolConfigController
         return response()->json([
             'data' => $this->builder->serializeToolConfig($config->fresh()->load('whatsappLine:id,name,display_phone_number')),
         ]);
+    }
+
+    public function destroyLine(Request $request, WhatsAppLine $whatsappLine, string $toolName): Response
+    {
+        $tenant = $this->tenantFromRequest($request);
+        Gate::forUser($request->user())->authorize(Permission::ManageAgentConfig->value, $tenant);
+        $this->ensureToolExists($toolName);
+
+        $line = WhatsAppLine::query()
+            ->forTenant($tenant->getKey())
+            ->findOrFail($whatsappLine->getKey());
+
+        $config = TenantToolConfig::query()
+            ->forTenant($tenant->getKey())
+            ->where('scope_key', TenantScopeKey::forWhatsAppLine($line))
+            ->where('tool_name', $toolName)
+            ->first();
+
+        if ($config) {
+            $this->audit->record(
+                tenantId: $tenant->getKey(),
+                eventType: 'tool_config_deleted',
+                actorUserId: $request->user()?->getKey(),
+                target: $config,
+                payload: [
+                    'scope_key' => $config->scope_key,
+                    'tool_name' => $toolName,
+                    'whatsapp_line_id' => $line->getKey(),
+                ],
+            );
+
+            $config->delete();
+        }
+
+        return response()->noContent();
     }
 
     protected function ensureToolExists(string $toolName): void

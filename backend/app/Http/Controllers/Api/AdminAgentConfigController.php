@@ -13,6 +13,8 @@ use App\Support\Admin\AdminPanelDataBuilder;
 use App\Support\Audit\AuditEventRecorder;
 use App\Support\Tenancy\TenantScopeKey;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Gate;
 
 class AdminAgentConfigController
@@ -99,6 +101,38 @@ class AdminAgentConfigController
                 'available_agent_packs' => $this->packs->available(),
             ],
         ]);
+    }
+
+    public function destroyLine(Request $request, WhatsAppLine $whatsappLine): Response
+    {
+        $tenant = $this->tenantFromRequest($request);
+        Gate::forUser($request->user())->authorize(Permission::ManageAgentConfig->value, $tenant);
+
+        $line = WhatsAppLine::query()
+            ->forTenant($tenant->getKey())
+            ->findOrFail($whatsappLine->getKey());
+
+        $config = AgentConfig::query()
+            ->forTenant($tenant->getKey())
+            ->where('scope_key', TenantScopeKey::forWhatsAppLine($line))
+            ->first();
+
+        if ($config) {
+            $this->audit->record(
+                tenantId: $tenant->getKey(),
+                eventType: 'agent_config_deleted',
+                actorUserId: $request->user()?->getKey(),
+                target: $config,
+                payload: [
+                    'scope_key' => $config->scope_key,
+                    'whatsapp_line_id' => $line->getKey(),
+                ],
+            );
+
+            $config->delete();
+        }
+
+        return response()->noContent();
     }
 
     /**

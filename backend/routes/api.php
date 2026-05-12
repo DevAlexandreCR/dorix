@@ -52,8 +52,10 @@ Route::prefix('v1')->group(function (): void {
         Route::delete('/admin/whatsapp-lines/{whatsappLine}', [AdminWhatsAppLineController::class, 'destroy']);
         Route::put('/admin/agent-configs/tenant', [AdminAgentConfigController::class, 'updateTenant']);
         Route::put('/admin/agent-configs/lines/{whatsappLine}', [AdminAgentConfigController::class, 'updateLine']);
+        Route::delete('/admin/agent-configs/lines/{whatsappLine}', [AdminAgentConfigController::class, 'destroyLine']);
         Route::put('/admin/tool-configs/tenant/{toolName}', [AdminToolConfigController::class, 'updateTenant']);
         Route::put('/admin/tool-configs/lines/{whatsappLine}/{toolName}', [AdminToolConfigController::class, 'updateLine']);
+        Route::delete('/admin/tool-configs/lines/{whatsappLine}/{toolName}', [AdminToolConfigController::class, 'destroyLine']);
         Route::put('/admin/credentials', [AdminCredentialController::class, 'upsert']);
     });
 

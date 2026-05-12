@@ -3,9 +3,15 @@
 namespace Tests\Feature\Operations;
 
 use App\Enums\TenantRole;
+use App\Enums\ConversationStatus;
+use App\Enums\MessageDirection;
+use App\Domain\Agent\AgentContextLoader;
 use App\Models\AgentConfig;
 use App\Models\ApiCredential;
 use App\Models\AgentEvent;
+use App\Models\Conversation;
+use App\Models\ConversationMessage;
+use App\Models\ConversationState;
 use App\Models\DataSource;
 use App\Models\Tenant;
 use App\Models\TenantToolConfig;
@@ -249,6 +255,149 @@ class AdminPanelTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_line_assistant_customization_can_be_removed_and_runtime_falls_back_to_general_config(): void
+    {
+        $tenant = Tenant::query()->create([
+            'name' => 'Acme Assist',
+            'slug' => 'acme-assist',
+        ]);
+        $tenantAdmin = $this->tenantUser($tenant, TenantRole::TenantAdmin);
+        $line = $this->line($tenant, 'Support Line', 'support-line-id');
+
+        $this->actingAs($tenantAdmin)
+            ->withCsrf()
+            ->withHeader('X-Tenant-Id', (string) $tenant->id)
+            ->putJson('/api/v1/admin/agent-configs/tenant', [
+                'name' => 'General Assistant',
+                'model' => 'gpt-5.1',
+                'prompt_version' => 'v1',
+                'is_active' => true,
+                'automation_enabled' => true,
+                'system_prompt' => 'Usa la configuración general.',
+                'agent_pack_key' => 'sales_support_v1',
+                'handoff_customer_message' => 'Te ayudo desde el flujo general.',
+            ])
+            ->assertOk();
+
+        $this->actingAs($tenantAdmin)
+            ->withCsrf()
+            ->withHeader('X-Tenant-Id', (string) $tenant->id)
+            ->putJson("/api/v1/admin/agent-configs/lines/{$line->id}", [
+                'name' => 'Line Assistant',
+                'model' => 'gpt-5.1',
+                'prompt_version' => 'v2',
+                'is_active' => true,
+                'automation_enabled' => false,
+                'system_prompt' => 'Usa la configuración personalizada.',
+                'agent_pack_key' => 'sales_support_v1',
+                'handoff_customer_message' => 'Te ayudo desde la línea.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.whatsapp_line_id', $line->id)
+            ->assertJsonPath('data.system_prompt', 'Usa la configuración personalizada.');
+
+        $this->actingAs($tenantAdmin)
+            ->withCsrf()
+            ->withHeader('X-Tenant-Id', (string) $tenant->id)
+            ->deleteJson("/api/v1/admin/agent-configs/lines/{$line->id}")
+            ->assertNoContent();
+
+        $this->assertDatabaseMissing('agent_configs', [
+            'tenant_id' => $tenant->id,
+            'scope_key' => TenantScopeKey::forWhatsAppLine($line),
+        ]);
+
+        [$conversation, $message, $state] = $this->conversationContext($tenant, $line);
+        $context = app(AgentContextLoader::class)->load($conversation, $message->id, $state);
+
+        $this->assertSame(TenantScopeKey::forTenant($tenant), $context->agentConfig->scope_key);
+        $this->assertSame('Usa la configuración general.', $context->agentConfig->settings['system_prompt']);
+        $this->assertTrue($context->agentConfig->settings['automation_enabled']);
+    }
+
+    public function test_line_source_customization_can_be_removed_and_runtime_falls_back_to_general_config(): void
+    {
+        $tenant = Tenant::query()->create([
+            'name' => 'Acme Sources',
+            'slug' => 'acme-sources',
+        ]);
+        $tenantAdmin = $this->tenantUser($tenant, TenantRole::TenantAdmin);
+        $line = $this->line($tenant, 'Catalog Line', 'catalog-line-id');
+        $tenantSource = DataSource::query()->create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Catálogo general',
+            'type' => 'excel',
+            'status' => 'ready',
+            'last_synced_at' => now(),
+        ]);
+        $lineSource = DataSource::query()->create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Catálogo por línea',
+            'type' => 'excel',
+            'status' => 'ready',
+            'last_synced_at' => now(),
+        ]);
+
+        AgentConfig::query()->create([
+            'tenant_id' => $tenant->id,
+            'whatsapp_line_id' => null,
+            'scope_type' => 'tenant',
+            'scope_key' => TenantScopeKey::forTenant($tenant),
+            'name' => 'General Assistant',
+            'model' => 'gpt-5.1',
+            'prompt_version' => 'v1',
+            'is_active' => true,
+            'settings' => [
+                'automation_enabled' => true,
+            ],
+        ]);
+
+        $this->actingAs($tenantAdmin)
+            ->withCsrf()
+            ->withHeader('X-Tenant-Id', (string) $tenant->id)
+            ->putJson('/api/v1/admin/tool-configs/tenant/search_inventory', [
+                'enabled' => true,
+                'timeout_seconds' => 12,
+                'data_source_id' => $tenantSource->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.data_source_id', $tenantSource->id);
+
+        $this->actingAs($tenantAdmin)
+            ->withCsrf()
+            ->withHeader('X-Tenant-Id', (string) $tenant->id)
+            ->putJson("/api/v1/admin/tool-configs/lines/{$line->id}/search_inventory", [
+                'enabled' => true,
+                'timeout_seconds' => 8,
+                'data_source_id' => $lineSource->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.whatsapp_line_id', $line->id)
+            ->assertJsonPath('data.data_source_id', $lineSource->id);
+
+        $this->actingAs($tenantAdmin)
+            ->withCsrf()
+            ->withHeader('X-Tenant-Id', (string) $tenant->id)
+            ->deleteJson("/api/v1/admin/tool-configs/lines/{$line->id}/search_inventory")
+            ->assertNoContent();
+
+        $this->assertDatabaseMissing('tenant_tool_configs', [
+            'tenant_id' => $tenant->id,
+            'scope_key' => TenantScopeKey::forWhatsAppLine($line),
+            'tool_name' => 'search_inventory',
+        ]);
+
+        [$conversation, $message, $state] = $this->conversationContext($tenant, $line);
+        $context = app(AgentContextLoader::class)->load($conversation, $message->id, $state);
+        $tool = collect($context->enabledTools)->first(
+            fn ($enabledTool) => $enabledTool->definition->name === 'search_inventory'
+        );
+
+        $this->assertNotNull($tool);
+        $this->assertSame(TenantScopeKey::forTenant($tenant), $tool->config->scope_key);
+        $this->assertSame(['data_source_id' => $tenantSource->id], $tool->config->bindings);
+    }
+
     protected function tenantUser(Tenant $tenant, TenantRole $role): User
     {
         $user = User::factory()->create();
@@ -272,5 +421,40 @@ class AdminPanelTest extends TestCase
             'status' => 'active',
             'is_enabled' => true,
         ]);
+    }
+
+    /**
+     * @return array{0: Conversation, 1: ConversationMessage, 2: ConversationState}
+     */
+    protected function conversationContext(Tenant $tenant, WhatsAppLine $line): array
+    {
+        $conversation = Conversation::query()->create([
+            'tenant_id' => $tenant->id,
+            'whatsapp_line_id' => $line->id,
+            'contact_phone' => '573001234567',
+            'contact_name' => 'Ana Cliente',
+            'status' => ConversationStatus::BotActive,
+            'last_message_at' => now(),
+            'last_customer_message_at' => now(),
+        ]);
+
+        $message = ConversationMessage::query()->create([
+            'tenant_id' => $tenant->id,
+            'conversation_id' => $conversation->id,
+            'direction' => MessageDirection::Inbound,
+            'message_type' => 'text',
+            'body' => 'Hola',
+            'provider_message_id' => 'wamid.inbound.admin-panel',
+            'status' => 'received',
+            'received_at' => now(),
+        ]);
+
+        $state = ConversationState::query()->create([
+            'tenant_id' => $tenant->id,
+            'conversation_id' => $conversation->id,
+            'collected_data' => [],
+        ]);
+
+        return [$conversation, $message, $state];
     }
 }

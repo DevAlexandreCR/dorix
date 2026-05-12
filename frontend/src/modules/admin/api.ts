@@ -181,6 +181,8 @@ export async function updateTenantAgentConfig(
     is_active: boolean;
     automation_enabled: boolean;
     system_prompt?: string;
+    agent_pack_key?: string;
+    handoff_customer_message?: string;
   },
 ): Promise<ResourceResponse<AgentConfigRecord>> {
   await ensureCsrfCookie(appConfig.sanctumCsrfCookieUrl);
@@ -203,6 +205,8 @@ export async function updateLineAgentConfig(
     is_active: boolean;
     automation_enabled: boolean;
     system_prompt?: string;
+    agent_pack_key?: string;
+    handoff_customer_message?: string;
   },
 ): Promise<ResourceResponse<AgentConfigRecord>> {
   await ensureCsrfCookie(appConfig.sanctumCsrfCookieUrl);
@@ -213,6 +217,16 @@ export async function updateLineAgentConfig(
       headers: tenantHeaders(tenantId),
     },
   );
+}
+
+export async function deleteLineAgentConfig(
+  tenantId: number,
+  lineId: number,
+): Promise<void> {
+  await ensureCsrfCookie(appConfig.sanctumCsrfCookieUrl);
+  await deleteJson<void>(`${appConfig.adminBaseUrl}/agent-configs/lines/${lineId}`, {
+    headers: tenantHeaders(tenantId),
+  });
 }
 
 export async function updateTenantToolConfig(
@@ -252,6 +266,17 @@ export async function updateLineToolConfig(
       headers: tenantHeaders(tenantId),
     },
   );
+}
+
+export async function deleteLineToolConfig(
+  tenantId: number,
+  lineId: number,
+  toolName: string,
+): Promise<void> {
+  await ensureCsrfCookie(appConfig.sanctumCsrfCookieUrl);
+  await deleteJson<void>(`${appConfig.adminBaseUrl}/tool-configs/lines/${lineId}/${toolName}`, {
+    headers: tenantHeaders(tenantId),
+  });
 }
 
 export async function upsertCredential(

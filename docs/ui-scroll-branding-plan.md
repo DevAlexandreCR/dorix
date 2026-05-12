@@ -9,7 +9,7 @@ Objetivo:
 - Resolver de forma explicita el modelo de scroll por ruta y breakpoint.
 - Cerrar la direccion visual para que el frontend tenga una referencia concreta de jerarquia, densidad y lenguaje.
 - Bajar la copia visible a lenguaje de negocio para usuarios operativos y admins no tecnicos.
-- Redefinir `Bindings` como `Herramientas` sin cambiar contratos backend ni nombres internos.
+- Mantener `Asistente` y `Fuentes` como experiencia principal del admin, absorbiendo `Bindings` dentro de `Fuentes` sin cambiar contratos internos.
 
 No-objetivos:
 
@@ -29,8 +29,8 @@ Estado real hoy, verificado en `frontend/`:
 - `frontend/src/modules/sandbox/views/SandboxView.vue` ya combina `xl:overflow-hidden` con listas y viewport internos scrollables.
 - `frontend/src/modules/operations/views/OperationsView.vue` sigue siendo mayormente flujo de pagina; todavia no implementa el split pane scrollable que el layout objetivo necesita.
 - `frontend/src/router/index.ts` ya resetea navegacion con `scrollBehavior() { return { top: 0 }; }`.
-- `frontend/src/modules/admin/views/AdminView.vue` renderiza configuraciones de herramientas desde `binding_tools`, aunque `frontend/src/modules/admin/types.ts` ya expone `available_tools` y `supports_data_source_binding`.
-- `frontend/src/i18n/locales/es-CO.ts` y `frontend/src/i18n/locales/en.ts` todavia muestran terminologia tecnica visible como `tenant`, `bindings`, `runtime`, `logs`, `scope`, `Phone Number ID`, `chunks` y `credentials`.
+- `frontend/src/modules/admin/views/AdminView.vue` resuelve `panel=bindings` hacia `sources` por compatibilidad y concentra el uso de fuentes en una sola pantalla.
+- `frontend/src/i18n/locales/es-CO.ts` y `frontend/src/i18n/locales/en.ts` ya bajan `Asistente` y `Fuentes` a lenguaje mas humano; quedan terminos tecnicos reservados para vistas avanzadas o soporte.
 
 Este estado actual debe quedar reflejado en la implementacion. El rediseño no debe asumir que `OperationsView` ya tiene resuelto el scroll interno ni que el admin ya usa `available_tools`.
 
@@ -241,7 +241,7 @@ Todo termino tecnico visible debe caer en una de estas dos categorias:
 - Preferir texto accionable y orientado a resultado.
 - Los errores visibles deben ser comprensibles y accionables.
 
-## Admin / Herramientas / Soporte avanzado
+## Admin / Asistente / Fuentes / Soporte avanzado
 
 ### Navegacion visible del admin
 
@@ -251,34 +251,32 @@ Los tabs visibles del admin deben ser:
 - `Equipo`
 - `WhatsApp`
 - `Asistente`
-- `Conocimiento`
-- `Herramientas`
+- `Fuentes`
 - `Conexiones`
 - `Actividad`
 
-Los nombres internos de panel, las claves y los `query params` pueden mantenerse. El cambio es de presentacion.
+Los nombres internos de panel, las claves y los `query params` pueden mantenerse. `agent` puede seguir siendo la clave interna del panel del asistente y `bindings` debe resolverse hacia `sources` por compatibilidad.
 
-### Herramientas como experiencia de producto
+### Fuentes como experiencia de producto
 
-La seccion `Herramientas` debe tomar `adminOverview.available_tools` como catalogo principal.
+La seccion `Fuentes` debe integrar dos cosas en una sola experiencia:
+
+- la carga y el estado de cada archivo;
+- la configuracion de donde el asistente usa cada fuente.
 
 Reglas:
 
-- `available_tools` es el source of truth de la UI para el catalogo visible.
 - `binding_tools` no desaparece del contrato; queda como compatibilidad y migracion.
-- `supports_data_source_binding` decide si la UI muestra selector de fuente.
+- `supports_data_source_binding` sigue definiendo si una herramienta puede vivir dentro del flujo de fuentes.
+- la UI principal no debe exponer la palabra `binding`;
+- la configuracion visible debe hablar en lenguaje de negocio y dejar el detalle tecnico solo en `Soporte avanzado`.
 
-La UI objetivo para herramientas es de tarjetas compactas, no de lista tecnica de bindings.
+La UI objetivo para `Fuentes` es:
 
-Cada tarjeta debe mostrar:
-
-- icono;
-- nombre visible claro;
-- descripcion corta;
-- estado habilitada/deshabilitada;
-- accion principal para guardar;
-- fuente asociada solo cuando `supports_data_source_binding === true`;
-- acceso a `Soporte avanzado`.
+- bloque inicial con pasos claros: subir, revisar, decidir donde se usa;
+- tarjetas de archivo con estado entendible;
+- seccion `Donde se usa` dentro de cada fuente lista;
+- configuracion general y por linea para usos de negocio, no para nombres internos de tools.
 
 ### Catalogo MVP de tools visibles
 
@@ -287,12 +285,12 @@ Cada tarjeta debe mostrar:
 | `create_lead` | Crear cliente potencial | `UserPlus` | No |
 | `save_customer_data` | Guardar datos del cliente | `ClipboardList` | No |
 | `handoff_to_human` | Pasar a un asesor | `Headset` | No |
-| `search_inventory` | Consultar inventario | `PackageSearch` | Si |
-| `search_knowledge` | Buscar respuestas | `BookOpen` | Si |
+| `search_inventory` | Consultar inventario o listas | `PackageSearch` | Si |
+| `search_knowledge` | Responder preguntas con documentos | `BookOpen` | Si |
 
 ### Contrato frontend recomendado
 
-La implementacion futura debe introducir una capa de presentacion equivalente a `toolPresentation.ts` para mapear nombre interno a nombre visible, icono y descripcion.
+La implementacion debe mantener una capa de presentacion equivalente a `toolPresentation.ts` o helper similar para mapear nombre interno a nombre visible, icono y descripcion.
 
 Contrato esperado:
 
