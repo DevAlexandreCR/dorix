@@ -15,13 +15,18 @@ const { authError, authLoading, loginWithPassword } = useSession();
 const email = ref('');
 const password = ref('');
 
+function safeRedirect(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//')
+    ? value
+    : fallback;
+}
+
 async function submitLogin(): Promise<void> {
   const session = await loginWithPassword(email.value, password.value);
   password.value = '';
 
   if (session?.authenticated) {
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/operations';
-    await router.push(redirect);
+    await router.push(safeRedirect(route.query.redirect, '/operations'));
   }
 }
 </script>

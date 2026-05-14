@@ -1,8 +1,14 @@
-import type { Router } from 'vue-router';
+import type { RouteLocationNormalized, Router } from 'vue-router';
 import { useSessionStore } from '../app/providers/session';
 
+function safeRedirect(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//')
+    ? value
+    : fallback;
+}
+
 export function registerRouterGuards(router: Router): void {
-  router.beforeEach(async (to) => {
+  router.beforeEach(async (to: RouteLocationNormalized) => {
     const session = useSessionStore();
 
     await session.ensureSessionLoaded();
@@ -17,9 +23,7 @@ export function registerRouterGuards(router: Router): void {
     }
 
     if (to.meta.guestOnly && session.isAuthenticated.value) {
-      const redirect = typeof to.query.redirect === 'string' ? to.query.redirect : '/operations';
-
-      return redirect;
+      return safeRedirect(to.query.redirect, '/operations');
     }
 
     return true;
