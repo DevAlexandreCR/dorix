@@ -1,40 +1,128 @@
 @import "tailwindcss";
 
+/* ============================================================
+   Sabio Cálido — Design Tokens
+   :root         = dark theme (default)
+   [data-theme="light"] = light theme
+   ============================================================ */
+
 :root {
   font-family: "Manrope", "IBM Plex Sans", "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --background: #0f172a;
-  --surface: #121b2e;
-  --surface-muted: #1a2740;
-  --border: rgba(148, 163, 184, 0.22);
-  --text: #e8eef9;
-  --text-muted: #93a4c2;
-  --accent: #4880ff;
-  --success: #00b69b;
-  --warning: #ffb648;
-  --danger: #f05a7e;
-  --overlay: rgba(15, 23, 42, 0.74);
-  --shadow-panel: 0 18px 38px rgba(15, 23, 42, 0.2);
   color-scheme: dark;
+
+  /* --- Neutrals --- */
+  --bg:          #161917;
+  --bg-elev:     #1E2220;
+  --surface:     #232723;
+  --muted:       #2C302D;
+  --border:      #353A37;
+  --border-st:   #4A504D;
+  --text:        #ECEEEB;
+  --text-soft:   #C6CAC7;
+  --text-mute:   #9AA09D;
+  --text-faint:  #6E7470;
+  --overlay:     rgba(0, 0, 0, 0.65);
+
+  /* --- Accent (sage green) --- */
+  --accent-50:   #1A2820;
+  --accent-100:  #233329;
+  --accent-200:  #355244;
+  --accent-300:  #5C8C70;
+  --accent-400:  #7BAE89;
+  --accent-500:  #95C3A1;
+  --accent-600:  #B0D4B9;
+  --accent-700:  #C8E2CE;
+  --accent-900:  #E1EFE4;
+
+  /* Primary accent alias — 400 step is the dark accent */
+  --accent:      var(--accent-400);
+
+  /* --- State colors --- */
+  --success:     #68D391;
+  --warning:     #ECC94B;
+  --danger:      #FC8181;
+  --info:        #90CDF8;
+
+  /* --- Radius scale --- */
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   14px;
+
+  /* --- Shadow scale (dark: higher alpha) --- */
+  --shadow-xs:   0 1px 2px rgba(0, 0, 0, 0.12);
+  --shadow-sm:   0 4px 12px rgba(0, 0, 0, 0.18);
+  --shadow-md:   0 12px 32px rgba(0, 0, 0, 0.24);
+
+  /* --- Spacing helpers (4-base scale) --- */
+  --space-1:     4px;
+  --space-2:     8px;
+  --space-3:     12px;
+  --space-4:     16px;
+  --space-5:     20px;
+  --space-6:     24px;
+  --space-7:     32px;
+  --space-8:     40px;
+  --space-9:     48px;
+
+  /* --- Legacy aliases (kept for unmigrated components; removed in task 5.7) --- */
+  --background:     var(--bg);
+  --surface-muted:  var(--muted);
+  --text-muted:     var(--text-mute);
+  --shadow-panel:   var(--shadow-sm);
 }
 
 :root[data-theme="light"] {
-  --background: #f5f6fa;
-  --surface: #ffffff;
-  --surface-muted: #f0f3fa;
-  --border: rgba(148, 163, 184, 0.28);
-  --text: #202224;
-  --text-muted: #6b7280;
-  --accent: #4880ff;
-  --success: #00b69b;
-  --warning: #ffb648;
-  --danger: #f93c65;
-  --overlay: rgba(15, 23, 42, 0.08);
-  --shadow-panel: 0 14px 30px rgba(15, 23, 42, 0.08);
   color-scheme: light;
+
+  /* --- Neutrals --- */
+  --bg:          #FAF7F0;
+  --bg-elev:     #FFFFFF;
+  --surface:     #FFFFFF;
+  --muted:       #F2EDE2;
+  --border:      #E6DFCE;
+  --border-st:   #D6CDB8;
+  --text:        #1C2024;
+  --text-soft:   #3F4549;
+  --text-mute:   #6B6E72;
+  --text-faint:  #98999C;
+  --overlay:     rgba(28, 24, 18, 0.55);
+
+  /* --- Accent (sage green) --- */
+  --accent-50:   #F0F5F1;
+  --accent-100:  #DDE9DF;
+  --accent-200:  #B8D2BD;
+  --accent-300:  #8FB89A;
+  --accent-400:  #6B9D7C;
+  --accent-500:  #4F7C5C;
+  --accent-600:  #3D6248;
+  --accent-700:  #2E4A37;
+  --accent-900:  #1F3325;
+
+  /* Primary accent alias — 500 step is the light accent */
+  --accent:      var(--accent-500);
+
+  /* --- State colors --- */
+  --success:     #2F855A;
+  --warning:     #B7791F;
+  --danger:      #9B2C2C;
+  --info:        #2C5282;
+
+  /* --- Shadow scale (light: lower alpha) --- */
+  --shadow-xs:   0 1px 2px rgba(28, 24, 18, 0.04);
+  --shadow-sm:   0 4px 12px rgba(28, 24, 18, 0.06);
+  --shadow-md:   0 12px 32px rgba(28, 24, 18, 0.08);
+
+  /* Radius and spacing are theme-independent; declared in :root above */
+
+  /* --- Legacy aliases (kept for unmigrated components; removed in task 5.7) --- */
+  --background:     var(--bg);
+  --surface-muted:  var(--muted);
+  --text-muted:     var(--text-mute);
+  --shadow-panel:   var(--shadow-sm);
 }
 
 @layer base {
@@ -51,9 +139,10 @@
   body {
     margin: 0;
     min-width: 320px;
-    background:
-      linear-gradient(180deg, color-mix(in srgb, var(--background) 95%, #ffffff 5%) 0%, var(--background) 100%);
+    background: var(--bg);
     color: var(--text);
+    /* Theme-switch transition per spec */
+    transition: background-color 200ms ease-out, color 200ms ease-out;
   }
 
   button,
@@ -125,7 +214,7 @@
 
   .input-base:focus {
     border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
   }
 
   .panel-grid {
