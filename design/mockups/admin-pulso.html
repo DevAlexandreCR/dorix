@@ -1,0 +1,605 @@
+<title>Dorix · Sistema Pulso — Mockup del admin</title>
+<style>
+  :root {
+    --bg: #F6F7F9; --surface: #FFFFFF; --muted: #EFF1F4;
+    --border: #E2E5EA; --border-st: #C9CED7;
+    --text: #16181D; --text-soft: #3D434E; --text-mute: #5F6672;
+    --accent: #2B4FD8; --accent-hover: #2342BE;
+    --accent-subtle: #EBEFFD; --accent-border: #B9C6F5;
+    --live: #177A47; --live-subtle: #E4F5EB;
+    --warning: #96570A; --danger: #BB3129; --danger-subtle: #FBEDEC;
+    --shadow-xs: 0 1px 2px rgba(16,18,22,.05);
+    --shadow-md: 0 8px 24px rgba(16,18,22,.14);
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px;
+    --sans: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101216; --surface: #171A20; --muted: #1E222A;
+      --border: #2A2F3A; --border-st: #3B4250;
+      --text: #E9EBEF; --text-soft: #C2C7D1; --text-mute: #98A0AE;
+      --accent: #8AA3FF; --accent-hover: #A3B6FF;
+      --accent-subtle: #1B2340; --accent-border: #33407A;
+      --live: #4ADE8C; --live-subtle: #0F2A1D;
+      --warning: #F0B44C; --danger: #FF8A80; --danger-subtle: #2E1A18;
+      --shadow-xs: 0 1px 2px rgba(0,0,0,.3);
+      --shadow-md: 0 8px 24px rgba(0,0,0,.45);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #101216; --surface: #171A20; --muted: #1E222A;
+    --border: #2A2F3A; --border-st: #3B4250;
+    --text: #E9EBEF; --text-soft: #C2C7D1; --text-mute: #98A0AE;
+    --accent: #8AA3FF; --accent-hover: #A3B6FF;
+    --accent-subtle: #1B2340; --accent-border: #33407A;
+    --live: #4ADE8C; --live-subtle: #0F2A1D;
+    --warning: #F0B44C; --danger: #FF8A80; --danger-subtle: #2E1A18;
+    --shadow-xs: 0 1px 2px rgba(0,0,0,.3);
+    --shadow-md: 0 8px 24px rgba(0,0,0,.45);
+  }
+  :root[data-theme="light"] {
+    --bg: #F6F7F9; --surface: #FFFFFF; --muted: #EFF1F4;
+    --border: #E2E5EA; --border-st: #C9CED7;
+    --text: #16181D; --text-soft: #3D434E; --text-mute: #5F6672;
+    --accent: #2B4FD8; --accent-hover: #2342BE;
+    --accent-subtle: #EBEFFD; --accent-border: #B9C6F5;
+    --live: #177A47; --live-subtle: #E4F5EB;
+    --warning: #96570A; --danger: #BB3129; --danger-subtle: #FBEDEC;
+    --shadow-xs: 0 1px 2px rgba(16,18,22,.05);
+    --shadow-md: 0 8px 24px rgba(16,18,22,.14);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 450 13px/20px var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  button:focus-visible, a:focus-visible, input:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+    border-radius: var(--r-sm);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: 0s !important; animation: none !important; }
+  }
+
+  .demo-note {
+    max-width: 1240px; margin: 16px auto 0; padding: 0 16px;
+    font-size: 12px; line-height: 16px; color: var(--text-mute);
+  }
+  .demo-note strong { color: var(--text-soft); font-weight: 600; }
+
+  .frame {
+    max-width: 1240px; margin: 12px auto 48px;
+    border: 1px solid var(--border); border-radius: var(--r-lg);
+    background: var(--surface); overflow: hidden; box-shadow: var(--shadow-xs);
+    display: grid; grid-template-columns: 200px 1fr; min-height: 720px;
+  }
+
+  /* ── SectionNav ─────────────────────────── */
+  .snav {
+    border-right: 1px solid var(--border); background: var(--bg);
+    padding: 12px 8px; display: flex; flex-direction: column; gap: 2px;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 8px; padding: 4px 8px 14px;
+  }
+  .brand-mark {
+    width: 24px; height: 24px; border-radius: var(--r-sm);
+    background: var(--accent); color: #fff;
+    font: 700 11px/24px var(--sans); text-align: center; letter-spacing: .02em;
+  }
+  :root[data-theme="dark"] .brand-mark, .brand-mark { color: #fff; }
+  .brand-name { font-weight: 650; font-size: 14px; }
+  .snav-item {
+    display: flex; align-items: center; gap: 10px; height: 32px;
+    padding: 0 8px; border-radius: var(--r-md); color: var(--text-soft);
+    text-align: left; width: 100%; transition: background .12s ease-out, color .12s ease-out;
+  }
+  .snav-item:hover { background: var(--muted); }
+  .snav-item.active { background: var(--accent-subtle); color: var(--accent); font-weight: 600; }
+  .snav-item svg { width: 16px; height: 16px; flex: none; }
+  .snav-divider { border: 0; border-top: 1px solid var(--border); margin: 10px 4px; }
+  .snav-eyebrow {
+    font: 600 10px/14px var(--sans); letter-spacing: .12em; text-transform: uppercase;
+    color: var(--text-mute); padding: 0 8px 4px;
+  }
+
+  /* ── Main column ────────────────────────── */
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .topbar {
+    display: flex; align-items: center; gap: 12px; height: 52px;
+    padding: 0 20px; border-bottom: 1px solid var(--border);
+  }
+  .topbar h1 { font: 650 15px/20px var(--sans); margin: 0; }
+  .tenant-pill {
+    display: inline-flex; align-items: center; gap: 6px; height: 24px;
+    padding: 0 10px; border: 1px solid var(--border); border-radius: 999px;
+    font-size: 12px; color: var(--text-soft); background: var(--surface);
+  }
+  .avatar {
+    margin-left: auto; width: 28px; height: 28px; border-radius: 999px;
+    background: var(--muted); border: 1px solid var(--border);
+    font: 600 11px/26px var(--sans); text-align: center; color: var(--text-soft);
+  }
+
+  .body { display: grid; grid-template-columns: 216px 1fr; flex: 1; min-height: 0; }
+
+  /* ── AdminNav ───────────────────────────── */
+  .anav { border-right: 1px solid var(--border); padding: 14px 10px; }
+  .search {
+    display: flex; align-items: center; gap: 8px; height: 30px;
+    border: 1px solid var(--border); border-radius: var(--r-md);
+    padding: 0 10px; color: var(--text-mute); background: var(--bg);
+    font-size: 12px; margin-bottom: 14px;
+  }
+  .search kbd {
+    margin-left: auto; font: 500 10px/16px var(--mono);
+    border: 1px solid var(--border); border-radius: 4px; padding: 0 5px;
+    background: var(--surface);
+  }
+  .anav-group { margin-bottom: 12px; }
+  .anav-eyebrow {
+    font: 600 10px/14px var(--sans); letter-spacing: .12em; text-transform: uppercase;
+    color: var(--text-mute); padding: 0 8px 4px; display: block;
+  }
+  .anav-item {
+    display: block; width: 100%; text-align: left; height: 30px; line-height: 30px;
+    padding: 0 8px; border-radius: var(--r-md); color: var(--text-soft);
+    transition: background .12s ease-out;
+  }
+  .anav-item:hover { background: var(--muted); }
+  .anav-item.active { background: var(--accent-subtle); color: var(--accent); font-weight: 600; }
+
+  /* ── Content ────────────────────────────── */
+  .content { padding: 20px 28px 40px; overflow-y: auto; min-width: 0; }
+  .crumb { font-size: 12px; color: var(--text-mute); margin-bottom: 6px; }
+  .crumb b { color: var(--text-soft); font-weight: 500; }
+  .page-head { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 4px; }
+  .page-head h2 { font: 650 18px/24px var(--sans); margin: 0; text-wrap: balance; }
+  .page-lede { color: var(--text-mute); margin: 2px 0 18px; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; height: 32px;
+    padding: 0 12px; border-radius: var(--r-md); font-weight: 600; font-size: 13px;
+    border: 1px solid transparent; transition: background .12s ease-out;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  :root[data-theme="dark"] .btn-primary { color: #0E1220; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-secondary { border-color: var(--border-st); background: var(--surface); color: var(--text-soft); }
+  .btn-secondary:hover { background: var(--muted); }
+  .btn-ghost { color: var(--accent); }
+  .btn-ghost:hover { background: var(--accent-subtle); }
+  .btn-danger { border-color: var(--danger); color: var(--danger); background: transparent; }
+  .btn-danger:hover { background: var(--danger-subtle); }
+  .btn-sm { height: 26px; padding: 0 9px; font-size: 12px; }
+
+  /* Scope picker */
+  .scope {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 18px;
+    padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-lg);
+    background: var(--bg);
+  }
+  .scope-label { font-size: 12px; color: var(--text-mute); }
+  .seg { display: inline-flex; border: 1px solid var(--border-st); border-radius: var(--r-md); overflow: hidden; }
+  .seg button { height: 28px; padding: 0 12px; font-size: 12.5px; font-weight: 500; color: var(--text-soft); }
+  .seg button.on { background: var(--accent-subtle); color: var(--accent); font-weight: 600; }
+  .scope-hint { font-size: 12px; color: var(--text-mute); }
+
+  /* SummaryCard */
+  .stack { display: flex; flex-direction: column; gap: 10px; max-width: 720px; }
+  .card {
+    border: 1px solid var(--border); border-radius: var(--r-lg);
+    background: var(--surface); padding: 14px 16px;
+  }
+  .card.flash { animation: flash .6s ease-out; }
+  @keyframes flash { 0% { background: var(--accent-subtle); } 100% { background: var(--surface); } }
+  .card-row { display: flex; align-items: flex-start; gap: 12px; }
+  .card-body { min-width: 0; flex: 1; }
+  .card-title { font: 600 13px/18px var(--sans); color: var(--text-mute); margin: 0 0 2px; }
+  .card-state { font: 550 14px/20px var(--sans); margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card-help { color: var(--text-mute); font-size: 12px; line-height: 17px; margin: 3px 0 0; max-width: 62ch; }
+  .card-edit { flex: none; }
+
+  .live-dot { display: inline-flex; align-items: center; gap: 6px; color: var(--live); font-weight: 600; font-size: 12.5px;
+    background: var(--live-subtle); border-radius: 999px; padding: 2px 10px 2px 8px; }
+  .live-dot::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: var(--live); }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px;
+    border-radius: 999px; font: 600 11px/14px var(--sans);
+  }
+  .chip-inherit { background: var(--muted); color: var(--text-mute); border: 1px dashed var(--border-st); }
+  .chip-custom { background: var(--accent-subtle); color: var(--accent); }
+
+  .mono { font: 450 12px/18px var(--mono); color: var(--text-mute); }
+  .copy-btn { font-size: 11px; color: var(--accent); font-weight: 600; }
+
+  /* expanded editor */
+  .editor { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; display: none; }
+  .card.open .editor { display: block; }
+  .model-opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .model-opt {
+    text-align: left; border: 1px solid var(--border); border-radius: var(--r-md);
+    padding: 10px 12px; background: var(--bg); display: flex; flex-direction: column; gap: 2px;
+    transition: border-color .12s ease-out;
+  }
+  .model-opt:hover { border-color: var(--border-st); }
+  .model-opt.sel { border-color: var(--accent); background: var(--accent-subtle); }
+  .model-opt b { font-size: 13px; font-weight: 600; }
+  .model-opt small { color: var(--text-mute); font-size: 11.5px; line-height: 15px; }
+  .model-price { font: 600 11px/14px var(--mono); color: var(--text-mute); }
+  .editor-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+
+  details.adv { max-width: 720px; margin-top: 14px; color: var(--text-mute); }
+  details.adv summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--text-soft); }
+  details.adv .card { margin-top: 10px; }
+  .adv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+  .adv-grid label { font-size: 12px; color: var(--text-mute); display: block; margin-bottom: 3px; }
+
+  /* Table screen */
+  .table-wrap { border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; background: var(--surface); }
+  .table-scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; }
+  th {
+    text-align: left; font: 600 11px/14px var(--sans); letter-spacing: .08em; text-transform: uppercase;
+    color: var(--text-mute); background: var(--bg); padding: 9px 14px; border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  td { padding: 0 14px; height: 40px; border-bottom: 1px solid var(--border); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: 0; }
+  tbody tr { cursor: pointer; transition: background .12s ease-out; }
+  tbody tr:hover { background: var(--muted); }
+  .td-main { font-weight: 550; }
+  .pill-paused { display: inline-flex; align-items: center; gap: 6px; color: var(--text-mute); font-weight: 600; font-size: 12.5px;
+    background: var(--muted); border-radius: 999px; padding: 2px 10px 2px 8px; }
+  .pill-paused::before { content: ""; width: 7px; height: 7px; border-radius: 999px; border: 1.5px solid var(--text-mute); }
+
+  /* Drawer */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(22,24,29,.5);
+    opacity: 0; pointer-events: none; transition: opacity .16s ease-out; z-index: 40;
+  }
+  .overlay.on { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 92vw);
+    background: var(--surface); border-left: 1px solid var(--border); box-shadow: var(--shadow-md);
+    transform: translateX(16px); opacity: 0; pointer-events: none;
+    transition: transform .16s ease-out, opacity .16s ease-out;
+    z-index: 41; display: flex; flex-direction: column;
+  }
+  .drawer.on { transform: none; opacity: 1; pointer-events: auto; }
+  .drawer-head { display: flex; align-items: center; gap: 10px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+  .drawer-head h3 { font: 650 15px/20px var(--sans); margin: 0; }
+  .drawer-close { margin-left: auto; color: var(--text-mute); font-size: 16px; }
+  .drawer-body { padding: 16px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+  .field label { display: block; font-weight: 600; font-size: 12.5px; margin-bottom: 3px; }
+  .field .hint { font-size: 12px; color: var(--text-mute); margin-top: 3px; }
+  .input {
+    width: 100%; height: 32px; border: 1px solid var(--border-st); border-radius: var(--r-md);
+    background: var(--surface); color: var(--text); padding: 0 10px; font: inherit;
+  }
+  .tech-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px dashed var(--border); }
+  .tech-row:last-child { border-bottom: 0; }
+  .danger-zone {
+    border: 1px solid var(--danger); border-radius: var(--r-lg); padding: 14px 16px;
+    background: var(--danger-subtle); margin-top: 6px;
+  }
+  .danger-zone h4 { margin: 0 0 2px; font: 600 13px/18px var(--sans); color: var(--danger); }
+  .danger-zone p { margin: 0 0 10px; font-size: 12px; color: var(--text-soft); }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translate(-50%, 8px);
+    background: var(--text); color: var(--bg); border-radius: var(--r-md);
+    padding: 8px 16px; font-weight: 600; font-size: 13px; box-shadow: var(--shadow-md);
+    opacity: 0; pointer-events: none; transition: opacity .16s ease-out, transform .16s ease-out; z-index: 50;
+  }
+  .toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+  .screen { display: none; }
+  .screen.on { display: block; }
+
+  @media (max-width: 900px) {
+    .frame { grid-template-columns: 1fr; }
+    .snav { flex-direction: row; align-items: center; border-right: 0; border-bottom: 1px solid var(--border); padding: 8px; }
+    .brand { padding: 0 8px; }
+    .snav-item { width: auto; }
+    .snav-divider, .snav-eyebrow { display: none; }
+    .body { grid-template-columns: 1fr; }
+    .anav { display: flex; gap: 4px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 10px; }
+    .anav-group { margin: 0; display: flex; gap: 4px; }
+    .anav-eyebrow { display: none; }
+    .anav-item { white-space: nowrap; width: auto; }
+    .search { display: none; }
+    .content { padding: 16px; }
+    .model-opts { grid-template-columns: 1fr; }
+  }
+</style>
+
+<p class="demo-note"><strong>Dorix · Sistema "Pulso" — maqueta estática.</strong>
+Pantallas: <em>Asistente › Comportamiento</em> (fichas resumen-primero + herencia por línea) y
+<em>Conexiones › Líneas</em> (tabla + drawer). Prueba: cambiar el ámbito, editar «Modelo», y abrir una fila de la tabla.
+Tipografías finales (Instrument Sans / JetBrains Mono) se cargan self-hosted en la app; aquí se usa el stack del sistema.</p>
+
+<div class="frame">
+  <!-- SectionNav -->
+  <nav class="snav" aria-label="Secciones">
+    <div class="brand"><span class="brand-mark">DR</span><span class="brand-name">Dorix</span></div>
+    <button class="snav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Operaciones</button>
+    <button class="snav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M10 2v7.5L4.5 19a2 2 0 0 0 1.8 3h11.4a2 2 0 0 0 1.8-3L14 9.5V2M8.5 2h7"/></svg>Sandbox</button>
+    <button class="snav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Administración</button>
+    <hr class="snav-divider">
+    <span class="snav-eyebrow">Plataforma</span>
+    <button class="snav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Tenants</button>
+  </nav>
+
+  <div class="main">
+    <header class="topbar">
+      <h1>Administración</h1>
+      <span class="tenant-pill">Panadería La Espiga</span>
+      <span class="avatar" aria-label="Ana Ruiz">AR</span>
+    </header>
+
+    <div class="body">
+      <!-- AdminNav -->
+      <nav class="anav" aria-label="Paneles de administración">
+        <div class="search" role="search">🔍 Buscar ajustes… <kbd>/</kbd></div>
+        <div class="anav-group">
+          <span class="anav-eyebrow">Organización</span>
+          <button class="anav-item">Información</button>
+          <button class="anav-item">Miembros</button>
+        </div>
+        <div class="anav-group">
+          <span class="anav-eyebrow">Conexiones</span>
+          <button class="anav-item" data-screen="lines" id="nav-lines">Líneas de WhatsApp</button>
+          <button class="anav-item">Credenciales</button>
+          <button class="anav-item">Fuentes de datos</button>
+        </div>
+        <div class="anav-group">
+          <span class="anav-eyebrow">Asistente</span>
+          <button class="anav-item active" data-screen="behavior" id="nav-behavior">Comportamiento</button>
+          <button class="anav-item">Herramientas</button>
+        </div>
+        <div class="anav-group">
+          <span class="anav-eyebrow">Actividad</span>
+          <button class="anav-item">Actividad</button>
+        </div>
+      </nav>
+
+      <!-- ══ Screen: Behavior ══ -->
+      <main class="content">
+        <section class="screen on" id="screen-behavior">
+          <p class="crumb">Admin › Asistente › <b>Comportamiento</b></p>
+          <div class="page-head"><h2>Cómo responde el asistente</h2></div>
+          <p class="page-lede">Personalidad, modelo y comportamiento del asistente en WhatsApp.</p>
+
+          <div class="scope">
+            <span class="scope-label">Ámbito</span>
+            <div class="seg" role="tablist" aria-label="Ámbito de configuración">
+              <button class="on" id="scope-org" role="tab" aria-selected="true">Organización</button>
+              <button id="scope-line" role="tab" aria-selected="false">Línea: Ventas</button>
+            </div>
+            <span class="scope-hint" id="scope-hint">Las líneas heredan esta configuración salvo que la personalices.</span>
+          </div>
+
+          <div class="stack">
+            <!-- Estado -->
+            <article class="card">
+              <div class="card-row">
+                <div class="card-body">
+                  <p class="card-title">Estado</p>
+                  <p class="card-state"><span class="live-dot">Respondiendo automáticamente</span></p>
+                  <p class="card-help">Si lo apagas, los mensajes quedan esperando a tu equipo en Operaciones.</p>
+                </div>
+                <button class="btn btn-ghost btn-sm card-edit">Editar</button>
+              </div>
+            </article>
+
+            <!-- Modelo (expandible) -->
+            <article class="card" id="card-model">
+              <div class="card-row">
+                <div class="card-body">
+                  <p class="card-title">Modelo</p>
+                  <p class="card-state" id="model-state">Equilibrado <span class="chip chip-custom" data-when="line" hidden>Personalizado en esta línea</span></p>
+                  <p class="card-help">Buen balance entre calidad de respuesta y costo. Recomendado para la mayoría.</p>
+                </div>
+                <button class="btn btn-ghost btn-sm card-edit" id="model-edit">Editar</button>
+              </div>
+              <div class="editor">
+                <div class="model-opts" role="radiogroup" aria-label="Modelo">
+                  <button class="model-opt" role="radio" aria-checked="false"><b>Ahorro</b><small>Respuestas simples al menor costo.</small><span class="model-price">$</span></button>
+                  <button class="model-opt sel" role="radio" aria-checked="true"><b>Equilibrado ✓</b><small>Calidad y costo balanceados.</small><span class="model-price">$$</span></button>
+                  <button class="model-opt" role="radio" aria-checked="false"><b>Máxima precisión</b><small>Para catálogos grandes o casos delicados.</small><span class="model-price">$$$</span></button>
+                </div>
+                <p class="mono" style="margin:10px 0 0">claude-sonnet-5 <button class="copy-btn">copiar</button></p>
+                <div class="editor-actions">
+                  <button class="btn btn-secondary btn-sm" id="model-cancel">Cancelar</button>
+                  <button class="btn btn-primary btn-sm" id="model-save">Guardar modelo</button>
+                </div>
+              </div>
+            </article>
+
+            <!-- Personalidad -->
+            <article class="card">
+              <div class="card-row">
+                <div class="card-body">
+                  <p class="card-title">Personalidad e instrucciones</p>
+                  <p class="card-state" id="prompt-state">"Eres el asistente de La Espiga. Atiendes pedidos de pan y pastelería…"</p>
+                  <p class="card-help" id="prompt-help">Lo que el asistente sabe de tu negocio y el tono con el que habla.</p>
+                </div>
+                <button class="btn btn-ghost btn-sm card-edit" id="prompt-edit">Editar</button>
+              </div>
+            </article>
+
+            <!-- Handoff -->
+            <article class="card">
+              <div class="card-row">
+                <div class="card-body">
+                  <p class="card-title">Cuando pide ayuda humana</p>
+                  <p class="card-state">"Ya te conecto con alguien del equipo 🙌"</p>
+                  <p class="card-help">Mensaje que recibe el cliente mientras la conversación pasa a tu equipo.</p>
+                </div>
+                <button class="btn btn-ghost btn-sm card-edit">Editar</button>
+              </div>
+            </article>
+          </div>
+
+          <details class="adv">
+            <summary>Opciones avanzadas</summary>
+            <article class="card">
+              <div class="adv-grid">
+                <div><label>Nombre interno</label><span class="mono">espiga-default</span></div>
+                <div><label>Versión de prompt</label><span class="mono">v3</span></div>
+                <div><label>Pack de comportamiento</label><span class="mono">retail_orders</span></div>
+                <div><label>ID técnico del modelo</label><span class="mono">claude-sonnet-5</span></div>
+              </div>
+            </article>
+          </details>
+        </section>
+
+        <!-- ══ Screen: Lines ══ -->
+        <section class="screen" id="screen-lines">
+          <p class="crumb">Admin › Conexiones › <b>Líneas de WhatsApp</b></p>
+          <div class="page-head">
+            <h2>Líneas de WhatsApp</h2>
+            <button class="btn btn-primary" style="margin-left:auto">+ Conectar línea</button>
+          </div>
+          <p class="page-lede">Los números por los que tu negocio conversa con clientes.</p>
+
+          <div class="table-wrap"><div class="table-scroll">
+            <table>
+              <thead><tr><th scope="col">Línea</th><th scope="col">Número</th><th scope="col">Estado</th><th scope="col">Asistente</th></tr></thead>
+              <tbody>
+                <tr id="row-ventas">
+                  <td class="td-main">Ventas</td>
+                  <td class="mono">+57 305 412 8890</td>
+                  <td><span class="live-dot">Conectada</span></td>
+                  <td><span class="chip chip-custom">Personalizado</span></td>
+                </tr>
+                <tr>
+                  <td class="td-main">Soporte</td>
+                  <td class="mono">+57 601 744 2210</td>
+                  <td><span class="pill-paused">Pausada</span></td>
+                  <td><span class="chip chip-inherit">Heredado</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div></div>
+        </section>
+      </main>
+    </div>
+  </div>
+</div>
+
+<!-- Drawer de línea -->
+<div class="overlay" id="overlay"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+  <div class="drawer-head">
+    <span class="live-dot">Conectada</span>
+    <h3 id="drawer-title">Ventas</h3>
+    <button class="drawer-close" id="drawer-close" aria-label="Cerrar">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="field">
+      <label for="line-name">Nombre de la línea</label>
+      <input class="input" id="line-name" value="Ventas">
+      <p class="hint">Solo lo ve tu equipo; los clientes ven el número.</p>
+    </div>
+    <article class="card">
+      <p class="card-title" style="margin-bottom:8px">Datos técnicos de Meta</p>
+      <div class="tech-row"><span style="font-size:12.5px">Phone Number ID</span><span class="mono">109934578812 <button class="copy-btn">copiar</button></span></div>
+      <div class="tech-row"><span style="font-size:12.5px">WABA ID</span><span class="mono">2210993457 <button class="copy-btn">copiar</button></span></div>
+      <p class="hint" style="font-size:12px;color:var(--text-mute);margin:8px 0 0">Los encuentras en Meta Business Manager. Solo se piden al conectar.</p>
+    </article>
+    <article class="card">
+      <p class="card-title">Asistente en esta línea</p>
+      <p class="card-state"><span class="chip chip-custom">Personalizado</span></p>
+      <p class="card-help">Usa el modelo «Máxima precisión» en vez del general. <button class="copy-btn">Ver configuración →</button></p>
+    </article>
+    <div class="danger-zone">
+      <h4>Zona de peligro</h4>
+      <p>El número +57 305 412 8890 dejará de responder mensajes.</p>
+      <button class="btn btn-danger btn-sm" style="margin-right:8px">Pausar línea</button>
+      <button class="btn btn-danger btn-sm">Eliminar línea</button>
+    </div>
+    <button class="btn btn-primary" id="line-save">Guardar cambios</button>
+  </div>
+</aside>
+
+<div class="toast" id="toast">Modelo guardado</div>
+
+<script>
+  const $ = (s) => document.querySelector(s);
+
+  // Screen switching
+  const screens = { behavior: $('#screen-behavior'), lines: $('#screen-lines') };
+  document.querySelectorAll('[data-screen]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.anav-item').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      Object.values(screens).forEach(s => s.classList.remove('on'));
+      screens[btn.dataset.screen].classList.add('on');
+    });
+  });
+
+  // Scope toggle (org vs line) — shows inheritance chips
+  const orgBtn = $('#scope-org'), lineBtn = $('#scope-line');
+  function setScope(line) {
+    orgBtn.classList.toggle('on', !line);
+    lineBtn.classList.toggle('on', line);
+    orgBtn.setAttribute('aria-selected', String(!line));
+    lineBtn.setAttribute('aria-selected', String(line));
+    $('#scope-hint').textContent = line
+      ? 'Solo se guarda lo que personalices; lo demás sigue al general.'
+      : 'Las líneas heredan esta configuración salvo que la personalices.';
+    document.querySelectorAll('[data-when="line"]').forEach(el => el.hidden = !line);
+    // Personalidad card demonstrates "inherited" presentation in line scope
+    $('#prompt-state').innerHTML = line
+      ? '<span class="chip chip-inherit">Heredado de la organización</span>'
+      : '"Eres el asistente de La Espiga. Atiendes pedidos de pan y pastelería…"';
+    $('#prompt-help').textContent = line
+      ? '"Eres el asistente de La Espiga…" — se usa el texto general.'
+      : 'Lo que el asistente sabe de tu negocio y el tono con el que habla.';
+    $('#prompt-edit').textContent = line ? 'Personalizar' : 'Editar';
+    // Modelo shows "customized on this line"
+    $('#model-state').firstChild.textContent = line ? 'Máxima precisión ' : 'Equilibrado ';
+  }
+  orgBtn.addEventListener('click', () => setScope(false));
+  lineBtn.addEventListener('click', () => setScope(true));
+
+  // Model card expand / save with toast + flash
+  const modelCard = $('#card-model');
+  $('#model-edit').addEventListener('click', () => modelCard.classList.add('open'));
+  $('#model-cancel').addEventListener('click', () => modelCard.classList.remove('open'));
+  $('#model-save').addEventListener('click', () => {
+    modelCard.classList.remove('open');
+    modelCard.classList.remove('flash'); void modelCard.offsetWidth; modelCard.classList.add('flash');
+    showToast('Modelo guardado');
+  });
+  document.querySelectorAll('.model-opt').forEach(opt => opt.addEventListener('click', () => {
+    document.querySelectorAll('.model-opt').forEach(o => { o.classList.remove('sel'); o.setAttribute('aria-checked','false'); });
+    opt.classList.add('sel'); opt.setAttribute('aria-checked','true');
+  }));
+
+  // Drawer
+  const drawer = $('#drawer'), overlay = $('#overlay');
+  function openDrawer() { drawer.classList.add('on'); overlay.classList.add('on'); }
+  function closeDrawer() { drawer.classList.remove('on'); overlay.classList.remove('on'); }
+  $('#row-ventas').addEventListener('click', openDrawer);
+  $('#drawer-close').addEventListener('click', closeDrawer);
+  overlay.addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+  $('#line-save').addEventListener('click', () => { closeDrawer(); showToast('Línea guardada'); });
+
+  // Toast
+  let toastTimer;
+  function showToast(msg) {
+    const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 2200);
+  }
+</script>
