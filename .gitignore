@@ -11,4 +11,5 @@ backend/storage/*.key
 frontend/.env
 frontend/node_modules
 frontend/dist
+**/.claude/agent-memory/
 
