@@ -7,9 +7,9 @@ defineProps<{
 </script>
 
 <template>
-  <label class="grid gap-2 text-sm" :for="forId">
-    <span class="text-[12px] font-semibold text-[var(--text)]">{{ label }}</span>
+  <label class="grid gap-2" :for="forId">
+    <span class="text-small font-semibold text-[var(--text)]">{{ label }}</span>
     <slot />
-    <span v-if="hint" class="text-[12px] leading-5 text-[var(--text-muted)]">{{ hint }}</span>
+    <span v-if="hint" class="text-small text-[var(--text-soft)]">{{ hint }}</span>
   </label>
 </template>

@@ -40,7 +40,7 @@ async function submitLogin(): Promise<void> {
         </p>
         <div class="space-y-2">
           <h2 class="text-3xl font-semibold tracking-tight lg:text-[2.1rem]">{{ t('auth.title') }}</h2>
-          <p class="text-sm leading-6 text-[var(--text-muted)]">
+          <p class="text-sm leading-6 text-[var(--text-mute)]">
             {{ t('auth.subtitle') }}
           </p>
         </div>

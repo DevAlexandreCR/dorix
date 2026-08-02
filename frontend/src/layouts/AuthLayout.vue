@@ -9,7 +9,7 @@
       <div class="flex flex-1 items-center">
         <div class="mx-auto grid w-full max-w-6xl gap-4 lg:grid-cols-[minmax(0,1fr)_460px] lg:gap-6">
           <section
-            class="rounded-[24px] border bg-[var(--surface)] p-6 shadow-[var(--shadow-panel)] sm:p-8 lg:p-10"
+            class="rounded-lg border bg-[var(--surface)] p-6 shadow-[var(--shadow-sm)] sm:p-8 lg:p-10"
             :style="{ borderColor: 'var(--border)' }"
           >
             <div class="space-y-8">
@@ -20,26 +20,26 @@
                 <h1 class="max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">
                   {{ appConfig.appName }}
                 </h1>
-                <p class="max-w-2xl text-sm leading-6 text-[var(--text-muted)] sm:text-base sm:leading-7">
+                <p class="max-w-2xl text-sm leading-6 text-[var(--text-mute)] sm:text-base sm:leading-7">
                   {{ t('common.appLede') }}
                 </p>
               </div>
 
               <div class="grid gap-3 sm:grid-cols-3">
                 <span
-                  class="rounded-[18px] border px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]"
+                  class="rounded-lg border px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-mute)]"
                   :style="{ borderColor: 'var(--border)' }"
                 >
                   {{ t('operations.tab') }}
                 </span>
                 <span
-                  class="rounded-[18px] border px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]"
+                  class="rounded-lg border px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-mute)]"
                   :style="{ borderColor: 'var(--border)' }"
                 >
                   {{ t('sandbox.tab') }}
                 </span>
                 <span
-                  class="rounded-[18px] border px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]"
+                  class="rounded-lg border px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-mute)]"
                   :style="{ borderColor: 'var(--border)' }"
                 >
                   {{ t('admin.tab') }}
@@ -47,7 +47,7 @@
               </div>
 
               <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-                <div class="rounded-[18px] border px-4 py-4 text-sm leading-6 text-[var(--text-muted)]" :style="{ borderColor: 'var(--border)' }">
+                <div class="rounded-lg border px-4 py-4 text-sm leading-6 text-[var(--text-mute)]" :style="{ borderColor: 'var(--border)' }">
                   {{ t('auth.workspaceNote') }}
                 </div>
                 <a

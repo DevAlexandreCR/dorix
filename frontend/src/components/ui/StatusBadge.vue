@@ -39,21 +39,21 @@ const classes = computed(() => {
 
   switch (tone.value) {
     case 'success':
-      return `${size} border-[color:color-mix(in_srgb,var(--success)_28%,var(--border))] bg-[color:color-mix(in_srgb,var(--success)_13%,transparent)] text-[color:var(--success)]`;
+      return `${size} border-[color:color-mix(in_srgb,var(--success)_28%,var(--border))] bg-[color:color-mix(in_srgb,var(--success)_12%,var(--surface))] text-[color:var(--success)]`;
     case 'warning':
-      return `${size} border-[color:color-mix(in_srgb,var(--warning)_30%,var(--border))] bg-[color:color-mix(in_srgb,var(--warning)_14%,transparent)] text-[color:var(--warning)]`;
+      return `${size} border-[color:color-mix(in_srgb,var(--warning)_30%,var(--border))] bg-[color:color-mix(in_srgb,var(--warning)_12%,var(--surface))] text-[color:var(--warning)]`;
     case 'danger':
-      return `${size} border-[color:color-mix(in_srgb,var(--danger)_28%,var(--border))] bg-[color:color-mix(in_srgb,var(--danger)_14%,transparent)] text-[color:var(--danger)]`;
+      return `${size} border-[color:color-mix(in_srgb,var(--danger)_28%,var(--border))] bg-[color:color-mix(in_srgb,var(--danger)_12%,var(--surface))] text-[color:var(--danger)]`;
     case 'accent':
-      return `${size} border-[color:color-mix(in_srgb,var(--accent)_30%,var(--border))] bg-[color:color-mix(in_srgb,var(--accent)_14%,transparent)] text-[color:var(--accent)]`;
+      return `${size} border-[color:color-mix(in_srgb,var(--accent)_30%,var(--border))] bg-[color:color-mix(in_srgb,var(--accent)_12%,var(--surface))] text-[color:var(--accent)]`;
     default:
-      return `${size} border-[color:var(--border)] bg-[color:color-mix(in_srgb,var(--surface-muted)_92%,transparent)] text-[color:var(--text-muted)]`;
+      return `${size} border-[color:var(--border)] bg-[color:var(--muted)] text-[color:var(--text-mute)]`;
   }
 });
 </script>
 
 <template>
-  <span class="inline-flex rounded-xl border font-semibold uppercase tracking-[0.12em]" :class="classes">
+  <span class="inline-flex rounded-sm border font-semibold uppercase tracking-[0.12em]" :class="classes">
     {{ label }}
   </span>
 </template>

@@ -332,7 +332,7 @@ watch(
         <StatusBadge :label="t('operations.threadsCount', { count: conversations.length })" tone="neutral" />
       </div>
 
-      <form class="mt-5 grid gap-4 rounded-[20px] border bg-[var(--surface-muted)] p-4" :style="{ borderColor: 'var(--border)' }" @submit.prevent="applyFilters">
+      <form class="mt-5 grid gap-4 rounded-[20px] border bg-[var(--muted)] p-4" :style="{ borderColor: 'var(--border)' }" @submit.prevent="applyFilters">
         <FormField :label="t('operations.search')">
           <input
             v-model="searchInput"
@@ -375,7 +375,7 @@ watch(
               class="w-full rounded-[20px] border px-4 py-4 text-left transition hover:border-[color:color-mix(in_srgb,var(--accent)_30%,var(--border))]"
               :class="
                 selectedConversationId === conversation.id
-                  ? 'border-[color:color-mix(in_srgb,var(--accent)_28%,var(--border))] bg-[var(--surface-muted)] shadow-[0_12px_24px_rgba(15,23,42,0.08)]'
+                  ? 'border-[color:color-mix(in_srgb,var(--accent)_28%,var(--border))] bg-[var(--muted)] shadow-[0_12px_24px_rgba(15,23,42,0.08)]'
                   : 'bg-transparent'
               "
               :style="selectedConversationId === conversation.id ? undefined : { borderColor: 'var(--border)' }"
@@ -385,14 +385,14 @@ watch(
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
                   <strong class="block truncate text-sm">{{ conversation.contact_name || conversation.contact_phone }}</strong>
-                  <p class="mt-1 truncate text-xs text-[var(--text-muted)]">{{ conversation.contact_phone }}</p>
+                  <p class="mt-1 truncate text-xs text-[var(--text-mute)]">{{ conversation.contact_phone }}</p>
                 </div>
                 <StatusBadge :label="translateConversationStatus(conversation.status)" :status="conversation.status" />
               </div>
-              <p class="mt-3 line-clamp-2 text-sm leading-6 text-[var(--text-muted)]">
+              <p class="mt-3 line-clamp-2 text-sm leading-6 text-[var(--text-mute)]">
                 {{ conversation.last_message_preview || t('operations.noMessagesVisible') }}
               </p>
-              <div class="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
+              <div class="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-mute)]">
                 <span>
                   {{
                     conversation.assigned_to_user
@@ -424,7 +424,7 @@ watch(
             <h2 class="mt-2 text-2xl font-semibold tracking-tight">
               {{ selectedConversation.contact_name || selectedConversation.contact_phone }}
             </h2>
-            <p class="mt-2 text-sm text-[var(--text-muted)]">
+            <p class="mt-2 text-sm text-[var(--text-mute)]">
               {{ selectedConversation.contact_phone }}
               <template v-if="selectedConversation.whatsapp_line">
                 · {{ selectedConversation.whatsapp_line.name }}
@@ -440,39 +440,39 @@ watch(
         </div>
 
         <div class="mt-5 grid gap-3 md:grid-cols-3">
-          <div class="rounded-[18px] border bg-[var(--surface-muted)] p-4" :style="{ borderColor: 'var(--border)' }">
-            <p class="text-xs uppercase tracking-[0.2em] text-[var(--text-muted)]">{{ t('operations.currentOwner') }}</p>
+          <div class="rounded-[18px] border bg-[var(--muted)] p-4" :style="{ borderColor: 'var(--border)' }">
+            <p class="text-xs uppercase tracking-[0.2em] text-[var(--text-mute)]">{{ t('operations.currentOwner') }}</p>
             <strong class="mt-3 block text-base">
               {{ selectedConversation.assigned_to_user?.name ?? t('operations.noAssignment') }}
             </strong>
-            <p class="mt-2 text-sm text-[var(--text-muted)]">
+            <p class="mt-2 text-sm text-[var(--text-mute)]">
               {{ t('operations.lastMessage', { value: formatTimestamp(selectedConversation.last_message_at) }) }}
             </p>
           </div>
 
-          <div class="rounded-[18px] border bg-[var(--surface-muted)] p-4" :style="{ borderColor: 'var(--border)' }">
-            <p class="text-xs uppercase tracking-[0.2em] text-[var(--text-muted)]">{{ t('operations.latestHandoff') }}</p>
+          <div class="rounded-[18px] border bg-[var(--muted)] p-4" :style="{ borderColor: 'var(--border)' }">
+            <p class="text-xs uppercase tracking-[0.2em] text-[var(--text-mute)]">{{ t('operations.latestHandoff') }}</p>
             <strong class="mt-3 block text-base">
               {{ translateHandoffStatus(selectedConversation.latest_handoff?.status) }}
             </strong>
-            <p class="mt-2 text-sm text-[var(--text-muted)]">
+            <p class="mt-2 text-sm text-[var(--text-mute)]">
               {{ selectedConversation.latest_handoff?.reason || t('operations.noReason') }}
             </p>
           </div>
 
-          <div class="rounded-[18px] border bg-[var(--surface-muted)] p-4" :style="{ borderColor: 'var(--border)' }">
-            <p class="text-xs uppercase tracking-[0.2em] text-[var(--text-muted)]">{{ t('operations.runtimeState') }}</p>
+          <div class="rounded-[18px] border bg-[var(--muted)] p-4" :style="{ borderColor: 'var(--border)' }">
+            <p class="text-xs uppercase tracking-[0.2em] text-[var(--text-mute)]">{{ t('operations.runtimeState') }}</p>
             <strong class="mt-3 block text-base">
               {{ selectedConversation.state?.last_agent_action ?? t('operations.noSnapshot') }}
             </strong>
-            <p class="mt-2 text-sm text-[var(--text-muted)]">
+            <p class="mt-2 text-sm text-[var(--text-mute)]">
               {{ selectedConversation.state?.current_intent ?? t('operations.noIntent') }}
             </p>
           </div>
         </div>
 
         <div class="mt-5 grid gap-4 xl:grid-cols-2">
-          <div class="rounded-[20px] border bg-[var(--surface-muted)] p-4" :style="{ borderColor: 'var(--border)' }">
+          <div class="rounded-[20px] border bg-[var(--muted)] p-4" :style="{ borderColor: 'var(--border)' }">
             <FormField :label="t('operations.handoffReason')">
               <input
                 v-model="handoffReason"
@@ -493,7 +493,7 @@ watch(
             </button>
           </div>
 
-          <div class="rounded-[20px] border bg-[var(--surface-muted)] p-4" :style="{ borderColor: 'var(--border)' }">
+          <div class="rounded-[20px] border bg-[var(--muted)] p-4" :style="{ borderColor: 'var(--border)' }">
             <FormField :label="t('operations.assignOperator')">
               <select v-model.number="selectedAssigneeId" class="input-base" :disabled="!canManageHandoffs || actionLoading">
                 <option v-for="operator in availableOperators" :key="operator.user_id" :value="operator.user_id">
@@ -522,7 +522,7 @@ watch(
         <LoadingState v-if="threadLoading" class="mt-6" :label="t('operations.loadingThread')" />
 
         <div v-else class="mt-5 flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div class="min-h-[42vh] flex-1 overflow-y-auto rounded-[20px] border bg-[var(--surface-muted)] p-3 sm:p-4 xl:min-h-0" :style="{ borderColor: 'var(--border)' }">
+          <div class="min-h-[42vh] flex-1 overflow-y-auto rounded-[20px] border bg-[var(--muted)] p-3 sm:p-4 xl:min-h-0" :style="{ borderColor: 'var(--border)' }">
             <div class="space-y-3">
               <article
                 v-for="message in thread.messages"
@@ -531,7 +531,7 @@ watch(
                 :class="message.direction === 'outbound' ? 'ml-auto bg-[color:color-mix(in_srgb,var(--accent)_10%,transparent)]' : 'bg-[var(--surface)]'"
                 :style="{ borderColor: 'var(--border)' }"
               >
-                <header class="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                <header class="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.14em] text-[var(--text-mute)]">
                   <strong class="text-[11px] font-semibold text-[var(--text)]">
                     {{ message.direction === 'outbound' ? t('operations.outbound') : t('operations.inbound') }}
                   </strong>
@@ -540,7 +540,7 @@ watch(
                 <p class="mt-3 whitespace-pre-wrap text-sm leading-6">
                   {{ message.body || t('common.messageWithoutBody') }}
                 </p>
-                <footer class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
+                <footer class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-mute)]">
                   <span>{{ message.status || t('common.notAvailable') }}</span>
                   <span>{{ formatTimestamp(message.created_at) }}</span>
                 </footer>
@@ -577,7 +577,7 @@ watch(
               </button>
             </div>
 
-            <p class="mt-4 text-sm leading-6 text-[var(--text-muted)]">
+            <p class="mt-4 text-sm leading-6 text-[var(--text-mute)]">
               {{ t('operations.helper') }}
             </p>
           </form>

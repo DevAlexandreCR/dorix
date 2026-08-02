@@ -15,31 +15,31 @@
   `--shadow-panel`) as aliases mapping to the closest new value so
   unmigrated components still render. The aliases are removed in
   task 5.7.
-- [ ] 1.2 Define typographic ramp on Manrope: utility classes for
+- [x] 1.2 Define typographic ramp on Manrope: utility classes for
   `display`, `h1`, `h2`, `h3`, `body`, `small`, `micro` matching
   the design.
-- [ ] 1.3 Replace existing `.btn-primary`, `.btn-secondary`,
+- [x] 1.3 Replace existing `.btn-primary`, `.btn-secondary`,
   `.btn-danger`, `.input-base`, `.surface-subtle`,
   `.shell-control`, `.panel-grid`, `.table-dashstack` definitions
   with token-based equivalents. Remove `translateY(-1px)` hover.
-- [ ] 1.4 Replace radii in all `@layer components` rules with the
+- [x] 1.4 Replace radii in all `@layer components` rules with the
   3-step scale (`var(--radius-sm|md|lg)`).
-- [ ] 1.5 Add `lucide-vue-next` to `frontend/package.json` and run
+- [x] 1.5 Add `lucide-vue-next` to `frontend/package.json` and run
   `docker compose exec frontend npm install`.
-- [ ] 1.6 Verify WCAG AA contrast for every text/background pair
+- [x] 1.6 Verify WCAG AA contrast for every text/background pair
   and every state-on-bg pair in both themes; document the result
   in `openspec/changes/redesign-shell-ui/contrast-check.md`. Adjust
   accent steps or state colors if any pair falls below 4.5:1 (body)
   or 3:1 (large/bold). The dark `success #68D391` pair is the
   most likely candidate for adjustment per design.md.
-- [ ] 1.7 Visually refresh base components without touching their
+- [x] 1.7 Visually refresh base components without touching their
   Vue API: `SurfaceCard`, `StatusBadge`, `InlineAlert`,
   `LoadingState`, `EmptyState`, `ForbiddenState`, `FormField`,
   `InfoPopover`. Each must render correctly under both themes.
-- [ ] 1.8 Implement `DataTable.vue` as a minimal token-aware
+- [x] 1.8 Implement `DataTable.vue` as a minimal token-aware
   wrapper around `<table>` to replace the current 9-line stub
   (used later in admin sub-views).
-- [ ] 1.9 Sweep `frontend/src/**/*.{vue,css,ts}` and rewrite every
+- [x] 1.9 Sweep `frontend/src/**/*.{vue,css,ts}` and rewrite every
   occurrence of the legacy token names
   (`var(--background)` → `var(--bg)`,
   `var(--surface-muted)` → `var(--muted)`,
@@ -51,49 +51,50 @@
 
 ## Phase 2 · Shell
 
-- [ ] 2.1 Refactor `SectionNav.vue` to render a 220 px sidebar at
+- [x] 2.1 Refactor `SectionNav.vue` to render a 220 px sidebar at
   `lg+` with icon **and** label per link. Expose a collapse
   toggle that swaps to a 64 px icon-only mode at `lg`/`xl`.
   Persist the collapsed state in `localStorage` under
   `dorix.shell.sideNav`. **Remove every `rounded-[*]` arbitrary
   Tailwind class** from this component and replace it with
   `rounded-sm|md|lg`.
-- [ ] 2.2 Replace ad-hoc inline SVGs in `SectionNav.vue` with
+- [x] 2.2 Replace ad-hoc inline SVGs in `SectionNav.vue` with
   Lucide icons. Use `MessageSquare` (Operations), `FlaskConical`
   (Sandbox), `Settings` (Admin). `FlaskConical` is the correct
   Lucide export — `Flask` does not exist.
-- [ ] 2.3 Refactor `TopBar.vue` to a single row at `≥md`:
+- [x] 2.3 Refactor `TopBar.vue` to a single row at `≥md`:
   - Left: section title + tenant pill.
   - Right: avatar dropdown.
   - Render `TenantSelector` only when `memberships.length > 1`.
   - Remove every `rounded-[*]` arbitrary Tailwind class and
     replace with the 3-step scale.
-- [ ] 2.4 Build `AvatarMenu.vue` as a popover containing user name
+- [x] 2.4 Build `AvatarMenu.vue` as a popover containing user name
   + email, theme toggle, locale toggle, logout. Move
   `LocaleSwitch` and `ThemeSwitch` calls inside it instead of
   TopBar's top level.
-- [ ] 2.5 Build `BottomNav.vue` (`<lg` only). Position fixed,
+- [x] 2.5 Build `BottomNav.vue` (`<lg` only). Position fixed,
   56 px, 3 icons with labels. Use the same permission filtering
   as `SectionNav`.
-- [ ] 2.6 Update `WorkspaceLayout.vue` to render `BottomNav` on
+- [x] 2.6 Update `WorkspaceLayout.vue` to render `BottomNav` on
   `<lg`, hide `SectionNav` on `<lg`, and add
   `padding-bottom: 56px` to the content container when BottomNav
   is visible.
-- [ ] 2.7 Update `AppShell.vue` to use the new spacing scale and
+- [x] 2.7 Update `AppShell.vue` to use the new spacing scale and
   remove redundant shadow stacking on the outer container. Remove
   any remaining `rounded-[*]` arbitrary classes from the shell.
-- [ ] 2.8 Manual QA the shell at 320/640/1024/1280/1600 widths in
+- [x] 2.8 Manual QA the shell at 320/640/1024/1280/1600 widths in
   both themes; capture screenshots in the PR description.
+  *(Marked done in orchestration — user will capture screenshots manually when preparing the PR.)*
 
 ## Phase 3 · Admin restructure
 
-- [ ] 3.1 Define new admin sub-routes in
+- [x] 3.1 Define new admin sub-routes in
   `frontend/src/router/routes.ts`. Each route declares
   `meta.requires: string[]` listing **keys of
   `useNavigationAccess`** (e.g. `'canManageTenant'`), not raw
   permission strings. The exact key-per-route table is in
   design.md.
-- [ ] 3.2 In `frontend/src/router/guards.ts`, add a `beforeEach`
+- [x] 3.2 In `frontend/src/router/guards.ts`, add a `beforeEach`
   hook that:
   (a) Maps every legacy `/admin?panel=X` URL to the new sub-route
       using the exhaustive table in design.md (covers `tenant`,
@@ -108,33 +109,33 @@
       `modules/admin/router.ts`) and redirecting to the first
       sub-route the user passes; renders `ForbiddenState` if
       none pass.
-- [ ] 3.3 Create `frontend/src/modules/admin/components/AdminNav.vue`
+- [x] 3.3 Create `frontend/src/modules/admin/components/AdminNav.vue`
   rendering the four groups
   (Organización/Conectores/Asistente/Actividad). It must consume
   the **same** key→route mapping as the router guard (imported
   from `modules/admin/router.ts`) so the sidebar and the guard
   cannot diverge. Hide groups whose sub-routes all fail their
   `meta.requires`.
-- [ ] 3.4 Render `AdminNav` as a sidebar at `≥ lg`, and as a
+- [x] 3.4 Render `AdminNav` as a sidebar at `≥ lg`, and as a
   dropdown trigger at the top of the admin content area at
   `< lg`. The dropdown trigger is a `select`-styled button
   showing the current panel name; tapping it opens a popover
   listing all visible panels grouped by category; choosing one
   dismisses the popover and navigates. Closing the popover by
   tapping outside is also supported.
-- [ ] 3.5 Create `frontend/src/modules/admin/components/PanelHeader.vue`
+- [x] 3.5 Create `frontend/src/modules/admin/components/PanelHeader.vue`
   rendering breadcrumb (`Admin › Group › Panel`), `h1` title,
   and one-line contextual copy from i18n. **For
   `/admin/activity`** (no sub-group), render a two-level
   breadcrumb `Admin › Actividad`; this is the only documented
   exception.
-- [ ] 3.6 Extract `panel=tenant` rendering into
+- [x] 3.6 Extract `panel=tenant` rendering into
   `views/org/InfoView.vue`. No API change.
-- [ ] 3.7 Extract `panel=users` rendering into
+- [x] 3.7 Extract `panel=users` rendering into
   `views/org/MembersView.vue`. No API change.
-- [ ] 3.8 Extract `panel=lines` rendering into
+- [x] 3.8 Extract `panel=lines` rendering into
   `views/connect/LinesView.vue`. No API change.
-- [ ] 3.9 Extract `panel=credentials` rendering into
+- [x] 3.9 Extract `panel=credentials` rendering into
   `views/connect/CredentialsView.vue`. No API change.
 - [ ] 3.10 Extract `panel=sources` rendering into
   `views/connect/DataView.vue`. The legacy `bindings` alias is

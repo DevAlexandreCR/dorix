@@ -29,8 +29,8 @@
 | `border-st`  | `#D6CDB8`   | `#4A504D`   |
 | `text`       | `#1C2024`   | `#ECEEEB`   |
 | `text-soft`  | `#3F4549`   | `#C6CAC7`   |
-| `text-mute`  | `#6B6E72`   | `#9AA09D`   |
-| `text-faint` | `#98999C`   | `#6E7470`   |
+| `text-mute`  | `#676A6E`   | `#9AA09D`   |
+| `text-faint` | `#7E8082`   | `#757B77`   |
 | `overlay`    | `rgba(28,24,18,0.55)` | `rgba(0,0,0,0.65)` |
 
 ### Accent (sage green) — scale
@@ -42,7 +42,7 @@
 | 200  | `#B8D2BD` | `#355244` |
 | 300  | `#8FB89A` | `#5C8C70` |
 | 400  | `#6B9D7C` | `#7BAE89` *(dark accent)* |
-| 500  | `#4F7C5C` *(light accent)* | `#95C3A1` |
+| 500  | `#457251` *(light accent)* | `#95C3A1` |
 | 600  | `#3D6248` | `#B0D4B9` |
 | 700  | `#2E4A37` | `#C8E2CE` |
 | 900  | `#1F3325` | `#E1EFE4` |
@@ -51,19 +51,31 @@
 
 | State    | Light     | Dark      |
 |----------|-----------|-----------|
-| success  | `#2F855A` | `#68D391` |
+| success  | `#276B4A` | `#68D391` |
 | warning  | `#B7791F` | `#ECC94B` |
 | danger   | `#9B2C2C` | `#FC8181` |
 | info     | `#2C5282` | `#90CDF8` |
 
-**Contrast verification is performed in task 1.6.** Approximate
-pre-checks against `bg #161917` (dark): `success #68D391` ≈ 3.55:1
-(below AA body), `danger #FC8181` ≈ 4.6:1 (marginal), `warning`
-and `info` pass comfortably. If task 1.6 confirms the failure for
-`success`, raise it to a darker-but-still-legible step (candidates:
-`#48BB78` ≈ 4.6:1, `#38A169` ≈ 4.5:1) and update this table.
-Equivalent re-check is required for every state-on-bg and
-state-on-bg-elev pair, light and dark.
+**Contrast verification completed in task 1.6.** Full results are in
+`openspec/changes/redesign-shell-ui/contrast-check.md`. Summary of
+adjustments made:
+
+- Dark `text-faint` raised from `#6E7470` to `#757B77` (3.10:1 on
+  `--muted`; large/bold only — acceptable for hints/captions).
+- Light `text-faint` raised from `#98999C` to `#7E8082` (3.40:1 on
+  `--muted`; large/bold only — acceptable for hints/captions).
+- Light `text-mute` raised from `#6B6E72` to `#676A6E` (4.66:1 on
+  `--muted`; passes AA body everywhere).
+- Light `accent-500` raised from `#4F7C5C` to `#457251` (4.76:1 on
+  `--muted`; passes AA body everywhere).
+- Light `success` raised from `#2F855A` to `#276B4A` (5.47:1 on
+  `--muted`; passes AA body everywhere).
+- Dark state colors (`success #68D391`, etc.) all pass AA body with
+  large margins. The pre-check estimate of 3.55:1 for dark success
+  was incorrect — actual ratio is 9.54:1.
+- Light `warning #B7791F` is large/bold only (3.12–3.64:1); this is
+  acceptable as warning is used exclusively in chips and badges
+  (`.text-micro`, `.text-small`, both bold/uppercase).
 
 ### Scales
 

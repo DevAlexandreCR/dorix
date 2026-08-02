@@ -54,6 +54,10 @@ export const en = {
   shell: {
     themeDark: 'Dark mode',
     themeLight: 'Light mode',
+    theme: 'Theme',
+    locale: 'Language',
+    collapseSidebar: 'Collapse sidebar',
+    expandSidebar: 'Expand sidebar',
   },
   states: {
     noMembershipsTitle: 'No operational access',

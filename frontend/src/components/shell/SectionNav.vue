@@ -1,104 +1,132 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, onMounted, watch, type Component } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
+import { MessageSquare, FlaskConical, Settings, PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next';
 import { useNavigationAccess } from '../../composables/useNavigationAccess';
 import { useTenantSelection } from '../../composables/useTenantSelection';
+
+const STORAGE_KEY = 'dorix.shell.sideNav';
 
 const { t } = useI18n();
 const route = useRoute();
 const { selectedMembership } = useTenantSelection();
 const { canAccessAdmin, canAccessSandbox } = useNavigationAccess(selectedMembership);
 
-const links = computed(() => [
-  { name: 'operations', label: t('operations.tab'), visible: true, icon: 'operations' },
-  { name: 'sandbox', label: t('sandbox.tab'), visible: canAccessSandbox.value, icon: 'sandbox' },
-  { name: 'admin', label: t('admin.tab'), visible: canAccessAdmin.value, icon: 'admin' },
+const collapsed = ref(false);
+
+onMounted(() => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as { collapsed?: boolean };
+      collapsed.value = parsed.collapsed ?? false;
+    }
+  } catch {
+    collapsed.value = false;
+  }
+});
+
+watch(collapsed, (val: boolean) => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ collapsed: val }));
+});
+
+function toggleCollapsed() {
+  collapsed.value = !collapsed.value;
+}
+
+interface NavLink {
+  name: string;
+  label: string;
+  visible: boolean;
+  icon: Component;
+}
+
+const links = computed<NavLink[]>(() => [
+  { name: 'operations', label: t('operations.tab'), visible: true, icon: MessageSquare },
+  { name: 'sandbox', label: t('sandbox.tab'), visible: canAccessSandbox.value, icon: FlaskConical },
+  { name: 'admin', label: t('admin.tab'), visible: canAccessAdmin.value, icon: Settings },
 ].filter((link) => link.visible));
 </script>
 
 <template>
-  <nav class="rounded-[24px] border bg-[var(--surface)] p-3 shadow-[var(--shadow-panel)] lg:flex lg:h-full lg:flex-col" :style="{ borderColor: 'var(--border)' }">
-    <div class="mb-3 hidden items-center justify-center lg:flex">
-      <div class="flex h-12 w-12 items-center justify-center rounded-[18px] bg-[var(--surface-muted)] text-sm font-bold tracking-[0.16em] text-[var(--accent)]">
+  <nav
+    class="hidden lg:flex flex-col border-r h-full overflow-hidden transition-[width] duration-200 ease-out shrink-0"
+    :class="collapsed ? 'w-16' : 'w-[220px]'"
+    :style="{ borderColor: 'var(--border)', background: 'var(--surface)' }"
+  >
+    <!-- Logo mark -->
+    <div class="flex items-center px-3 py-4" :class="collapsed ? 'justify-center' : 'justify-start gap-3'">
+      <div
+        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-sm font-bold tracking-[0.16em]"
+        :style="{ background: 'var(--muted)', color: 'var(--accent)' }"
+      >
         DR
       </div>
+      <span
+        v-if="!collapsed"
+        class="text-small font-semibold truncate"
+        :style="{ color: 'var(--text-soft)' }"
+      >
+        Dorix
+      </span>
     </div>
 
-    <div class="flex gap-2 overflow-x-auto lg:flex-1 lg:flex-col lg:overflow-visible">
-    <RouterLink
-      v-for="link in links"
-      :key="link.name"
-      :to="{ name: link.name, query: route.query }"
-      class="group relative flex min-h-14 min-w-[120px] items-center gap-3 rounded-[18px] border px-4 py-3 text-sm font-semibold transition sm:shrink-0 lg:min-w-0 lg:justify-center lg:px-0"
-      :class="
-        route.name === link.name
-          ? 'border-[color:color-mix(in_srgb,var(--accent)_28%,var(--border))] bg-[var(--surface-muted)] text-[var(--accent)]'
-          : 'text-[var(--text-muted)] hover:text-[var(--text)]'
-      "
-      :style="route.name === link.name ? undefined : { borderColor: 'var(--border)' }"
-      :title="link.label"
-    >
-      <span
-        v-if="route.name === link.name"
-        class="absolute left-0 top-1/2 hidden h-8 w-1 -translate-y-1/2 rounded-r-full bg-[var(--accent)] lg:block"
-      />
+    <!-- Navigation links -->
+    <div class="flex flex-1 flex-col gap-1 px-2 overflow-y-auto">
+      <RouterLink
+        v-for="link in links"
+        :key="link.name"
+        :to="{ name: link.name, query: route.query }"
+        class="group relative flex items-center gap-3 rounded-md border px-2 py-2.5 transition-colors duration-150 ease-out"
+        :class="[
+          collapsed ? 'justify-center' : 'justify-start',
+          route.name === link.name
+            ? 'border-[color:color-mix(in_srgb,var(--accent)_28%,var(--border))] text-[var(--accent)]'
+            : 'text-[var(--text-mute)] hover:text-[var(--text)] border-transparent hover:border-[color:var(--border)]',
+        ]"
+        :style="route.name === link.name ? { background: 'var(--muted)' } : undefined"
+        :title="collapsed ? link.label : undefined"
+      >
+        <!-- Active indicator bar -->
+        <span
+          v-if="route.name === link.name"
+          class="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-sm"
+          :style="{ background: 'var(--accent)' }"
+        />
 
-      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-current/10 bg-white/0">
-        <svg
-          v-if="link.icon === 'operations'"
-          class="h-4 w-4"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
+        <!-- Icon container -->
+        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md">
+          <component :is="link.icon" class="h-5 w-5" :stroke-width="1.75" aria-hidden="true" />
+        </span>
+
+        <!-- Label — hidden in collapsed mode (sr-only for accessibility) -->
+        <span
+          v-if="!collapsed"
+          class="truncate text-small font-semibold"
         >
-          <path d="M4 7h16" />
-          <path d="M4 12h10" />
-          <path d="M4 17h7" />
-          <path d="M18 10v8" />
-          <path d="M14 14h8" />
-        </svg>
+          {{ link.label }}
+        </span>
+        <span v-else class="sr-only">{{ link.label }}</span>
+      </RouterLink>
+    </div>
 
-        <svg
-          v-else-if="link.icon === 'sandbox'"
+    <!-- Collapse toggle — visible only at lg (hidden at xl+) -->
+    <div class="flex items-center px-2 py-3 lg:flex xl:hidden">
+      <button
+        type="button"
+        class="flex h-8 w-8 items-center justify-center rounded-md border transition-colors duration-150 ease-out"
+        :style="{ borderColor: 'var(--border)', color: 'var(--text-mute)' }"
+        :title="collapsed ? t('shell.expandSidebar') : t('shell.collapseSidebar')"
+        @click="toggleCollapsed"
+      >
+        <component
+          :is="collapsed ? PanelLeftOpen : PanelLeftClose"
           class="h-4 w-4"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+          :stroke-width="1.75"
           aria-hidden="true"
-        >
-          <path d="M8 4h8" />
-          <path d="M9 4v3l-4 7a4 4 0 0 0 3.47 6h7.06A4 4 0 0 0 19 14l-4-7V4" />
-          <path d="M8 14h8" />
-        </svg>
-
-        <svg
-          v-else
-          class="h-4 w-4"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <rect x="4" y="4" width="7" height="7" rx="1.5" />
-          <rect x="13" y="4" width="7" height="4" rx="1.5" />
-          <rect x="13" y="10" width="7" height="10" rx="1.5" />
-          <rect x="4" y="13" width="7" height="7" rx="1.5" />
-        </svg>
-      </span>
-
-      <span class="truncate lg:sr-only">{{ link.label }}</span>
-    </RouterLink>
+        />
+      </button>
     </div>
   </nav>
 </template>

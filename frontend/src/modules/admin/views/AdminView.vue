@@ -1061,31 +1061,31 @@ watch(
   <section v-else-if="adminOverview" class="space-y-5">
     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       <SurfaceCard padding="sm">
-        <p class="text-xs uppercase tracking-[0.2em] text-[var(--text-muted)]">{{ t('admin.summary.tenant') }}</p>
+        <p class="text-xs uppercase tracking-[0.2em] text-[var(--text-mute)]">{{ t('admin.summary.tenant') }}</p>
         <strong class="mt-3 block text-xl">{{ adminOverview.tenant.name }}</strong>
-        <p class="mt-2 text-sm text-[var(--text-muted)]">{{ adminOverview.tenant.status }}</p>
+        <p class="mt-2 text-sm text-[var(--text-mute)]">{{ adminOverview.tenant.status }}</p>
       </SurfaceCard>
 
       <SurfaceCard padding="sm">
-        <p class="text-xs uppercase tracking-[0.2em] text-[var(--text-muted)]">{{ t('admin.summary.lines') }}</p>
+        <p class="text-xs uppercase tracking-[0.2em] text-[var(--text-mute)]">{{ t('admin.summary.lines') }}</p>
         <strong class="mt-3 block text-xl">{{ adminOverview.whatsapp_lines.length }}</strong>
-        <p class="mt-2 text-sm text-[var(--text-muted)]">
+        <p class="mt-2 text-sm text-[var(--text-mute)]">
           {{ t('admin.summary.enabledLines', { count: adminOverview.whatsapp_lines.filter((line) => line.is_enabled).length }) }}
         </p>
       </SurfaceCard>
 
       <SurfaceCard padding="sm">
-        <p class="text-xs uppercase tracking-[0.2em] text-[var(--text-muted)]">{{ t('admin.summary.knowledgeSources') }}</p>
+        <p class="text-xs uppercase tracking-[0.2em] text-[var(--text-mute)]">{{ t('admin.summary.knowledgeSources') }}</p>
         <strong class="mt-3 block text-xl">{{ adminOverview.data_sources.length }}</strong>
-        <p class="mt-2 text-sm text-[var(--text-muted)]">
+        <p class="mt-2 text-sm text-[var(--text-mute)]">
           {{ t('admin.summary.readySources', { count: adminOverview.data_sources.filter((source) => source.status === 'ready').length }) }}
         </p>
       </SurfaceCard>
 
       <SurfaceCard padding="sm">
-        <p class="text-xs uppercase tracking-[0.2em] text-[var(--text-muted)]">{{ t('admin.summary.credentials') }}</p>
+        <p class="text-xs uppercase tracking-[0.2em] text-[var(--text-mute)]">{{ t('admin.summary.credentials') }}</p>
         <strong class="mt-3 block text-xl">{{ adminOverview.credential_metadata.length }}</strong>
-        <p class="mt-2 text-sm text-[var(--text-muted)]">
+        <p class="mt-2 text-sm text-[var(--text-mute)]">
           {{ t('admin.summary.configuredCredentials', { count: adminOverview.credential_metadata.filter((item) => item.has_secret).length }) }}
         </p>
       </SurfaceCard>
@@ -1139,7 +1139,7 @@ watch(
       <div v-if="canManagePlatform" class="mt-8 rounded-[24px] border p-5" :style="{ borderColor: 'var(--border)' }">
         <div class="flex items-center justify-between gap-3">
           <strong>{{ t('admin.tenant.createTitle') }}</strong>
-          <span class="text-sm text-[var(--text-muted)]">{{ t('admin.tenant.visible', { count: adminTenants.length }) }}</span>
+          <span class="text-sm text-[var(--text-mute)]">{{ t('admin.tenant.visible', { count: adminTenants.length }) }}</span>
         </div>
 
         <form class="mt-5 grid gap-4" @submit.prevent="createNewTenant">
@@ -1173,7 +1173,7 @@ watch(
           <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <strong>{{ membership.user?.name || t('admin.tenantUsers.noProfile') }}</strong>
-              <p class="mt-1 text-sm text-[var(--text-muted)]">{{ membership.user?.email }}</p>
+              <p class="mt-1 text-sm text-[var(--text-mute)]">{{ membership.user?.email }}</p>
             </div>
             <StatusBadge :label="translateRole(membership.role)" tone="neutral" />
           </div>
@@ -1237,7 +1237,7 @@ watch(
           <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <strong>{{ line.name }}</strong>
-              <p class="mt-1 text-sm text-[var(--text-muted)]">{{ line.display_phone_number || line.phone_number_id }}</p>
+              <p class="mt-1 text-sm text-[var(--text-mute)]">{{ line.display_phone_number || line.phone_number_id }}</p>
             </div>
             <StatusBadge :label="translateLineStatus(line.is_enabled)" :status="line.is_enabled ? 'BOT_ACTIVE' : 'CLOSED'" />
           </div>
@@ -1310,7 +1310,7 @@ watch(
         <div>
           <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">{{ t('admin.agentConfig.eyebrow') }}</p>
           <h3 class="mt-2 text-xl font-semibold">{{ t('admin.agentConfig.title') }}</h3>
-          <p class="mt-2 max-w-3xl text-sm text-[var(--text-muted)]">{{ t('admin.agentConfig.description') }}</p>
+          <p class="mt-2 max-w-3xl text-sm text-[var(--text-mute)]">{{ t('admin.agentConfig.description') }}</p>
         </div>
         <StatusBadge
           :label="tenantAgentConfigForm.isActive ? t('admin.agentConfig.statusLabels.active') : t('admin.agentConfig.statusLabels.paused')"
@@ -1324,7 +1324,7 @@ watch(
             <input v-model="tenantAgentConfigForm.isActive" type="checkbox" class="mt-1 h-4 w-4" :disabled="!canManageAgentConfig || adminSaving" />
             <div>
               <strong class="block">{{ t('admin.agentConfig.activeLabel') }}</strong>
-              <p class="mt-1 text-[var(--text-muted)]">{{ t('admin.agentConfig.activeHelp') }}</p>
+              <p class="mt-1 text-[var(--text-mute)]">{{ t('admin.agentConfig.activeHelp') }}</p>
             </div>
           </label>
 
@@ -1332,7 +1332,7 @@ watch(
             <input v-model="tenantAgentConfigForm.automationEnabled" type="checkbox" class="mt-1 h-4 w-4" :disabled="!canManageAgentConfig || adminSaving" />
             <div>
               <strong class="block">{{ t('admin.agentConfig.automationLabel') }}</strong>
-              <p class="mt-1 text-[var(--text-muted)]">{{ t('admin.agentConfig.automationHelp') }}</p>
+              <p class="mt-1 text-[var(--text-mute)]">{{ t('admin.agentConfig.automationHelp') }}</p>
             </div>
           </label>
         </div>
@@ -1358,7 +1358,7 @@ watch(
               tone="success"
             />
           </div>
-          <p class="mt-2 text-sm text-[var(--text-muted)]">{{ findModelOption(tenantAgentConfigForm.modelKey)?.description }}</p>
+          <p class="mt-2 text-sm text-[var(--text-mute)]">{{ findModelOption(tenantAgentConfigForm.modelKey)?.description }}</p>
         </div>
 
         <FormField :label="t('admin.agentConfig.systemPromptLabel')" :hint="t('admin.agentConfig.systemPromptHelp')">
@@ -1371,7 +1371,7 @@ watch(
 
         <details class="rounded-[24px] border p-5" :style="{ borderColor: 'var(--border)' }">
           <summary class="cursor-pointer text-sm font-semibold">{{ t('admin.shared.advancedTitle') }}</summary>
-          <p class="mt-2 text-sm text-[var(--text-muted)]">{{ t('admin.agentConfig.advancedDescription') }}</p>
+          <p class="mt-2 text-sm text-[var(--text-mute)]">{{ t('admin.agentConfig.advancedDescription') }}</p>
 
           <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <FormField :label="t('admin.agentConfig.internalName')">
@@ -1403,7 +1403,7 @@ watch(
         <div class="flex items-center justify-between gap-3">
           <div>
             <strong>{{ t('admin.agentConfig.linesTitle') }}</strong>
-            <p class="mt-1 text-sm text-[var(--text-muted)]">{{ t('admin.agentConfig.linesDescription') }}</p>
+            <p class="mt-1 text-sm text-[var(--text-mute)]">{{ t('admin.agentConfig.linesDescription') }}</p>
           </div>
         </div>
 
@@ -1412,12 +1412,12 @@ watch(
             <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <strong>{{ lineLabel(line) }}</strong>
-                <p class="mt-1 text-sm text-[var(--text-muted)]">{{ assistantSummary(line.id) }}</p>
+                <p class="mt-1 text-sm text-[var(--text-mute)]">{{ assistantSummary(line.id) }}</p>
               </div>
               <StatusBadge :label="assistantModeLabel(line.id)" tone="neutral" />
             </div>
 
-            <p class="mt-4 text-sm text-[var(--text-muted)]">{{ t('admin.agentConfig.lineHelper') }}</p>
+            <p class="mt-4 text-sm text-[var(--text-mute)]">{{ t('admin.agentConfig.lineHelper') }}</p>
 
             <div v-if="lineAgentConfigDrafts[line.id]" class="mt-5 grid gap-4">
               <div class="grid gap-4 md:grid-cols-2">
@@ -1425,7 +1425,7 @@ watch(
                   <input v-model="lineAgentConfigDrafts[line.id].isActive" type="checkbox" class="mt-1 h-4 w-4" :disabled="!canManageAgentConfig || adminSaving" />
                   <div>
                     <strong class="block">{{ t('admin.agentConfig.activeLabel') }}</strong>
-                    <p class="mt-1 text-[var(--text-muted)]">{{ t('admin.agentConfig.activeHelp') }}</p>
+                    <p class="mt-1 text-[var(--text-mute)]">{{ t('admin.agentConfig.activeHelp') }}</p>
                   </div>
                 </label>
 
@@ -1433,7 +1433,7 @@ watch(
                   <input v-model="lineAgentConfigDrafts[line.id].automationEnabled" type="checkbox" class="mt-1 h-4 w-4" :disabled="!canManageAgentConfig || adminSaving" />
                   <div>
                     <strong class="block">{{ t('admin.agentConfig.automationLabel') }}</strong>
-                    <p class="mt-1 text-[var(--text-muted)]">{{ t('admin.agentConfig.automationHelp') }}</p>
+                    <p class="mt-1 text-[var(--text-mute)]">{{ t('admin.agentConfig.automationHelp') }}</p>
                   </div>
                 </label>
               </div>
@@ -1463,7 +1463,7 @@ watch(
                     tone="success"
                   />
                 </div>
-                <p class="mt-2 text-sm text-[var(--text-muted)]">{{ findModelOption(lineAgentConfigDrafts[line.id].modelKey)?.description }}</p>
+                <p class="mt-2 text-sm text-[var(--text-mute)]">{{ findModelOption(lineAgentConfigDrafts[line.id].modelKey)?.description }}</p>
               </div>
 
               <FormField :label="t('admin.agentConfig.handoffLabel')" :hint="t('admin.agentConfig.handoffHelp')">
@@ -1472,7 +1472,7 @@ watch(
 
               <details class="rounded-[24px] border p-5" :style="{ borderColor: 'var(--border)' }">
                 <summary class="cursor-pointer text-sm font-semibold">{{ t('admin.shared.advancedTitle') }}</summary>
-                <p class="mt-2 text-sm text-[var(--text-muted)]">{{ t('admin.agentConfig.advancedDescription') }}</p>
+                <p class="mt-2 text-sm text-[var(--text-mute)]">{{ t('admin.agentConfig.advancedDescription') }}</p>
 
                 <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <FormField :label="t('admin.agentConfig.internalName')">
@@ -1513,7 +1513,7 @@ watch(
       <div>
         <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">{{ t('admin.dataSources.eyebrow') }}</p>
         <h3 class="mt-2 text-xl font-semibold">{{ t('admin.dataSources.title') }}</h3>
-        <p class="mt-2 max-w-3xl text-sm text-[var(--text-muted)]">{{ t('admin.dataSources.description') }}</p>
+        <p class="mt-2 max-w-3xl text-sm text-[var(--text-mute)]">{{ t('admin.dataSources.description') }}</p>
       </div>
 
       <div class="mt-6 grid gap-4 xl:grid-cols-3">
@@ -1522,7 +1522,7 @@ watch(
             {{ step === 'upload' ? 1 : step === 'review' ? 2 : 3 }}
           </span>
           <strong class="mt-4 block">{{ t(`admin.dataSources.steps.${step}.title`) }}</strong>
-          <p class="mt-2 text-sm text-[var(--text-muted)]">{{ t(`admin.dataSources.steps.${step}.description`) }}</p>
+          <p class="mt-2 text-sm text-[var(--text-mute)]">{{ t(`admin.dataSources.steps.${step}.description`) }}</p>
         </article>
       </div>
 
@@ -1530,7 +1530,7 @@ watch(
         <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <strong>{{ t('admin.dataSources.uploadTitle') }}</strong>
-            <p class="mt-1 text-sm text-[var(--text-muted)]">{{ t('admin.dataSources.uploadDescription') }}</p>
+            <p class="mt-1 text-sm text-[var(--text-mute)]">{{ t('admin.dataSources.uploadDescription') }}</p>
           </div>
         </div>
 
@@ -1551,7 +1551,7 @@ watch(
       <div class="mt-8 rounded-[24px] border p-5" :style="{ borderColor: 'var(--border)' }">
         <div>
           <strong>{{ t('admin.dataSources.usageTitle') }}</strong>
-          <p class="mt-1 text-sm text-[var(--text-muted)]">{{ t('admin.dataSources.usageDescription') }}</p>
+          <p class="mt-1 text-sm text-[var(--text-mute)]">{{ t('admin.dataSources.usageDescription') }}</p>
         </div>
 
         <InlineAlert v-if="readyDataSources.length === 0" class="mt-5" :message="t('admin.dataSources.noReadySources')" tone="info" />
@@ -1561,7 +1561,7 @@ watch(
             <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <strong>{{ translateToolName(toolName) }}</strong>
-                <p class="mt-1 text-sm text-[var(--text-muted)]">{{ translateToolDescription(toolName) }}</p>
+                <p class="mt-1 text-sm text-[var(--text-mute)]">{{ translateToolDescription(toolName) }}</p>
               </div>
               <StatusBadge :label="toolSetupStatusLabel(toolName)" tone="neutral" />
             </div>
@@ -1571,7 +1571,7 @@ watch(
                 <input v-model="tenantToolDrafts[toolName].enabled" type="checkbox" class="mt-1 h-4 w-4" :disabled="!canManageAgentConfig || adminSaving" />
                 <div>
                   <strong class="block">{{ t('admin.dataSources.enabledLabel') }}</strong>
-                  <p class="mt-1 text-[var(--text-muted)]">{{ t('admin.dataSources.enabledHelp') }}</p>
+                  <p class="mt-1 text-[var(--text-mute)]">{{ t('admin.dataSources.enabledHelp') }}</p>
                 </div>
               </label>
 
@@ -1601,14 +1601,14 @@ watch(
 
             <div class="mt-6">
               <strong>{{ t('admin.dataSources.byLineTitle') }}</strong>
-              <p class="mt-1 text-sm text-[var(--text-muted)]">{{ t('admin.dataSources.byLineDescription') }}</p>
+              <p class="mt-1 text-sm text-[var(--text-mute)]">{{ t('admin.dataSources.byLineDescription') }}</p>
 
               <div class="mt-4 grid gap-3">
                 <article v-for="line in adminOverview.whatsapp_lines" :key="toolDraftKey(line.id, toolName)" class="rounded-[20px] border p-4" :style="{ borderColor: 'var(--border)' }">
                   <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                       <strong>{{ lineLabel(line) }}</strong>
-                      <p class="mt-1 text-sm text-[var(--text-muted)]">{{ lineToolSummary(line.id, toolName) }}</p>
+                      <p class="mt-1 text-sm text-[var(--text-mute)]">{{ lineToolSummary(line.id, toolName) }}</p>
                     </div>
                     <StatusBadge :label="lineToolModeLabel(line.id, toolName)" tone="neutral" />
                   </div>
@@ -1618,7 +1618,7 @@ watch(
                       <input v-model="lineToolDrafts[toolDraftKey(line.id, toolName)].enabled" type="checkbox" class="mt-1 h-4 w-4" :disabled="!canManageAgentConfig || adminSaving" />
                       <div>
                         <strong class="block">{{ t('admin.dataSources.enabledLabel') }}</strong>
-                        <p class="mt-1 text-[var(--text-muted)]">{{ t('admin.dataSources.lineEnabledHelp') }}</p>
+                        <p class="mt-1 text-[var(--text-mute)]">{{ t('admin.dataSources.lineEnabledHelp') }}</p>
                       </div>
                     </label>
 
@@ -1662,7 +1662,7 @@ watch(
           <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <strong>{{ source.name }}</strong>
-              <p class="mt-1 text-sm text-[var(--text-muted)]">
+              <p class="mt-1 text-sm text-[var(--text-mute)]">
                 {{ sourceCurrentFileLabel(source) }} · {{ formatBytes(source.latest_upload?.size_bytes) }}
               </p>
             </div>
@@ -1671,9 +1671,9 @@ watch(
 
           <div class="mt-4 rounded-[20px] border px-4 py-4" :style="{ borderColor: 'var(--border)' }">
             <strong>{{ sourceStatusHeadline(source) }}</strong>
-            <p class="mt-1 text-sm text-[var(--text-muted)]">{{ sourceStatusDescription(source) }}</p>
+            <p class="mt-1 text-sm text-[var(--text-mute)]">{{ sourceStatusDescription(source) }}</p>
 
-            <div class="mt-4 flex flex-wrap gap-4 text-sm text-[var(--text-muted)]">
+            <div class="mt-4 flex flex-wrap gap-4 text-sm text-[var(--text-mute)]">
               <span>{{ t('admin.dataSources.preparedContent', { count: source.chunk_count }) }}</span>
               <span>{{ t('admin.dataSources.updatedAt', { value: formatTimestamp(latestSourceDate(source)) }) }}</span>
               <span>{{ t('admin.dataSources.lastAttempt', { count: source.latest_import?.attempts_count ?? 0 }) }}</span>
@@ -1689,24 +1689,24 @@ watch(
 
           <details v-if="hasSourceSupportDetails(source)" class="mt-4 rounded-[20px] border p-4" :style="{ borderColor: 'var(--border)' }">
             <summary class="cursor-pointer text-sm font-semibold">{{ t('admin.dataSources.supportDetailsTitle') }}</summary>
-            <pre class="mt-3 whitespace-pre-wrap break-words text-xs text-[var(--text-muted)]">{{ sourceSupportDetails(source) }}</pre>
+            <pre class="mt-3 whitespace-pre-wrap break-words text-xs text-[var(--text-mute)]">{{ sourceSupportDetails(source) }}</pre>
           </details>
 
           <div v-if="source.status === 'ready'" class="mt-6 rounded-[20px] border p-4" :style="{ borderColor: 'var(--border)' }">
             <strong>{{ t('admin.dataSources.whereUsedTitle') }}</strong>
-            <p class="mt-1 text-sm text-[var(--text-muted)]">{{ t('admin.dataSources.whereUsedDescription') }}</p>
+            <p class="mt-1 text-sm text-[var(--text-mute)]">{{ t('admin.dataSources.whereUsedDescription') }}</p>
 
             <div class="mt-4 grid gap-3 xl:grid-cols-2">
               <article v-for="toolName in bindingTools" :key="`${source.id}:${toolName}`" class="rounded-[18px] border p-4" :style="{ borderColor: 'var(--border)' }">
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <strong>{{ translateToolName(toolName) }}</strong>
-                    <p class="mt-1 text-sm text-[var(--text-muted)]">{{ translateToolDescription(toolName) }}</p>
+                    <p class="mt-1 text-sm text-[var(--text-mute)]">{{ translateToolDescription(toolName) }}</p>
                   </div>
                   <StatusBadge :label="usageSummaryLabel(source.id, toolName)" tone="neutral" />
                 </div>
 
-                <div class="mt-4 grid gap-2 text-sm text-[var(--text-muted)]">
+                <div class="mt-4 grid gap-2 text-sm text-[var(--text-mute)]">
                   <p>
                     {{
                       usageSummary(source.id, toolName).tenantUsesSource
@@ -1749,14 +1749,14 @@ watch(
           <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <strong>{{ credential.provider }} / {{ credential.credential_key }}</strong>
-              <p class="mt-1 text-sm text-[var(--text-muted)]">
+              <p class="mt-1 text-sm text-[var(--text-mute)]">
                 {{ credential.scope_type === 'tenant' ? t('common.scopes.tenant') : lineLabel(credential.whatsapp_line) }}
               </p>
             </div>
             <StatusBadge :label="translateCredentialStatus(credential.has_secret)" tone="neutral" />
           </div>
 
-          <div class="mt-4 flex flex-wrap gap-4 text-sm text-[var(--text-muted)]">
+          <div class="mt-4 flex flex-wrap gap-4 text-sm text-[var(--text-mute)]">
             <span>{{ t('admin.credentials.lastUsed', { value: formatTimestamp(credential.last_used_at) }) }}</span>
             <span>{{ t('admin.credentials.updatedAt', { value: formatTimestamp(credential.updated_at) }) }}</span>
           </div>
@@ -1813,7 +1813,7 @@ watch(
           <strong>{{ t('admin.logs.agentEvents') }}</strong>
           <div class="mt-4 grid gap-3">
             <article v-for="event in adminOverview.logs.agent_events" :key="`agent-${event.id}`" class="rounded-[20px] border p-3" :style="{ borderColor: 'var(--border)' }">
-              <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
+              <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-mute)]">
                 <span>{{ event.event_type }}</span>
                 <span>{{ formatTimestamp(event.occurred_at) }}</span>
               </div>
@@ -1826,7 +1826,7 @@ watch(
           <strong>{{ t('admin.logs.auditEvents') }}</strong>
           <div class="mt-4 grid gap-3">
             <article v-for="event in adminOverview.logs.audit_events" :key="`audit-${event.id}`" class="rounded-[20px] border p-3" :style="{ borderColor: 'var(--border)' }">
-              <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
+              <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-mute)]">
                 <span>{{ event.event_type }}</span>
                 <span>{{ formatTimestamp(event.occurred_at) }}</span>
               </div>
@@ -1839,7 +1839,7 @@ watch(
           <strong>{{ t('admin.logs.toolExecutions') }}</strong>
           <div class="mt-4 grid gap-3">
             <article v-for="execution in adminOverview.logs.tool_executions" :key="`tool-${execution.id}`" class="rounded-[20px] border p-3" :style="{ borderColor: 'var(--border)' }">
-              <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
+              <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-mute)]">
                 <span>{{ translateToolName(execution.tool_name) }} · {{ execution.status }}</span>
                 <span>{{ formatTimestamp(execution.executed_at || execution.created_at) }}</span>
               </div>

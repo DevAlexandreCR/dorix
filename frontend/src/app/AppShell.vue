@@ -11,7 +11,7 @@ withDefaults(
 
 <template>
   <div
-    class="min-h-dvh overflow-x-hidden bg-[var(--background)] text-[var(--text)]"
+    class="min-h-dvh overflow-x-hidden bg-[var(--bg)] text-[var(--text)]"
     :class="lockViewport ? 'xl:h-dvh xl:overflow-hidden' : 'xl:overflow-x-hidden'"
   >
     <div

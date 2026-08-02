@@ -24,7 +24,7 @@
   --text:        #ECEEEB;
   --text-soft:   #C6CAC7;
   --text-mute:   #9AA09D;
-  --text-faint:  #6E7470;
+  --text-faint:  #757B77;
   --overlay:     rgba(0, 0, 0, 0.65);
 
   /* --- Accent (sage green) --- */
@@ -87,8 +87,8 @@
   --border-st:   #D6CDB8;
   --text:        #1C2024;
   --text-soft:   #3F4549;
-  --text-mute:   #6B6E72;
-  --text-faint:  #98999C;
+  --text-mute:   #676A6E;
+  --text-faint:  #7E8082;
   --overlay:     rgba(28, 24, 18, 0.55);
 
   /* --- Accent (sage green) --- */
@@ -97,7 +97,7 @@
   --accent-200:  #B8D2BD;
   --accent-300:  #8FB89A;
   --accent-400:  #6B9D7C;
-  --accent-500:  #4F7C5C;
+  --accent-500:  #457251;
   --accent-600:  #3D6248;
   --accent-700:  #2E4A37;
   --accent-900:  #1F3325;
@@ -106,7 +106,7 @@
   --accent:      var(--accent-500);
 
   /* --- State colors --- */
-  --success:     #2F855A;
+  --success:     #276B4A;
   --warning:     #B7791F;
   --danger:      #9B2C2C;
   --info:        #2C5282;
@@ -168,40 +168,78 @@
 
 @layer components {
   .btn-base {
-    @apply inline-flex items-center justify-center rounded-xl border px-4 py-2.5 text-sm font-semibold transition duration-150 ease-out;
+    @apply inline-flex items-center justify-center border px-4 py-2.5 text-sm font-semibold;
+    border-radius: var(--radius-md);
+    transition: background-color 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out;
     border-color: var(--border);
     background: var(--surface);
     color: var(--text);
   }
 
-  .btn-base:hover {
-    transform: translateY(-1px);
+  .btn-base:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
   }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-xl border px-4 py-2.5 text-sm font-semibold transition duration-150 ease-out;
-    color: #f8fbff;
-    background: color-mix(in srgb, var(--accent) 88%, #2954d7 12%);
-    border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
-    box-shadow: 0 10px 22px color-mix(in srgb, var(--accent) 24%, transparent);
+    @apply inline-flex items-center justify-center border px-4 py-2.5 text-sm font-semibold;
+    border-radius: var(--radius-md);
+    transition: background-color 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out;
+    color: var(--accent-900);
+    background: var(--accent);
+    border-color: var(--accent-300);
+  }
+
+  .btn-primary:hover {
+    background: var(--accent-300);
+    border-color: var(--accent-200);
+  }
+
+  .btn-primary:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-xl border px-4 py-2.5 text-sm font-semibold transition duration-150 ease-out;
-    background: var(--surface-muted);
+    @apply inline-flex items-center justify-center border px-4 py-2.5 text-sm font-semibold;
+    border-radius: var(--radius-md);
+    transition: background-color 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out;
+    background: var(--muted);
     color: var(--text);
     border-color: var(--border);
   }
 
+  .btn-secondary:hover {
+    background: var(--border);
+  }
+
+  .btn-secondary:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+
   .btn-danger {
-    @apply inline-flex items-center justify-center rounded-xl border px-4 py-2.5 text-sm font-semibold transition duration-150 ease-out;
+    @apply inline-flex items-center justify-center border px-4 py-2.5 text-sm font-semibold;
+    border-radius: var(--radius-md);
+    transition: background-color 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out;
     background: color-mix(in srgb, var(--danger) 16%, var(--surface));
-    color: color-mix(in srgb, var(--danger) 86%, white 14%);
+    color: var(--danger);
     border-color: color-mix(in srgb, var(--danger) 30%, var(--border));
   }
 
+  .btn-danger:hover {
+    background: color-mix(in srgb, var(--danger) 24%, var(--surface));
+  }
+
+  .btn-danger:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 22%, transparent);
+  }
+
   .input-base {
-    @apply w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none transition duration-150 ease-out;
+    @apply w-full border px-3.5 py-2.5 text-sm outline-none;
+    border-radius: var(--radius-md);
+    transition: background-color 150ms ease-out, border-color 150ms ease-out;
     min-height: 44px;
     background: var(--surface);
     color: var(--text);
@@ -209,7 +247,7 @@
   }
 
   .input-base::placeholder {
-    color: var(--text-muted);
+    color: var(--text-mute);
   }
 
   .input-base:focus {
@@ -222,23 +260,25 @@
   }
 
   .shell-control {
-    @apply inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium;
+    @apply inline-flex items-center gap-2 border px-3 py-2 text-sm font-medium;
+    border-radius: var(--radius-md);
+    transition: background-color 150ms ease-out, color 150ms ease-out;
     border-color: var(--border);
-    background: var(--surface-muted);
+    background: var(--muted);
     color: var(--text);
   }
 
   .surface-subtle {
     border: 1px solid var(--border);
-    background: var(--surface-muted);
+    background: var(--muted);
   }
 
   .table-dashstack thead {
-    background: color-mix(in srgb, var(--surface-muted) 72%, transparent);
+    background: color-mix(in srgb, var(--muted) 72%, transparent);
   }
 
   .table-dashstack th {
-    color: var(--text-muted);
+    color: var(--text-mute);
     font-size: 0.75rem;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -253,5 +293,53 @@
 
   .table-dashstack tbody tr + tr td {
     border-top: 1px solid var(--border);
+  }
+}
+
+@layer utilities {
+  /* Manrope typographic ramp — display / h1–h3 / body / small / micro */
+
+  .text-display {
+    font-size: 2rem;       /* 32px */
+    line-height: 2.5rem;   /* 40px */
+    font-weight: 600;
+  }
+
+  .text-h1 {
+    font-size: 1.5rem;     /* 24px */
+    line-height: 2rem;     /* 32px */
+    font-weight: 600;
+  }
+
+  .text-h2 {
+    font-size: 1.125rem;   /* 18px */
+    line-height: 1.75rem;  /* 28px */
+    font-weight: 600;
+  }
+
+  .text-h3 {
+    font-size: 0.9375rem;  /* 15px */
+    line-height: 1.375rem; /* 22px */
+    font-weight: 600;
+  }
+
+  .text-body {
+    font-size: 0.875rem;   /* 14px */
+    line-height: 1.375rem; /* 22px */
+    font-weight: 400;
+  }
+
+  .text-small {
+    font-size: 0.8125rem;  /* 13px */
+    line-height: 1.125rem; /* 18px */
+    font-weight: 500;
+  }
+
+  .text-micro {
+    font-size: 0.6875rem;  /* 11px */
+    line-height: 1rem;     /* 16px */
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
 }

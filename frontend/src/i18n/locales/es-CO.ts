@@ -54,6 +54,10 @@ export const esCO = {
   shell: {
     themeDark: 'Modo oscuro',
     themeLight: 'Modo claro',
+    theme: 'Tema',
+    locale: 'Idioma',
+    collapseSidebar: 'Contraer barra lateral',
+    expandSidebar: 'Expandir barra lateral',
   },
   states: {
     noMembershipsTitle: 'Sin acceso operativo',

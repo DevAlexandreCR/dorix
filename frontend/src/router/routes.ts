@@ -62,6 +62,80 @@ export const routes: RouteRecordRaw[] = [
           section: 'admin',
           titleKey: 'admin.tab',
         },
+        children: [
+          {
+            path: 'org/info',
+            name: 'admin.org.info',
+            component: () => import('../modules/admin/views/org/InfoView.vue'),
+            meta: {
+              requiresAuth: true,
+              requires: ['canManageTenant', 'canAccessAdmin'] as string[],
+            },
+          },
+          {
+            path: 'org/members',
+            name: 'admin.org.members',
+            component: () => import('../modules/admin/views/org/MembersView.vue'),
+            meta: {
+              requiresAuth: true,
+              requires: ['canManageTenantUsers'] as string[],
+            },
+          },
+          {
+            path: 'connect/lines',
+            name: 'admin.connect.lines',
+            component: () => import('../modules/admin/views/connect/LinesView.vue'),
+            meta: {
+              requiresAuth: true,
+              requires: ['canManageAgentConfig', 'canManageTenant'] as string[],
+            },
+          },
+          {
+            path: 'connect/credentials',
+            name: 'admin.connect.credentials',
+            component: () => import('../modules/admin/views/connect/CredentialsView.vue'),
+            meta: {
+              requiresAuth: true,
+              requires: ['canViewCredentialMetadata'] as string[],
+            },
+          },
+          {
+            path: 'connect/data',
+            name: 'admin.connect.data',
+            component: () => import('../modules/admin/views/connect/DataView.vue'),
+            meta: {
+              requiresAuth: true,
+              requires: ['canManageTenant'] as string[],
+            },
+          },
+          {
+            path: 'assistant/behavior',
+            name: 'admin.assistant.behavior',
+            component: () => import('../modules/admin/views/assistant/BehaviorView.vue'),
+            meta: {
+              requiresAuth: true,
+              requires: ['canManageAgentConfig'] as string[],
+            },
+          },
+          {
+            path: 'assistant/tools',
+            name: 'admin.assistant.tools',
+            component: () => import('../modules/admin/views/assistant/ToolsView.vue'),
+            meta: {
+              requiresAuth: true,
+              requires: ['canManageAgentConfig'] as string[],
+            },
+          },
+          {
+            path: 'activity',
+            name: 'admin.activity',
+            component: () => import('../modules/admin/views/activity/ActivityView.vue'),
+            meta: {
+              requiresAuth: true,
+              requires: ['canManageTenant'] as string[],
+            },
+          },
+        ],
       },
     ],
   },

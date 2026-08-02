@@ -24,7 +24,7 @@ const paddingClass = computed(() => {
 
 <template>
   <article
-    class="rounded-[22px] border bg-[var(--surface)] shadow-[var(--shadow-panel)]"
+    class="rounded-lg border bg-[var(--surface)]"
     :class="paddingClass"
     :style="{ borderColor: 'var(--border)' }"
   >
