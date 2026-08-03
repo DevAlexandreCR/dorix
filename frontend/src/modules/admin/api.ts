@@ -11,17 +11,12 @@ import {
 import type {
   AdminOverview,
   AgentConfigRecord,
-  CredentialMetadataRecord,
   DataSourceRecord,
   TenantRecord,
   TenantUserRecord,
   ToolConfigRecord,
   WhatsAppLineRecord,
 } from './types';
-
-interface CollectionResponse<T> {
-  data: T[];
-}
 
 interface ResourceResponse<T> {
   data: T;
@@ -37,10 +32,6 @@ function tenantHeaders(tenantId: number): TenantHeaders {
   };
 }
 
-export function fetchAdminTenants(): Promise<CollectionResponse<TenantRecord>> {
-  return getJson<CollectionResponse<TenantRecord>>(`${appConfig.adminBaseUrl}/tenants`);
-}
-
 export function fetchAdminOverview(
   tenantId: number,
 ): Promise<ResourceResponse<AdminOverview>> {
@@ -49,15 +40,20 @@ export function fetchAdminOverview(
   });
 }
 
-export async function createTenant(payload: {
-  name: string;
-  slug: string;
-  status: string;
-}): Promise<ResourceResponse<TenantRecord>> {
-  await ensureCsrfCookie(appConfig.sanctumCsrfCookieUrl);
-  return postJson<ResourceResponse<TenantRecord>>(`${appConfig.adminBaseUrl}/tenants`, payload);
-}
+// `createTenant`/`fetchAdminTenants` moved to `modules/platform/api.ts`
+// (task 5.4): creating tenants is a platform-only action (design.md
+// decision 9/13), there is no tenant-scoped screen that calls them.
+// `updateTenant` stays here — see the comment above its definition.
 
+/**
+ * Stays in `modules/admin/api.ts` (task 5.4 decision) rather than moving to
+ * `modules/platform/api.ts`: it is legitimately owned by the tenant-scoped
+ * admin screen (`org/info`'s Pausar/Reactivar and name edit, via
+ * `useAdminResource().tenant.update()`), which is the only current caller.
+ * `modules/platform/api.ts` re-exports this same function for the future
+ * `platform/tenants` drawer (task 5.2, blocked) instead of duplicating the
+ * `PATCH /admin/tenants/{id}` call — one implementation, two call sites.
+ */
 export async function updateTenant(
   tenantId: number,
   payload: {
@@ -279,25 +275,12 @@ export async function deleteLineToolConfig(
   });
 }
 
-export async function upsertCredential(
-  tenantId: number,
-  payload: {
-    scope_type: 'tenant' | 'whatsapp_line';
-    whatsapp_line_id?: number | null;
-    provider: string;
-    credential_key: string;
-    secret: string;
-  },
-): Promise<ResourceResponse<CredentialMetadataRecord>> {
-  await ensureCsrfCookie(appConfig.sanctumCsrfCookieUrl);
-  return putJson<ResourceResponse<CredentialMetadataRecord>>(
-    `${appConfig.adminBaseUrl}/credentials`,
-    payload,
-    {
-      headers: tenantHeaders(tenantId),
-    },
-  );
-}
+// `upsertCredential` moved to `modules/platform/api.ts` (task 5.4): the
+// only caller of `useAdminResource().credentials.upsert()` is
+// `modules/platform/views/CredentialsView.vue` (task 5.3) — the tenant-side
+// `admin/connect/CredentialsView.vue` is read-only (task 4.7) and never
+// calls it. `tenantHeaders` above stays here because `updateTenant` and
+// every other tenant-scoped mutation in this file still needs it.
 
 export async function uploadDataSource(
   tenantId: number,

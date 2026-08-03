@@ -12,6 +12,7 @@ return [
         'tenant_context_missing_runtime' => 'Tenant context is not available for the current execution.',
         'tenant_not_found_id' => 'The tenant :tenant_id could not be resolved from the :source context.',
         'tenant_not_found_slug' => 'The tenant slug ":slug" could not be resolved from the :source context.',
+        'tenant_paused' => 'This organization is paused, so it cannot send or receive messages right now. Ask an organization administrator to reactivate it from the admin panel.',
     ],
     'auth' => [
         'invalid_credentials' => 'The email or password is incorrect.',

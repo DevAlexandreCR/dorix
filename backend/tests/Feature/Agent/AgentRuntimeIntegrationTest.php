@@ -10,6 +10,7 @@ use App\Domain\Conversations\Contracts\ConversationLockManager;
 use App\Domain\Conversations\Contracts\ConversationStateRepository;
 use App\Enums\ConversationStatus;
 use App\Enums\MessageDirection;
+use App\Enums\TenantStatus;
 use App\Jobs\ProcessIncomingMessageJob;
 use App\Models\AgentConfig;
 use App\Models\ApiCredential;
@@ -23,6 +24,7 @@ use App\Support\Tenancy\TenantContextManager;
 use App\Support\Tenancy\TenantScopeKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class AgentRuntimeIntegrationTest extends TestCase
@@ -417,6 +419,59 @@ class AgentRuntimeIntegrationTest extends TestCase
         $this->assertDatabaseHas('agent_events', [
             'tenant_id' => $tenant->id,
             'event_type' => 'agent_runtime_skipped_due_to_configuration',
+            'conversation_message_id' => $message->id,
+        ]);
+        $this->assertDatabaseMissing('agent_events', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'agent_started',
+            'conversation_message_id' => $message->id,
+        ]);
+    }
+
+    /**
+     * design.md decision 6 / task 3.4: a job can already be queued when the
+     * tenant is paused. The tenant is only paused AFTER the job is
+     * dispatched, mirroring a queue worker picking up a job that was
+     * accepted before the pause took effect — `RunsInTenantContext` reloads
+     * a fresh `Tenant` at execution time, so the paused status must still be
+     * caught then.
+     */
+    public function test_processing_job_skips_runtime_when_the_tenant_is_paused_after_the_job_was_queued(): void
+    {
+        [$tenant, $line, $conversation, $message] = $this->conversationFixtures();
+
+        Queue::fake();
+        Http::fake();
+
+        ProcessIncomingMessageJob::dispatch($tenant->id, $conversation->id, $message->id);
+
+        $queuedJob = null;
+        Queue::assertPushed(ProcessIncomingMessageJob::class, function (ProcessIncomingMessageJob $pushedJob) use (&$queuedJob): bool {
+            $queuedJob = $pushedJob;
+
+            return true;
+        });
+
+        $tenant->update(['status' => TenantStatus::Paused]);
+
+        $queuedJob->handle(
+            app(TenantContextManager::class),
+            app(AgentEventRecorder::class),
+            app(ConversationLockManager::class),
+            app(ConversationStateRepository::class),
+            app(AgentContextLoader::class),
+            app(AgentRuntimeInterface::class),
+            app(AgentDecisionApplier::class),
+        );
+
+        $conversation->refresh();
+
+        $this->assertSame(ConversationStatus::BotActive, $conversation->status);
+        $this->assertDatabaseCount('conversation_messages', 1);
+        Http::assertNothingSent();
+        $this->assertDatabaseHas('agent_events', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'agent_runtime_skipped_due_to_tenant_paused',
             'conversation_message_id' => $message->id,
         ]);
         $this->assertDatabaseMissing('agent_events', [

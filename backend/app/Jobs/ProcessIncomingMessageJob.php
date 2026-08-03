@@ -9,7 +9,9 @@ use App\Domain\Agent\Contracts\AgentRuntimeInterface;
 use App\Domain\Conversations\Contracts\ConversationLockManager;
 use App\Domain\Conversations\Contracts\ConversationStateRepository;
 use App\Enums\ConversationStatus;
+use App\Enums\TenantStatus;
 use App\Models\Conversation;
+use App\Models\Tenant;
 use App\Support\AgentEvents\AgentEventRecorder;
 use App\Support\Tenancy\Jobs\RunsInTenantContext;
 use App\Support\Tenancy\Jobs\TenantAwareJob;
@@ -65,8 +67,8 @@ class ProcessIncomingMessageJob implements ShouldQueue, TenantAwareJob
         AgentDecisionApplier $decisionApplier,
     ): void
     {
-        $this->runInTenantContext($manager, $this->tenantId, function () use ($events, $lockManager, $stateRepository, $contextLoader, $agentRuntime, $decisionApplier): void {
-            $processed = $lockManager->runExclusive($this->tenantId, $this->conversationId, function () use ($events, $stateRepository, $contextLoader, $agentRuntime, $decisionApplier): void {
+        $this->runInTenantContext($manager, $this->tenantId, function (Tenant $tenant) use ($events, $lockManager, $stateRepository, $contextLoader, $agentRuntime, $decisionApplier): void {
+            $processed = $lockManager->runExclusive($this->tenantId, $this->conversationId, function () use ($tenant, $events, $stateRepository, $contextLoader, $agentRuntime, $decisionApplier): void {
                 $conversation = Conversation::query()
                     ->forTenant($this->tenantId)
                     ->findOrFail($this->conversationId);
@@ -90,7 +92,17 @@ class ProcessIncomingMessageJob implements ShouldQueue, TenantAwareJob
 
                 $runtimeOutcome = 'skipped';
 
-                if ($conversation->status !== ConversationStatus::BotActive) {
+                if ($tenant->status === TenantStatus::Paused) {
+                    $runtimeOutcome = 'skipped_due_to_tenant_paused';
+
+                    $events->record($this->tenantId, 'agent_runtime_skipped_due_to_tenant_paused', [
+                        'conversation_id' => $this->conversationId,
+                        'conversation_message_id' => $this->messageId,
+                        'payload' => [
+                            'tenant_status' => $tenant->status->value,
+                        ],
+                    ]);
+                } elseif ($conversation->status !== ConversationStatus::BotActive) {
                     $runtimeOutcome = 'skipped_due_to_status';
 
                     $events->record($this->tenantId, 'agent_runtime_skipped_due_to_status', [

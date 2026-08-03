@@ -9,6 +9,8 @@ import InlineAlert from '../../../components/ui/InlineAlert.vue';
 import LoadingState from '../../../components/ui/LoadingState.vue';
 import StatusBadge from '../../../components/ui/StatusBadge.vue';
 import SurfaceCard from '../../../components/ui/SurfaceCard.vue';
+import UiButton from '../../../components/ui/UiButton.vue';
+import UiTextarea from '../../../components/ui/UiTextarea.vue';
 import { useNavigationAccess } from '../../../composables/useNavigationAccess';
 import { useTenantSelection } from '../../../composables/useTenantSelection';
 import type { ConversationThreadMessage } from '../../operations/types';
@@ -449,9 +451,8 @@ watch(
             <div class="mt-1 flex min-w-0 items-center gap-2">
               <h2 class="min-w-0 truncate text-lg font-semibold tracking-tight">{{ t('sandbox.compactListTitle') }}</h2>
               <span
-                class="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full border px-1.5 text-[11px] font-semibold text-[var(--text-mute)]"
+                class="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full border border-[color:var(--border)] px-1.5 text-[11px] font-semibold text-[var(--text-mute)]"
                 :aria-label="t('sandbox.sessionsCount', { count: sandboxSessions.length })"
-                :style="{ borderColor: 'var(--border)' }"
               >
                 {{ sandboxSessions.length }}
               </span>
@@ -462,18 +463,19 @@ watch(
         </div>
 
         <div class="mt-3 grid gap-2">
-          <button
-            class="btn-primary w-full justify-center px-3 py-2 text-[13px] font-semibold leading-none text-white"
+          <UiButton
+            variant="primary"
+            class="w-full justify-center text-[13px] leading-none"
             type="button"
+            :loading="sandboxActionLoading"
             :disabled="!canCreateConversation"
             @click="createSandboxChat"
           >
             {{ sandboxActionLoading ? t('sandbox.creating') : t('sandbox.newSession') }}
-          </button>
+          </UiButton>
 
           <label
-            class="grid min-w-0 gap-1 rounded-xl border bg-[var(--muted)] px-3 py-2"
-            :style="{ borderColor: 'var(--border)' }"
+            class="grid min-w-0 gap-1 rounded-xl border bg-[var(--muted)] px-3 py-2 border-[color:var(--border)]"
           >
             <span class="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-mute)]">
               {{ t('sandbox.line') }}
@@ -504,9 +506,8 @@ watch(
           <ul v-if="sandboxSessions.length > 0" class="space-y-1.5">
             <li v-for="conversation in sandboxSessions" :key="conversation.id">
               <button
-                class="w-full min-w-0 overflow-hidden rounded-xl border px-3 py-2 text-left transition hover:border-[color:color-mix(in_srgb,var(--accent)_30%,var(--border))]"
-                :class="selectedSandboxConversationId === conversation.id ? 'bg-[var(--muted)] shadow-[0_10px_24px_rgba(15,23,42,0.1)]' : 'bg-transparent'"
-                :style="{ borderColor: 'var(--border)' }"
+                class="w-full min-w-0 overflow-hidden rounded-xl border border-[color:var(--border)] px-3 py-2 text-left transition hover:border-[color:color-mix(in_srgb,var(--accent)_30%,var(--border))]"
+                :class="selectedSandboxConversationId === conversation.id ? 'bg-[var(--muted)] shadow-[var(--shadow-md)]' : 'bg-transparent'"
                 type="button"
                 @click="replaceQuery({ conversation: String(conversation.id) })"
               >
@@ -538,8 +539,7 @@ watch(
 
           <div
             v-else
-            class="flex min-h-full flex-col items-center justify-center rounded-2xl border border-dashed px-4 py-8 text-center"
-            :style="{ borderColor: 'var(--border)' }"
+            class="flex min-h-full flex-col items-center justify-center rounded-2xl border border-dashed px-4 py-8 text-center border-[color:var(--border)]"
           >
             <div class="mb-3 h-7 w-7 rounded-full bg-[color:color-mix(in_srgb,var(--accent)_16%,transparent)]" />
             <h3 class="text-sm font-semibold">{{ t('sandbox.compactEmptyTitle') }}</h3>
@@ -553,7 +553,7 @@ watch(
 
     <SurfaceCard padding="md" class="order-2 w-full min-w-0 overflow-hidden xl:flex xl:h-full xl:min-h-0 xl:flex-col">
       <template v-if="selectedSandboxConversation && sandboxThread">
-        <div class="shrink-0 border-b pb-2.5" :style="{ borderColor: 'var(--border)' }">
+        <div class="shrink-0 border-b pb-2.5 border-[color:var(--border)]">
           <div class="flex min-w-0 flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div class="min-w-0 sm:flex-1">
               <div class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
@@ -577,24 +577,21 @@ watch(
 
           <div class="mt-2 flex min-w-0 gap-2 overflow-x-auto pb-1">
             <div
-              class="inline-flex min-w-[12rem] max-w-[18rem] shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] text-[var(--text)]"
-              :style="{ borderColor: 'var(--border)' }"
+              class="inline-flex min-w-[12rem] max-w-[18rem] shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] text-[var(--text)] border-[color:var(--border)]"
             >
               <span class="min-w-0 truncate font-medium">{{ summaryStatusLabel }}</span>
               <InfoPopover :content="summaryStatusDescription" :label="t('common.moreInfo')" />
             </div>
 
             <div
-              class="inline-flex min-w-[13rem] max-w-[20rem] shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] text-[var(--text)]"
-              :style="{ borderColor: 'var(--border)' }"
+              class="inline-flex min-w-[13rem] max-w-[20rem] shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] text-[var(--text)] border-[color:var(--border)]"
             >
               <span class="min-w-0 truncate font-medium">{{ t('sandbox.latestResponse') }}: {{ latestResponseLabel }}</span>
               <InfoPopover :content="latestResponsePreview" :label="t('common.moreInfo')" />
             </div>
 
             <div
-              class="inline-flex min-w-[13rem] max-w-[20rem] shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] text-[var(--text)]"
-              :style="{ borderColor: 'var(--border)' }"
+              class="inline-flex min-w-[13rem] max-w-[20rem] shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] text-[var(--text)] border-[color:var(--border)]"
             >
               <span class="min-w-0 truncate font-medium">{{ t('sandbox.reviewTitle') }}: {{ reviewLabel }}</span>
               <InfoPopover :content="reviewDescription" :label="t('common.moreInfo')" />
@@ -613,20 +610,18 @@ watch(
         <div v-else class="mt-2 flex min-h-[66vh] min-w-0 flex-col xl:min-h-0 xl:flex-1 xl:overflow-hidden">
           <div
             ref="messagesViewport"
-            class="min-h-[42vh] min-w-0 flex-1 overflow-y-auto overscroll-contain rounded-[22px] border bg-[color:color-mix(in_srgb,var(--muted)_52%,transparent)] p-3 md:p-4 xl:min-h-0"
-            :style="{ borderColor: 'var(--border)' }"
+            class="min-h-[42vh] min-w-0 flex-1 overflow-y-auto overscroll-contain rounded-2xl border bg-[color:color-mix(in_srgb,var(--muted)_52%,transparent)] p-3 md:p-4 xl:min-h-0 border-[color:var(--border)]"
           >
             <details
               v-if="hasTechnicalDetails"
-              class="mb-3 min-w-0 rounded-2xl border bg-[color:color-mix(in_srgb,var(--surface)_54%,transparent)] px-3 py-2"
-              :style="{ borderColor: 'var(--border)' }"
+              class="mb-3 min-w-0 rounded-2xl border bg-[color:color-mix(in_srgb,var(--surface)_54%,transparent)] px-3 py-2 border-[color:var(--border)]"
             >
               <summary class="cursor-pointer list-none text-xs font-semibold text-[var(--text)]">
                 {{ t('sandbox.technicalDetails') }}
               </summary>
 
               <div class="mt-3 grid min-w-0 gap-3 xl:grid-cols-3">
-                <div class="min-w-0 rounded-2xl border p-3" :style="{ borderColor: 'var(--border)' }">
+                <div class="min-w-0 rounded-2xl border p-3 border-[color:var(--border)]">
                   <p class="text-[11px] uppercase tracking-[0.18em] text-[var(--text-mute)]">{{ t('sandbox.latestOutcome') }}</p>
                   <strong class="mt-2 block break-words text-sm">{{ translateRuntimeOutcome(sandboxLastTurn?.runtime_outcome) }}</strong>
                   <p class="mt-2 break-words text-xs leading-5 text-[var(--text-mute)]">
@@ -634,7 +629,7 @@ watch(
                   </p>
                 </div>
 
-                <div class="min-w-0 rounded-2xl border p-3" :style="{ borderColor: 'var(--border)' }">
+                <div class="min-w-0 rounded-2xl border p-3 border-[color:var(--border)]">
                   <p class="text-[11px] uppercase tracking-[0.18em] text-[var(--text-mute)]">{{ t('sandbox.latestHandoff') }}</p>
                   <strong class="mt-2 block break-words text-sm">
                     {{ translateHandoffStatus(selectedSandboxConversation.latest_handoff?.status) }}
@@ -644,7 +639,7 @@ watch(
                   </p>
                 </div>
 
-                <div class="min-w-0 rounded-2xl border p-3" :style="{ borderColor: 'var(--border)' }">
+                <div class="min-w-0 rounded-2xl border p-3 border-[color:var(--border)]">
                   <p class="text-[11px] uppercase tracking-[0.18em] text-[var(--text-mute)]">{{ t('sandbox.visibleError') }}</p>
                   <strong class="mt-2 block break-words text-sm">{{ sandboxLastTurn?.error_message || t('sandbox.noError') }}</strong>
                   <p class="mt-2 break-words text-xs leading-5 text-[var(--text-mute)]">
@@ -654,7 +649,7 @@ watch(
               </div>
 
               <div class="mt-3 grid min-w-0 gap-3 xl:grid-cols-2">
-                <div class="min-w-0 rounded-2xl border p-3" :style="{ borderColor: 'var(--border)' }">
+                <div class="min-w-0 rounded-2xl border p-3 border-[color:var(--border)]">
                   <p class="text-[11px] uppercase tracking-[0.18em] text-[var(--text-mute)]">{{ t('sandbox.toolCalls') }}</p>
                   <div class="mt-2 grid min-w-0 gap-2 text-xs leading-5 text-[var(--text-mute)]">
                     <p v-for="toolExecution in sandboxLastTurn?.tool_executions ?? []" :key="toolExecution.id" class="break-words">
@@ -665,7 +660,7 @@ watch(
                   </div>
                 </div>
 
-                <div class="min-w-0 rounded-2xl border p-3" :style="{ borderColor: 'var(--border)' }">
+                <div class="min-w-0 rounded-2xl border p-3 border-[color:var(--border)]">
                   <p class="text-[11px] uppercase tracking-[0.18em] text-[var(--text-mute)]">{{ t('sandbox.turnEvents') }}</p>
                   <div class="mt-2 grid min-w-0 gap-2 text-xs leading-5 text-[var(--text-mute)]">
                     <p v-for="event in sandboxLastTurn?.events ?? []" :key="event.id" class="break-words">
@@ -681,13 +676,12 @@ watch(
               <article
                 v-for="message in sandboxThread.messages"
                 :key="message.id"
-                class="max-w-full overflow-hidden rounded-[20px] border px-4 py-3 sm:max-w-[78%] lg:max-w-[72%]"
+                class="max-w-full overflow-hidden rounded-2xl border border-[color:var(--border)] px-4 py-3 sm:max-w-[78%] lg:max-w-[72%]"
                 :class="
                   message.direction === 'outbound'
                     ? 'ml-auto bg-[color:color-mix(in_srgb,var(--accent)_11%,transparent)]'
                     : 'bg-[var(--surface)]'
                 "
-                :style="{ borderColor: 'var(--border)' }"
               >
                 <header class="flex min-w-0 flex-wrap items-center justify-between gap-2 text-[11px] uppercase tracking-[0.14em] text-[var(--text-mute)]">
                   <strong class="min-w-0 truncate text-[11px] font-semibold text-[var(--text)]">
@@ -709,36 +703,38 @@ watch(
           </div>
 
           <form
-            class="mt-2 shrink-0 border-t pt-2"
-            :style="{ borderColor: 'var(--border)' }"
+            class="mt-2 shrink-0 border-t pt-2 border-[color:var(--border)]"
             @submit.prevent="submitSandboxMessage"
           >
-            <textarea
+            <UiTextarea
               v-model="sandboxMessageBody"
-              class="input-base min-h-32 resize-y lg:min-h-36"
-              rows="5"
+              class="min-h-32 resize-y lg:min-h-36"
+              :rows="5"
               :disabled="!canSendSandboxMessage || sandboxActionLoading"
               :placeholder="t('sandbox.testMessagePlaceholder')"
               :aria-label="t('sandbox.testMessage')"
             />
 
             <div class="mt-2 flex flex-wrap items-center gap-2">
-              <button
-                class="btn-primary w-full justify-center sm:w-auto"
+              <UiButton
+                variant="primary"
+                class="w-full justify-center sm:w-auto"
                 type="submit"
-                :disabled="!canSendSandboxMessage || sandboxMessageBody.trim() === '' || sandboxActionLoading"
+                :loading="sandboxActionLoading"
+                :disabled="!canSendSandboxMessage || sandboxMessageBody.trim() === ''"
               >
                 {{ t('sandbox.executeTurn') }}
-              </button>
+              </UiButton>
 
-              <button
-                class="btn-secondary w-full justify-center sm:w-auto"
+              <UiButton
+                variant="secondary"
+                class="w-full justify-center sm:w-auto"
                 type="button"
                 :disabled="isConversationClosed || sandboxActionLoading"
                 @click="closeSandboxChat"
               >
                 {{ t('sandbox.closeSession') }}
-              </button>
+              </UiButton>
 
               <span class="min-w-0 flex-1 text-xs text-[var(--text-mute)]">
                 {{ isConversationClosed ? t('sandbox.closedHelper') : t('sandbox.helperShort') }}

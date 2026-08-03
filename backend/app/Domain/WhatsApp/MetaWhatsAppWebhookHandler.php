@@ -10,6 +10,7 @@ use App\Domain\WhatsApp\DTO\ResolvedWhatsAppLine;
 use App\Domain\WhatsApp\DTO\StatusUpdateData;
 use App\Domain\WhatsApp\DTO\WebhookHandlingResult;
 use App\Enums\MessageDirection;
+use App\Enums\TenantStatus;
 use App\Jobs\ProcessIncomingMessageJob;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
@@ -41,6 +42,14 @@ class MetaWhatsAppWebhookHandler implements WhatsAppWebhookHandler
 
         foreach ($normalized->inboundMessages as $inboundMessage) {
             $resolvedLine = $this->lineResolver->resolve($inboundMessage->phoneNumberId);
+
+            if ($resolvedLine->tenant->status === TenantStatus::Paused) {
+                $this->withinTenantContext($resolvedLine, function () use ($resolvedLine, $inboundMessage): void {
+                    $this->recordSkippedTenantPausedMessage($resolvedLine, $inboundMessage);
+                });
+
+                continue;
+            }
 
             $wasSaved = $this->withinTenantContext($resolvedLine, function () use ($resolvedLine, $inboundMessage, &$jobsDispatched): bool {
                 $conversation = $this->conversationResolver->resolveForInbound($resolvedLine, $inboundMessage);
@@ -172,6 +181,21 @@ class MetaWhatsAppWebhookHandler implements WhatsAppWebhookHandler
         ]);
 
         return true;
+    }
+
+    protected function recordSkippedTenantPausedMessage(
+        ResolvedWhatsAppLine $resolvedLine,
+        InboundMessageData $message,
+    ): void {
+        $this->events->record($resolvedLine->tenantId(), 'webhook_skipped_tenant_paused', [
+            'whatsapp_line_id' => $resolvedLine->line->getKey(),
+            'payload' => [
+                'kind' => 'inbound_message',
+                'provider_message_id' => $message->providerMessageId,
+                'provider_message_type' => $message->providerMessageType,
+            ],
+            'occurred_at' => $message->receivedAt,
+        ]);
     }
 
     protected function recordDeduplicatedInboundMessage(

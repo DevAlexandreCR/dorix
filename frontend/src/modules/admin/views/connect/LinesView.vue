@@ -1,180 +1,267 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { Plus } from 'lucide-vue-next';
+import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
+import DangerZone from '../../../../components/ui/DangerZone.vue';
+import DataTable from '../../../../components/ui/DataTable.vue';
 import FormField from '../../../../components/ui/FormField.vue';
+import InheritanceChip from '../../../../components/ui/InheritanceChip.vue';
 import InlineAlert from '../../../../components/ui/InlineAlert.vue';
+import LiveDot from '../../../../components/ui/LiveDot.vue';
 import LoadingState from '../../../../components/ui/LoadingState.vue';
-import StatusBadge from '../../../../components/ui/StatusBadge.vue';
 import SurfaceCard from '../../../../components/ui/SurfaceCard.vue';
+import TechValue from '../../../../components/ui/TechValue.vue';
+import UiButton from '../../../../components/ui/UiButton.vue';
+import UiDrawer from '../../../../components/ui/UiDrawer.vue';
+import UiInput from '../../../../components/ui/UiInput.vue';
+import UiModal from '../../../../components/ui/UiModal.vue';
+import UiSwitch from '../../../../components/ui/UiSwitch.vue';
 import { useNavigationAccess } from '../../../../composables/useNavigationAccess';
 import { useTenantSelection } from '../../../../composables/useTenantSelection';
-import {
-  createWhatsAppLine,
-  deleteWhatsAppLine,
-  fetchAdminOverview,
-  updateWhatsAppLine,
-} from '../../api';
 import PanelHeader from '../../components/PanelHeader.vue';
+import { useAdminResource } from '../../composables/useAdminResource';
 import type { AdminOverview, WhatsAppLineRecord } from '../../types';
 
-type LineForm = {
+// design.md decision 6 (all-or-nothing line scope): whether a line "has its
+// own assistant" is a whole-row fact (an AgentConfigRecord with
+// scope_type==='whatsapp_line' either exists for this line or it doesn't).
+// This screen never claims per-field customization — see
+// feedback_line_scope_all_or_nothing memory. The connection status
+// (LiveDot/DangerZone) is a completely separate concept driven by
+// `is_enabled`: `status` is a free-text, unconstrained column on the
+// backend (no enum, never read anywhere else in the codebase) and is
+// deliberately never surfaced for editing here, only passed through
+// unchanged on updates and defaulted on create, to comply with the
+// "estados nunca como texto libre" rule without inventing an enum the
+// backend doesn't actually enforce.
+
+type ConnectForm = {
   name: string;
   phoneNumberId: string;
   displayPhoneNumber: string;
   wabaId: string;
-  status: string;
-  isEnabled: boolean;
+};
+
+type DetailForm = {
+  name: string;
 };
 
 const { t } = useI18n();
-const { selectedTenantId, selectedMembership } = useTenantSelection();
-const { canManageTenant, canAccessAdmin } = useNavigationAccess(selectedMembership);
+const router = useRouter();
+const { selectedMembership } = useTenantSelection();
+const { canManageTenant } = useNavigationAccess(selectedMembership);
 
-const loading = ref(false);
-const saving = ref(false);
-const error = ref<string | null>(null);
-const success = ref<string | null>(null);
-const adminOverview = ref<AdminOverview | null>(null);
+const { overview: adminOverview, overviewLoading: loading, lines } = useAdminResource();
+const { loading: saving, error, success } = lines;
 
-const lineDrafts = ref<Record<number, LineForm>>({});
-const newLineForm = ref<LineForm>(defaultLineForm());
+// --- table helpers ---------------------------------------------------------
 
-function defaultLineForm(): LineForm {
-  return {
-    name: '',
-    phoneNumberId: '',
-    displayPhoneNumber: '',
-    wabaId: '',
-    status: 'inactive',
-    isEnabled: false,
-  };
+function lineDisplayNumber(line: WhatsAppLineRecord): string {
+  return line.display_phone_number || line.phone_number_id;
 }
 
-function translateLineStatus(isEnabled: boolean): string {
-  return t(`common.lineStatus.${isEnabled ? 'enabled' : 'disabled'}`);
+function lineStatusLabel(line: WhatsAppLineRecord): string {
+  return line.is_enabled ? t('admin.connect.lines.statusActive') : t('admin.connect.lines.statusPaused');
 }
 
-function resolveErrorMessage(err: unknown, fallbackKey: string): string {
-  return err instanceof Error && err.message !== '' ? err.message : t(fallbackKey);
+function lineHasOwnAssistant(overview: AdminOverview, lineId: number): boolean {
+  return overview.agent_configs.some(
+    (config) => config.scope_type === 'whatsapp_line' && config.whatsapp_line_id === lineId,
+  );
 }
 
-async function withAction(successMessage: string, action: () => Promise<void>): Promise<void> {
-  saving.value = true;
-  error.value = null;
-  success.value = null;
+// --- connect drawer ----------------------------------------------------------
 
-  try {
-    await action();
-    success.value = successMessage;
-  } catch (err) {
-    error.value = resolveErrorMessage(err, 'admin.actionFailed');
-  } finally {
-    saving.value = false;
+const connectOpen = ref(false);
+const connectForm = ref<ConnectForm>(defaultConnectForm());
+
+function defaultConnectForm(): ConnectForm {
+  return { name: '', phoneNumberId: '', displayPhoneNumber: '', wabaId: '' };
+}
+
+const canSubmitConnect = computed(
+  () => connectForm.value.name.trim() !== '' && connectForm.value.phoneNumberId.trim() !== '',
+);
+
+function openConnectDrawer(): void {
+  connectForm.value = defaultConnectForm();
+  connectOpen.value = true;
+}
+
+function closeConnectDrawer(): void {
+  connectOpen.value = false;
+}
+
+function onConnectOpenChange(value: boolean): void {
+  if (!value) {
+    closeConnectDrawer();
   }
 }
 
-async function loadData(): Promise<void> {
-  if (!selectedTenantId.value || !canAccessAdmin.value) {
-    adminOverview.value = null;
+async function submitConnect(): Promise<void> {
+  const created = await lines.create(
+    {
+      name: connectForm.value.name.trim(),
+      phone_number_id: connectForm.value.phoneNumberId.trim(),
+      display_phone_number: connectForm.value.displayPhoneNumber.trim() || undefined,
+      waba_id: connectForm.value.wabaId.trim() || undefined,
+      status: 'active',
+      is_enabled: true,
+    },
+    { successMessage: t('admin.success.lineCreated') },
+  );
+
+  if (created) {
+    closeConnectDrawer();
+  }
+}
+
+// --- detail drawer -----------------------------------------------------------
+
+const detailLineId = ref<number | null>(null);
+const detailOpen = computed(() => detailLineId.value !== null);
+const detailForm = reactive<DetailForm>({ name: '' });
+
+const detailLine = computed<WhatsAppLineRecord | null>(() => {
+  if (detailLineId.value === null) {
+    return null;
+  }
+
+  return (adminOverview.value?.whatsapp_lines ?? []).find((line) => line.id === detailLineId.value) ?? null;
+});
+
+const detailLineHasOwnAssistant = computed<boolean>(() => {
+  const overview = adminOverview.value;
+  const line = detailLine.value;
+
+  if (!overview || !line) {
+    return false;
+  }
+
+  return lineHasOwnAssistant(overview, line.id);
+});
+
+function openDetail(lineId: number): void {
+  const line = (adminOverview.value?.whatsapp_lines ?? []).find((candidate) => candidate.id === lineId);
+
+  if (!line) {
     return;
   }
 
-  loading.value = true;
-  error.value = null;
+  detailForm.name = line.name;
+  detailLineId.value = lineId;
+}
 
-  try {
-    const payload = await fetchAdminOverview(selectedTenantId.value);
-    adminOverview.value = payload.data;
+function closeDetail(): void {
+  detailLineId.value = null;
+}
 
-    lineDrafts.value = Object.fromEntries(
-      payload.data.whatsapp_lines.map((line: WhatsAppLineRecord) => [
-        line.id,
-        {
-          name: line.name,
-          phoneNumberId: line.phone_number_id,
-          displayPhoneNumber: line.display_phone_number ?? '',
-          wabaId: line.waba_id ?? '',
-          status: line.status,
-          isEnabled: line.is_enabled,
-        },
-      ]),
-    );
-  } catch (err) {
-    error.value = resolveErrorMessage(err, 'admin.loadFailed');
-  } finally {
-    loading.value = false;
+function onDetailOpenChange(value: boolean): void {
+  if (!value) {
+    closeDetail();
   }
 }
 
-async function createLine(): Promise<void> {
-  if (!selectedTenantId.value) {
+// Every field the drawer doesn't expose for editing (phone_number_id,
+// display_phone_number, waba_id, status) travels through unchanged from the
+// current record — the backend's PATCH accepts partial payloads, but the
+// resource's typed `update()` (task 3.1) always takes the full shape, same
+// convention every other migrated view (Behavior, Tools) already follows.
+async function saveDetail(): Promise<void> {
+  const line = detailLine.value;
+
+  if (!line) {
     return;
   }
 
-  const tenantId = selectedTenantId.value;
-
-  await withAction(t('admin.success.lineCreated'), async () => {
-    await createWhatsAppLine(tenantId, {
-      name: newLineForm.value.name.trim(),
-      phone_number_id: newLineForm.value.phoneNumberId.trim(),
-      display_phone_number: newLineForm.value.displayPhoneNumber.trim() || undefined,
-      waba_id: newLineForm.value.wabaId.trim() || undefined,
-      status: newLineForm.value.status.trim(),
-      is_enabled: newLineForm.value.isEnabled,
-    });
-
-    newLineForm.value = defaultLineForm();
-    await loadData();
-  });
+  await lines.update(
+    line.id,
+    {
+      name: detailForm.name.trim(),
+      phone_number_id: line.phone_number_id,
+      display_phone_number: line.display_phone_number ?? undefined,
+      waba_id: line.waba_id ?? undefined,
+      status: line.status,
+      is_enabled: line.is_enabled,
+    },
+    { successMessage: t('admin.success.lineUpdated') },
+  );
 }
 
-async function saveLine(lineId: number): Promise<void> {
-  if (!selectedTenantId.value) {
+async function toggleLineEnabled(nextValue: boolean): Promise<void> {
+  const line = detailLine.value;
+
+  if (!line) {
     return;
   }
 
-  const tenantId = selectedTenantId.value;
-  const draft = lineDrafts.value[lineId];
-
-  if (!draft) {
-    return;
-  }
-
-  await withAction(t('admin.success.lineUpdated'), async () => {
-    await updateWhatsAppLine(tenantId, lineId, {
-      name: draft.name.trim(),
-      phone_number_id: draft.phoneNumberId.trim(),
-      display_phone_number: draft.displayPhoneNumber.trim() || undefined,
-      waba_id: draft.wabaId.trim() || undefined,
-      status: draft.status.trim(),
-      is_enabled: draft.isEnabled,
-    });
-
-    await loadData();
-  });
+  await lines.update(
+    line.id,
+    {
+      name: line.name,
+      phone_number_id: line.phone_number_id,
+      display_phone_number: line.display_phone_number ?? undefined,
+      waba_id: line.waba_id ?? undefined,
+      status: line.status,
+      is_enabled: nextValue,
+    },
+    { successMessage: nextValue ? t('admin.success.lineEnabled') : t('admin.success.lineDisabled') },
+  );
 }
 
-async function removeLine(lineId: number): Promise<void> {
-  if (!selectedTenantId.value) {
+function goToLineAssistant(): void {
+  const line = detailLine.value;
+
+  if (!line) {
     return;
   }
 
-  const tenantId = selectedTenantId.value;
-
-  await withAction(t('admin.success.lineDeleted'), async () => {
-    await deleteWhatsAppLine(tenantId, lineId);
-    await loadData();
-  });
+  router.push({ path: '/admin/assistant/behavior', query: { line: String(line.id) } });
 }
 
+// --- delete confirmation -------------------------------------------------------
+
+const deleteConfirmOpen = ref(false);
+
+function requestDelete(): void {
+  deleteConfirmOpen.value = true;
+}
+
+function cancelDelete(): void {
+  deleteConfirmOpen.value = false;
+}
+
+async function confirmDelete(): Promise<void> {
+  const line = detailLine.value;
+
+  if (!line) {
+    deleteConfirmOpen.value = false;
+    return;
+  }
+
+  const removed = await lines.remove(line.id, { successMessage: t('admin.success.lineDeleted') });
+
+  deleteConfirmOpen.value = false;
+
+  if (removed) {
+    closeDetail();
+  }
+}
+
+// Keep the detail drawer's draft in sync whenever the lines collection is
+// patched from a mutation's own response (task 3.1) — e.g. the switch
+// toggling `is_enabled` should not clobber an in-progress name edit made
+// through a different tab/drawer re-open.
 watch(
-  [selectedTenantId, () => canAccessAdmin.value],
-  async () => {
-    success.value = null;
-    error.value = null;
-    await loadData();
+  () => lines.data.value,
+  () => {
+    const line = detailLine.value;
+
+    if (line) {
+      detailForm.name = line.name;
+    }
   },
-  { immediate: true },
 );
 </script>
 
@@ -184,7 +271,16 @@ watch(
       group="admin.nav.connect"
       panel="admin.connect.lines.title"
       description="admin.connect.lines.description"
-    />
+    >
+      <template #actions>
+        <UiButton variant="primary" :disabled="!canManageTenant" @click="openConnectDrawer">
+          <template #icon>
+            <Plus class="h-4 w-4" :stroke-width="2" aria-hidden="true" />
+          </template>
+          {{ t('admin.connect.lines.connectAction') }}
+        </UiButton>
+      </template>
+    </PanelHeader>
 
     <div v-if="loading && !adminOverview">
       <SurfaceCard>
@@ -198,84 +294,209 @@ watch(
         <InlineAlert v-if="success" :message="success" tone="success" />
       </div>
 
-      <SurfaceCard padding="lg">
-        <div>
-          <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">{{ t('admin.lines.eyebrow') }}</p>
-          <h3 class="mt-2 text-xl font-semibold">{{ t('admin.lines.title') }}</h3>
-        </div>
-
-        <div class="mt-6 grid gap-4">
-          <article v-for="line in adminOverview.whatsapp_lines" :key="line.id" class="rounded-lg border p-4" :style="{ borderColor: 'var(--border)' }">
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <strong>{{ line.name }}</strong>
-                <p class="mt-1 text-sm text-[var(--text-mute)]">{{ line.display_phone_number || line.phone_number_id }}</p>
-              </div>
-              <StatusBadge :label="translateLineStatus(line.is_enabled)" :status="line.is_enabled ? 'BOT_ACTIVE' : 'CLOSED'" />
-            </div>
-
-            <div v-if="lineDrafts[line.id]" class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <FormField :label="t('admin.tenant.name')">
-                <input v-model="lineDrafts[line.id].name" class="input-base" type="text" :disabled="!canManageTenant || saving" />
-              </FormField>
-              <FormField :label="t('admin.lines.phoneNumberId')">
-                <input v-model="lineDrafts[line.id].phoneNumberId" class="input-base" type="text" :disabled="!canManageTenant || saving" />
-              </FormField>
-              <FormField :label="t('admin.lines.displayPhone')">
-                <input v-model="lineDrafts[line.id].displayPhoneNumber" class="input-base" type="text" :disabled="!canManageTenant || saving" />
-              </FormField>
-              <FormField :label="t('admin.lines.wabaId')">
-                <input v-model="lineDrafts[line.id].wabaId" class="input-base" type="text" :disabled="!canManageTenant || saving" />
-              </FormField>
-              <FormField :label="t('admin.tenant.status')">
-                <input v-model="lineDrafts[line.id].status" class="input-base" type="text" :disabled="!canManageTenant || saving" />
-              </FormField>
-              <label class="flex items-end gap-3 rounded-md border px-4 py-3 text-sm" :style="{ borderColor: 'var(--border)' }">
-                <input v-model="lineDrafts[line.id].isEnabled" type="checkbox" class="h-4 w-4" :disabled="!canManageTenant || saving" />
-                <span>{{ t('admin.lines.automationEnabled') }}</span>
-              </label>
-            </div>
-
-            <div class="mt-5 flex flex-wrap gap-3">
-              <button class="btn-secondary" type="button" :disabled="!canManageTenant || saving" @click="saveLine(line.id)">
-                {{ t('admin.lines.save') }}
+      <DataTable
+        data-settings-key="connect.lines.panel"
+        :columns="[
+          { key: 'line', label: t('admin.connect.lines.columns.line') },
+          { key: 'number', label: t('admin.connect.lines.columns.number') },
+          { key: 'status', label: t('admin.connect.lines.columns.status') },
+          { key: 'assistant', label: t('admin.connect.lines.columns.assistant') },
+        ]"
+      >
+        <template #body>
+          <tr v-if="adminOverview.whatsapp_lines.length === 0">
+            <td colspan="4" class="data-table-empty">{{ t('admin.connect.lines.empty') }}</td>
+          </tr>
+          <tr
+            v-for="line in adminOverview.whatsapp_lines"
+            :key="line.id"
+            class="line-row"
+            @click="openDetail(line.id)"
+          >
+            <td>
+              <button type="button" class="line-name-btn" @click.stop="openDetail(line.id)">
+                {{ line.name }}
               </button>
-              <button class="btn-danger" type="button" :disabled="!canManageTenant || saving" @click="removeLine(line.id)">
-                {{ t('admin.lines.delete') }}
-              </button>
-            </div>
-          </article>
-        </div>
-
-        <form class="mt-8 rounded-lg border p-5" :style="{ borderColor: 'var(--border)' }" @submit.prevent="createLine">
-          <strong>{{ t('admin.lines.createTitle') }}</strong>
-          <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <FormField :label="t('admin.tenant.name')">
-              <input v-model="newLineForm.name" class="input-base" type="text" :disabled="!canManageTenant || saving" />
-            </FormField>
-            <FormField :label="t('admin.lines.phoneNumberId')">
-              <input v-model="newLineForm.phoneNumberId" class="input-base" type="text" :disabled="!canManageTenant || saving" />
-            </FormField>
-            <FormField :label="t('admin.lines.displayPhone')">
-              <input v-model="newLineForm.displayPhoneNumber" class="input-base" type="text" :disabled="!canManageTenant || saving" />
-            </FormField>
-            <FormField :label="t('admin.lines.wabaId')">
-              <input v-model="newLineForm.wabaId" class="input-base" type="text" :disabled="!canManageTenant || saving" />
-            </FormField>
-            <FormField :label="t('admin.tenant.status')">
-              <input v-model="newLineForm.status" class="input-base" type="text" :disabled="!canManageTenant || saving" />
-            </FormField>
-            <label class="flex items-end gap-3 rounded-md border px-4 py-3 text-sm" :style="{ borderColor: 'var(--border)' }">
-              <input v-model="newLineForm.isEnabled" type="checkbox" class="h-4 w-4" :disabled="!canManageTenant || saving" />
-              <span>{{ t('admin.lines.enabled') }}</span>
-            </label>
-          </div>
-
-          <button class="btn-primary mt-5 w-full justify-center md:w-auto" type="submit" :disabled="!canManageTenant || saving">
-            {{ t('admin.lines.create') }}
-          </button>
-        </form>
-      </SurfaceCard>
+            </td>
+            <td class="text-mono">{{ lineDisplayNumber(line) }}</td>
+            <td>
+              <LiveDot :label="lineStatusLabel(line)" :live="line.is_enabled" />
+            </td>
+            <td>
+              <InheritanceChip
+                :customized="lineHasOwnAssistant(adminOverview, line.id)"
+                :inherited-label="t('admin.connect.lines.assistantInherited')"
+                :customized-label="t('admin.connect.lines.assistantCustomized')"
+              />
+            </td>
+          </tr>
+        </template>
+      </DataTable>
     </template>
+
+    <!-- Detail drawer -->
+    <UiDrawer
+      :open="detailOpen"
+      :title="detailLine?.name ?? ''"
+      :close-label="t('common.close')"
+      @update:open="onDetailOpenChange"
+    >
+      <template v-if="detailLine">
+        <div class="line-detail-summary">
+          <LiveDot :label="lineStatusLabel(detailLine)" :live="detailLine.is_enabled" />
+          <span class="text-mono text-small" style="color: var(--text-mute)">{{ lineDisplayNumber(detailLine) }}</span>
+        </div>
+
+        <section class="grid gap-3">
+          <h4 class="text-h3">{{ t('admin.connect.lines.detail.generalTitle') }}</h4>
+          <FormField :label="t('admin.connect.lines.detail.nameLabel')" :hint="t('admin.connect.lines.detail.nameHint')">
+            <UiInput v-model="detailForm.name" type="text" :disabled="!canManageTenant || saving" />
+          </FormField>
+          <UiButton
+            class="justify-self-start"
+            variant="secondary"
+            size="sm"
+            :loading="saving"
+            :disabled="!canManageTenant"
+            @click="saveDetail"
+          >
+            {{ t('admin.connect.lines.detail.save') }}
+          </UiButton>
+        </section>
+
+        <details class="meta-data-details">
+          <summary class="cursor-pointer text-small font-semibold">{{ t('admin.connect.lines.detail.metaDataTitle') }}</summary>
+          <div class="mt-3 grid gap-3">
+            <p class="text-small" style="color: var(--text-mute)">{{ t('admin.connect.lines.detail.metaDataHelp') }}</p>
+            <FormField :label="t('admin.connect.lines.detail.phoneNumberIdLabel')">
+              <TechValue :value="detailLine.phone_number_id" />
+            </FormField>
+            <FormField :label="t('admin.connect.lines.detail.wabaIdLabel')">
+              <TechValue :value="detailLine.waba_id ?? t('common.notAvailable')" />
+            </FormField>
+          </div>
+        </details>
+
+        <section class="grid gap-3">
+          <h4 class="text-h3">{{ t('admin.connect.lines.detail.assistantTitle') }}</h4>
+          <InlineAlert
+            :tone="detailLineHasOwnAssistant ? 'info' : 'success'"
+            :message="
+              detailLineHasOwnAssistant
+                ? t('admin.shared.lineHasOwnConfigMessage')
+                : t('admin.shared.lineUsesGeneralConfigMessage')
+            "
+          />
+          <UiButton class="justify-self-start" variant="secondary" size="sm" @click="goToLineAssistant">
+            {{ t('admin.connect.lines.detail.personalizeAction') }}
+          </UiButton>
+        </section>
+
+        <DangerZone :description="t('admin.connect.lines.dangerZone.description', { number: lineDisplayNumber(detailLine) })">
+          <UiSwitch
+            :model-value="detailLine.is_enabled"
+            :label="t('admin.connect.lines.dangerZone.activeSwitchLabel')"
+            :disabled="!canManageTenant || saving"
+            @update:model-value="toggleLineEnabled"
+          />
+          <p class="text-small danger-zone-hint">{{ t('admin.connect.lines.dangerZone.activeSwitchHelp') }}</p>
+          <UiButton variant="danger" size="sm" :disabled="!canManageTenant || saving" @click="requestDelete">
+            {{ t('admin.connect.lines.dangerZone.deleteAction') }}
+          </UiButton>
+        </DangerZone>
+      </template>
+    </UiDrawer>
+
+    <!-- Connect drawer -->
+    <UiDrawer
+      :open="connectOpen"
+      :title="t('admin.connect.lines.connectDrawer.title')"
+      :close-label="t('common.close')"
+      @update:open="onConnectOpenChange"
+    >
+      <FormField
+        :label="t('admin.connect.lines.connectDrawer.nameLabel')"
+        :hint="t('admin.connect.lines.connectDrawer.nameHint')"
+      >
+        <UiInput v-model="connectForm.name" type="text" required :disabled="saving" />
+      </FormField>
+      <FormField
+        :label="t('admin.connect.lines.connectDrawer.phoneNumberIdLabel')"
+        :hint="t('admin.connect.lines.connectDrawer.phoneNumberIdHint')"
+      >
+        <UiInput v-model="connectForm.phoneNumberId" type="text" required :disabled="saving" />
+      </FormField>
+      <FormField
+        :label="t('admin.connect.lines.connectDrawer.displayPhoneLabel')"
+        :hint="t('admin.connect.lines.connectDrawer.displayPhoneHint')"
+      >
+        <UiInput v-model="connectForm.displayPhoneNumber" type="text" :disabled="saving" />
+      </FormField>
+      <FormField
+        :label="t('admin.connect.lines.connectDrawer.wabaIdLabel')"
+        :hint="t('admin.connect.lines.connectDrawer.wabaIdHint')"
+      >
+        <UiInput v-model="connectForm.wabaId" type="text" :disabled="saving" />
+      </FormField>
+
+      <template #footer>
+        <UiButton variant="secondary" :disabled="saving" @click="closeConnectDrawer">
+          {{ t('common.cancel') }}
+        </UiButton>
+        <UiButton variant="primary" :loading="saving" :disabled="!canSubmitConnect" @click="submitConnect">
+          {{ t('admin.connect.lines.connectDrawer.submitAction') }}
+        </UiButton>
+      </template>
+    </UiDrawer>
+
+    <!-- Delete confirmation -->
+    <UiModal
+      :open="deleteConfirmOpen"
+      :title="t('admin.connect.lines.deleteConfirm.title')"
+      :message="
+        detailLine
+          ? t('admin.connect.lines.deleteConfirm.message', {
+              name: detailLine.name,
+              number: lineDisplayNumber(detailLine),
+            })
+          : ''
+      "
+      :confirm-label="t('admin.connect.lines.deleteConfirm.action')"
+      :cancel-label="t('common.cancel')"
+      danger
+      :confirm-loading="saving"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </div>
 </template>
+
+<style scoped>
+.line-row {
+  cursor: pointer;
+}
+
+.line-name-btn {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.line-name-btn:hover {
+  color: var(--accent);
+}
+
+.line-detail-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.meta-data-details summary {
+  color: var(--text-soft);
+}
+
+.danger-zone-hint {
+  color: var(--text-mute);
+  margin-top: -6px;
+}
+</style>

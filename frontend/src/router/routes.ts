@@ -2,9 +2,12 @@ import type { RouteRecordRaw } from 'vue-router';
 import AuthLayout from '../layouts/AuthLayout.vue';
 import WorkspaceLayout from '../layouts/WorkspaceLayout.vue';
 import LoginView from '../modules/auth/views/LoginView.vue';
-import AdminView from '../modules/admin/views/AdminView.vue';
+import AdminLayout from '../modules/admin/views/AdminLayout.vue';
+import PlatformLayout from '../modules/platform/views/PlatformLayout.vue';
 import OperationsView from '../modules/operations/views/OperationsView.vue';
 import SandboxView from '../modules/sandbox/views/SandboxView.vue';
+import { ADMIN_ROUTE_REQUIRES } from '../modules/admin/router';
+import { PLATFORM_ROUTE_REQUIRES } from '../modules/platform/router';
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -56,7 +59,7 @@ export const routes: RouteRecordRaw[] = [
       {
         path: 'admin',
         name: 'admin',
-        component: AdminView,
+        component: AdminLayout,
         meta: {
           requiresAuth: true,
           section: 'admin',
@@ -69,7 +72,7 @@ export const routes: RouteRecordRaw[] = [
             component: () => import('../modules/admin/views/org/InfoView.vue'),
             meta: {
               requiresAuth: true,
-              requires: ['canManageTenant', 'canAccessAdmin'] as string[],
+              requires: ADMIN_ROUTE_REQUIRES['/admin/org/info'],
             },
           },
           {
@@ -78,7 +81,7 @@ export const routes: RouteRecordRaw[] = [
             component: () => import('../modules/admin/views/org/MembersView.vue'),
             meta: {
               requiresAuth: true,
-              requires: ['canManageTenantUsers'] as string[],
+              requires: ADMIN_ROUTE_REQUIRES['/admin/org/members'],
             },
           },
           {
@@ -87,7 +90,7 @@ export const routes: RouteRecordRaw[] = [
             component: () => import('../modules/admin/views/connect/LinesView.vue'),
             meta: {
               requiresAuth: true,
-              requires: ['canManageAgentConfig', 'canManageTenant'] as string[],
+              requires: ADMIN_ROUTE_REQUIRES['/admin/connect/lines'],
             },
           },
           {
@@ -96,7 +99,7 @@ export const routes: RouteRecordRaw[] = [
             component: () => import('../modules/admin/views/connect/CredentialsView.vue'),
             meta: {
               requiresAuth: true,
-              requires: ['canViewCredentialMetadata'] as string[],
+              requires: ADMIN_ROUTE_REQUIRES['/admin/connect/credentials'],
             },
           },
           {
@@ -105,7 +108,7 @@ export const routes: RouteRecordRaw[] = [
             component: () => import('../modules/admin/views/connect/DataView.vue'),
             meta: {
               requiresAuth: true,
-              requires: ['canManageTenant'] as string[],
+              requires: ADMIN_ROUTE_REQUIRES['/admin/connect/data'],
             },
           },
           {
@@ -114,7 +117,7 @@ export const routes: RouteRecordRaw[] = [
             component: () => import('../modules/admin/views/assistant/BehaviorView.vue'),
             meta: {
               requiresAuth: true,
-              requires: ['canManageAgentConfig'] as string[],
+              requires: ADMIN_ROUTE_REQUIRES['/admin/assistant/behavior'],
             },
           },
           {
@@ -123,7 +126,7 @@ export const routes: RouteRecordRaw[] = [
             component: () => import('../modules/admin/views/assistant/ToolsView.vue'),
             meta: {
               requiresAuth: true,
-              requires: ['canManageAgentConfig'] as string[],
+              requires: ADMIN_ROUTE_REQUIRES['/admin/assistant/tools'],
             },
           },
           {
@@ -132,7 +135,41 @@ export const routes: RouteRecordRaw[] = [
             component: () => import('../modules/admin/views/activity/ActivityView.vue'),
             meta: {
               requiresAuth: true,
-              requires: ['canManageTenant'] as string[],
+              requires: ADMIN_ROUTE_REQUIRES['/admin/activity'],
+            },
+          },
+        ],
+      },
+      {
+        path: 'platform',
+        name: 'platform',
+        component: PlatformLayout,
+        meta: {
+          requiresAuth: true,
+          section: 'platform',
+          titleKey: 'platform.tab',
+        },
+        children: [
+          {
+            path: '',
+            redirect: { name: 'platform.tenants' },
+          },
+          {
+            path: 'tenants',
+            name: 'platform.tenants',
+            component: () => import('../modules/platform/views/TenantsView.vue'),
+            meta: {
+              requiresAuth: true,
+              requires: PLATFORM_ROUTE_REQUIRES['/platform/tenants'],
+            },
+          },
+          {
+            path: 'credentials',
+            name: 'platform.credentials',
+            component: () => import('../modules/platform/views/CredentialsView.vue'),
+            meta: {
+              requiresAuth: true,
+              requires: PLATFORM_ROUTE_REQUIRES['/platform/credentials'],
             },
           },
         ],

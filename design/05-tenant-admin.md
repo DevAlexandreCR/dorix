@@ -149,10 +149,20 @@ Cómo responde el asistente en WhatsApp.
 
 **Ámbito por línea** (`[ Organización ▾ ]` → elegir línea):
 
-- Las mismas fichas, pero cada una lleva `InheritanceChip`:
-  `◦ Heredado` (muestra el valor de la organización, atenuado) o
-  `◦ Personalizado` (+ acción "Restaurar al de la organización").
-- Solo se guarda el diff → desaparece el formulario repetido ×N.
+- Todo-o-nada: la pantalla muestra un estado único y prominente —
+  "Esta línea usa la configuración general" o "Esta línea tiene su
+  propia configuración" — porque los endpoints de línea guardan
+  siempre la fila completa (no hay overrides por campo en el
+  backend). "Restaurar al general" elimina esa fila y vuelve al
+  primer estado.
+- Excepción: **Modelo** sí es un campo nulo de verdad en el backend
+  (`model_key`), así que su ficha conserva `InheritanceChip`
+  (`◦ Heredado` / `◦ Personalizado`) con su propia acción de
+  restaurar, independiente de si la línea ya tiene fila propia por
+  otros campos.
+- Las demás fichas (Estado, Personalidad e instrucciones, Cuando pide
+  ayuda humana) no llevan chip de herencia individual: ese dato no
+  existe a nivel de campo.
 - Cambiar de ámbito con cambios sin guardar → confirmación.
 
 ## /admin/assistant/tools · Herramientas
@@ -179,7 +189,9 @@ Lo que el asistente puede hacer además de conversar.
   `toolCopyKeys` en i18n; nunca snake_case visible).
 - La config anidada (fuente, timeout) aparece indentada solo si el
   switch está encendido (disclosure).
-- Ámbito por línea: mismas filas + InheritanceChip, igual que behavior.
+- Ámbito por línea: mismas filas; mismo estado único todo-o-nada que
+  behavior (sin la excepción de Modelo — `TenantToolConfig` también
+  guarda la fila completa por herramienta, sin campos nullable).
 
 ## /admin/activity · Actividad
 

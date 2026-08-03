@@ -50,9 +50,9 @@ destino.
   queda resaltada temporalmente
 
 ### Requirement: Pantallas resumen-primero
-Las pantallas de configuración (`org/info`, `assistant/behavior`,
-`assistant/tools`) SHALL presentar cada grupo de ajustes como
-`SummaryCard` con una frase de estado en lenguaje del negocio y
+Cada pantalla de configuración SHALL presentar sus grupos de ajustes
+como `SummaryCard` — aplica a `org/info`, `assistant/behavior` y
+`assistant/tools` — con una frase de estado en lenguaje del negocio y
 edición bajo demanda, con guardado por ficha, según los wireframes de
 `design/05`. Toda etiqueta y ayuda SHALL existir en `es-CO` y `en`, y
 ningún identificador crudo del sistema (snake_case, IDs técnicos)
@@ -71,26 +71,43 @@ SHALL aparecer como copy salvo dentro de `TechValue`.
   con una frase y costo relativo cada una, y el ID técnico solo como
   `TechValue`
 
-### Requirement: Herencia organización→línea por diff
+### Requirement: Herencia organización→línea todo-o-nada, con excepción de Modelo
 `assistant/behavior` y `assistant/tools` SHALL ofrecer un selector de
-ámbito (organización | línea). En ámbito línea, cada ficha SHALL
-mostrar `InheritanceChip` (`Heredado de la organización` mostrando el
-valor general, o `Personalizado` con acción "Restaurar al general"), y
-SHALL persistir únicamente los campos personalizados vía los endpoints
-de línea existentes; restaurar SHALL eliminar el override. Cambiar de
-ámbito con cambios sin guardar SHALL pedir confirmación.
+ámbito (organización | línea). En ámbito línea, la pantalla SHALL
+mostrar un único estado prominente indicando si la línea usa la
+configuración general (no existe fila propia) o tiene su propia
+configuración (existe la fila), porque los endpoints de línea
+persisten siempre la fila completa y no soportan overrides por campo.
+"Restaurar al general" SHALL eliminar la fila de la línea vía los
+endpoints de borrado existentes y volver al primer estado. Ninguna
+ficha/fila individual (Estado, Personalidad, Mensaje de handoff, y
+cada herramienta en `assistant/tools`) SHALL mostrar `InheritanceChip`
+por campo, salvo la excepción siguiente. La ficha Modelo SHALL ser la
+única con `InheritanceChip` real (`Heredado de la organización` o
+`Personalizado`), derivado del campo `model_key`/`model_source` que
+sí es nullable en el backend, con una acción de restaurar que fija
+`model_key` en `null` sin afectar el resto de la fila de la línea.
+Cambiar de ámbito con cambios sin guardar SHALL pedir confirmación.
 
 #### Scenario: Personalizar una línea
-- **WHEN** en ámbito "Línea: Ventas" el usuario personaliza solo el
-  modelo y guarda
-- **THEN** se persiste únicamente el override de modelo para esa línea
-  y las demás fichas siguen mostrando "Heredado de la organización"
+- **WHEN** en ámbito "Línea: Ventas" el usuario edita cualquier ficha
+  (por ejemplo Personalidad) y guarda
+- **THEN** se crea la configuración propia de esa línea (fila
+  completa) y la pantalla deja de mostrar "usa la configuración
+  general" para mostrar "tiene su propia configuración"
+
+#### Scenario: Modelo personalizado dentro de una línea
+- **WHEN** en ámbito "Línea: Ventas" el usuario elige un modelo
+  distinto al de la organización y guarda
+- **THEN** la ficha Modelo muestra `Personalizado` con "Restaurar al
+  general"; las demás fichas no muestran ningún chip de herencia,
+  porque ese dato no existe a nivel de campo
 
 #### Scenario: Restaurar al general
-- **WHEN** el usuario pulsa "Restaurar al general" en una ficha
-  personalizada
-- **THEN** el override de la línea se elimina y la ficha vuelve a
-  mostrar el valor de la organización como heredado
+- **WHEN** el usuario pulsa "Restaurar al general" con la línea en su
+  propia configuración
+- **THEN** la fila de la línea se elimina y la pantalla vuelve a
+  mostrar "usa la configuración general"
 
 #### Scenario: Cambio de ámbito con cambios sin guardar
 - **WHEN** el usuario cambia de ámbito con un formulario sucio
@@ -98,9 +115,9 @@ de línea existentes; restaurar SHALL eliminar el override. Cambiar de
   cambios, confirmar descarta y cambia
 
 ### Requirement: Entidades en tablas con drawer
-Las colecciones (miembros, líneas, credenciales, fuentes de datos)
-SHALL listarse en `DataTable` (filas de 40 px, estados con
-`LiveDot`/badges) y editarse/crearse en `UiDrawer`, con las secciones
+Toda colección SHALL listarse en `DataTable` (filas de 40 px, estados
+con `LiveDot`/badges) y editarse/crearse en `UiDrawer` — aplica a
+miembros, líneas, credenciales y fuentes de datos — con las secciones
 y zonas de peligro definidas en `design/05`. Las acciones
 destructivas SHALL confirmar nombrando la entidad y su efecto real.
 

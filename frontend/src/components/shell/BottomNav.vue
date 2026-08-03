@@ -2,14 +2,14 @@
 import { computed, type Component } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { MessageSquare, FlaskConical, Settings } from 'lucide-vue-next';
+import { MessageSquare, FlaskConical, Settings, ShieldCheck } from 'lucide-vue-next';
 import { useNavigationAccess } from '../../composables/useNavigationAccess';
 import { useTenantSelection } from '../../composables/useTenantSelection';
 
 const { t } = useI18n();
 const route = useRoute();
 const { selectedMembership } = useTenantSelection();
-const { canAccessAdmin, canAccessSandbox } = useNavigationAccess(selectedMembership);
+const { canAccessAdmin, canAccessSandbox, canManagePlatform } = useNavigationAccess(selectedMembership);
 
 interface NavLink {
   name: string;
@@ -23,12 +23,16 @@ const links = computed<NavLink[]>(() => [
   { name: 'sandbox', label: t('sandbox.tab'), visible: canAccessSandbox.value, icon: FlaskConical },
   { name: 'admin', label: t('admin.tab'), visible: canAccessAdmin.value, icon: Settings },
 ].filter((link) => link.visible));
+
+// Platform (design/04 §1, design/06): rendered after a vertical divider,
+// hidden entirely without canManagePlatform. Active-state uses a path
+// prefix, not the parent route's own name (see SectionNav for why).
+const isPlatformActive = computed(() => route.path.startsWith('/platform'));
 </script>
 
 <template>
   <nav
-    class="lg:hidden fixed inset-x-0 bottom-0 z-40 flex h-14"
-    :style="{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }"
+    class="lg:hidden fixed inset-x-0 bottom-0 z-40 flex h-14 border-t border-[color:var(--border)] bg-[var(--surface)]"
   >
     <RouterLink
       v-for="link in links"
@@ -56,6 +60,25 @@ const links = computed<NavLink[]>(() => [
         aria-hidden="true"
       />
       <span class="text-micro">{{ link.label }}</span>
+    </RouterLink>
+
+    <RouterLink
+      v-if="canManagePlatform"
+      :to="{ name: 'platform', query: route.query }"
+      :title="t('platform.tab')"
+      :aria-current="isPlatformActive ? 'page' : undefined"
+      class="relative flex flex-1 flex-col items-center justify-center gap-0.5 border-l border-[color:var(--border-st)] transition-colors duration-150 ease-out"
+      :style="isPlatformActive ? { color: 'var(--accent)' } : { color: 'var(--text-mute)' }"
+      :class="!isPlatformActive ? 'hover:[color:var(--text)]' : ''"
+    >
+      <span
+        v-if="isPlatformActive"
+        class="absolute inset-x-0 top-0 h-0.5"
+        :style="{ background: 'var(--accent)' }"
+      />
+
+      <ShieldCheck class="h-5 w-5" :stroke-width="1.75" aria-hidden="true" />
+      <span class="text-micro">{{ t('platform.tab') }}</span>
     </RouterLink>
   </nav>
 </template>

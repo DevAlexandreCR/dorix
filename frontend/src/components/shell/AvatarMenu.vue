@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ChevronDown, LogOut } from 'lucide-vue-next';
 import { useSession } from '../../composables/useSession';
+import UiPopover from '../ui/UiPopover.vue';
 import LocaleSwitch from './LocaleSwitch.vue';
 import ThemeSwitch from './ThemeSwitch.vue';
 
@@ -12,8 +13,6 @@ const router = useRouter();
 const { authLoading, currentUser, logoutCurrentSession } = useSession();
 
 const open = ref(false);
-const triggerRef = ref<HTMLElement | null>(null);
-const popoverRef = ref<HTMLElement | null>(null);
 
 const avatarLabel = computed(() => {
   const value = currentUser.value?.name?.trim() || currentUser.value?.email?.trim() || '';
@@ -34,34 +33,6 @@ function close(): void {
   open.value = false;
 }
 
-function onPointerDown(event: PointerEvent): void {
-  const target = event.target as Node | null;
-  if (
-    triggerRef.value &&
-    !triggerRef.value.contains(target) &&
-    popoverRef.value &&
-    !popoverRef.value.contains(target)
-  ) {
-    close();
-  }
-}
-
-function onKeyDown(event: KeyboardEvent): void {
-  if (event.key === 'Escape') {
-    close();
-  }
-}
-
-onMounted(() => {
-  document.addEventListener('pointerdown', onPointerDown);
-  document.addEventListener('keydown', onKeyDown);
-});
-
-onUnmounted(() => {
-  document.removeEventListener('pointerdown', onPointerDown);
-  document.removeEventListener('keydown', onKeyDown);
-});
-
 async function signOut(): Promise<void> {
   close();
   await logoutCurrentSession();
@@ -70,84 +41,83 @@ async function signOut(): Promise<void> {
 </script>
 
 <template>
-  <div class="relative">
-    <!-- Trigger button -->
-    <button
-      ref="triggerRef"
-      type="button"
-      class="avatar-trigger"
-      :aria-expanded="open"
-      aria-haspopup="true"
-      @click="toggle"
-    >
-      <span class="avatar-circle" aria-hidden="true">
-        {{ avatarLabel }}
-      </span>
-      <span class="avatar-name hidden sm:block" :style="{ color: 'var(--text)' }">
+  <UiPopover
+    v-model:open="open"
+    placement="bottom-end"
+    panel-class="w-[260px]"
+    role="menu"
+    aria-label="User menu"
+  >
+    <template #trigger>
+      <button
+        type="button"
+        class="avatar-trigger"
+        :aria-expanded="open"
+        aria-haspopup="true"
+        @click="toggle"
+      >
+        <span class="avatar-circle" aria-hidden="true">
+          {{ avatarLabel }}
+        </span>
+        <span class="avatar-name hidden sm:block" :style="{ color: 'var(--text)' }">
+          {{ currentUser?.name }}
+        </span>
+        <ChevronDown
+          class="avatar-chevron"
+          :class="{ 'rotate-180': open }"
+          :stroke-width="1.75"
+          :style="{ color: 'var(--text-mute)' }"
+          aria-hidden="true"
+        />
+      </button>
+    </template>
+
+    <!-- User info (readonly) -->
+    <div class="avatar-user-info">
+      <p class="text-small font-semibold truncate" :style="{ color: 'var(--text)' }">
         {{ currentUser?.name }}
+      </p>
+      <p class="text-small truncate" :style="{ color: 'var(--text-mute)' }">
+        {{ currentUser?.email }}
+      </p>
+    </div>
+
+    <!-- Divider -->
+    <div class="avatar-divider" />
+
+    <!-- Theme toggle row -->
+    <div class="avatar-row">
+      <span class="text-small" :style="{ color: 'var(--text-soft)' }">
+        {{ t('shell.theme') }}
       </span>
-      <ChevronDown
-        class="avatar-chevron"
-        :class="{ 'rotate-180': open }"
-        :stroke-width="1.75"
-        :style="{ color: 'var(--text-mute)' }"
-        aria-hidden="true"
-      />
+      <ThemeSwitch />
+    </div>
+
+    <!-- Locale toggle row -->
+    <div class="avatar-row">
+      <span class="text-small" :style="{ color: 'var(--text-soft)' }">
+        {{ t('shell.locale') }}
+      </span>
+      <LocaleSwitch />
+    </div>
+
+    <!-- Divider -->
+    <div class="avatar-divider" />
+
+    <!-- Logout -->
+    <button
+      type="button"
+      class="avatar-action-row"
+      :disabled="authLoading"
+      role="menuitem"
+      @click="signOut"
+    >
+      <LogOut class="h-4 w-4 shrink-0" :stroke-width="1.75" aria-hidden="true" />
+      <span class="text-small">
+        {{ authLoading ? t('auth.loggingOut') : t('auth.logout') }}
+      </span>
     </button>
-
-    <!-- Popover -->
-    <Transition name="avatar-menu">
-      <div v-if="open" ref="popoverRef" class="avatar-popover" role="menu" aria-label="User menu">
-
-        <!-- User info (readonly) -->
-        <div class="avatar-user-info">
-          <p class="text-small font-semibold truncate" :style="{ color: 'var(--text)' }">
-            {{ currentUser?.name }}
-          </p>
-          <p class="text-small truncate" :style="{ color: 'var(--text-mute)' }">
-            {{ currentUser?.email }}
-          </p>
-        </div>
-
-        <!-- Divider -->
-        <div class="avatar-divider" />
-
-        <!-- Theme toggle row -->
-        <div class="avatar-row">
-          <span class="text-small" :style="{ color: 'var(--text-soft)' }">
-            {{ t('shell.theme') }}
-          </span>
-          <ThemeSwitch />
-        </div>
-
-        <!-- Locale toggle row -->
-        <div class="avatar-row">
-          <span class="text-small" :style="{ color: 'var(--text-soft)' }">
-            {{ t('shell.locale') }}
-          </span>
-          <LocaleSwitch />
-        </div>
-
-        <!-- Divider -->
-        <div class="avatar-divider" />
-
-        <!-- Logout -->
-        <button
-          type="button"
-          class="avatar-action-row"
-          :disabled="authLoading"
-          role="menuitem"
-          @click="signOut"
-        >
-          <LogOut class="h-4 w-4 shrink-0" :stroke-width="1.75" aria-hidden="true" />
-          <span class="text-small">
-            {{ authLoading ? t('auth.loggingOut') : t('auth.logout') }}
-          </span>
-        </button>
-
-      </div>
-    </Transition>
-  </div>
+  </UiPopover>
 </template>
 
 <style scoped>
@@ -175,16 +145,12 @@ async function signOut(): Promise<void> {
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: var(--accent-100);
+  background: var(--accent-subtle);
   color: var(--accent);
   font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   flex-shrink: 0;
-}
-
-:root[data-theme="light"] .avatar-circle {
-  background: var(--accent-50);
 }
 
 .avatar-name {
@@ -201,19 +167,6 @@ async function signOut(): Promise<void> {
   height: 16px;
   flex-shrink: 0;
   transition: transform 150ms ease;
-}
-
-.avatar-popover {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  width: 260px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  background: var(--bg-elev);
-  box-shadow: var(--shadow-sm);
-  padding: 8px;
-  z-index: 200;
 }
 
 .avatar-user-info {
@@ -261,16 +214,5 @@ async function signOut(): Promise<void> {
 .avatar-action-row:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-.avatar-menu-enter-active,
-.avatar-menu-leave-active {
-  transition: opacity 120ms ease, transform 120ms ease;
-}
-
-.avatar-menu-enter-from,
-.avatar-menu-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
 }
 </style>

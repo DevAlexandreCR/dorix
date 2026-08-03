@@ -67,11 +67,42 @@ librería de componentes ni tests de frontend.
    seguimiento. Se implementa **antes** que las pantallas.
    Alternativa rechazada: refetch del overview completo por vista y
    por guardado (payload completo + 3 streams de logs cada vez).
-6. **Herencia por diff**: en ámbito línea solo se persisten campos
-   personalizados (`updateLineAgentConfig` / `updateLineToolConfig`);
-   "Restaurar al general" = `deleteLine*Config`. El `ScopePicker`
-   emite `request-switch` antes de cambiar para interceptar
-   formularios sucios.
+6. **Herencia todo-o-nada por línea, con excepción de Modelo**
+   (revisión de la decisión original "herencia por diff", que
+   resultó irrealizable): `updateLineAgentConfig` /
+   `updateLineToolConfig` sobrescriben la fila completa
+   (`AdminAgentConfigController::persistConfig` /
+   `AdminToolConfigController::persistConfig` hacen `forceFill` de
+   todas las columnas) y `UpsertAgentConfigRequest` marca `name`,
+   `is_active` y `automation_enabled` como `required` (`system_prompt`
+   / `handoff_customer_message` / `agent_pack_key` son nullable en la
+   validación pero se guardan como string recortado, nunca como
+   "hereda"). El backend no tiene forma de persistir un override por
+   campo: una línea o **usa la configuración general** (no existe fila
+   para esa línea) o **tiene su propia configuración completa** (existe
+   la fila). En ámbito línea la pantalla muestra un único estado
+   prominente con esas dos opciones — p. ej. "Esta línea usa la
+   configuración general" / "Esta línea tiene su propia configuración"
+   — y "Restaurar al general" (`deleteLine*Config`) es la única forma
+   de volver al primero. Ninguna ficha (Estado, Personalidad, Mensaje
+   de handoff, y en `assistant/tools` cada herramienta) muestra chip de
+   herencia por campo: ese dato no existe en el backend.
+   **Excepción — Modelo**: `model_key` sí es nullable de verdad dentro
+   de una fila existente, y `AdminPanelDataBuilder::serializeAgentConfig`
+   ya calcula `effective_model_key` / `effective_model_label` /
+   `model_source` vía `AgentModelCatalog::effectiveForConfigs` (fila de
+   línea si `model_key` no es null, si no la de tenant, si no el
+   default del sistema). La ficha Modelo es la única con
+   `InheritanceChip` real (`Heredado` cuando `model_source !== 'line'`,
+   `Personalizado` cuando `model_source === 'line'`), con una acción de
+   restaurar que fija `model_key` en `null` sin tocar el resto de la
+   fila. El `ScopePicker` emite `request-switch` antes de cambiar para
+   interceptar formularios sucios (sin cambios respecto a la decisión
+   original). Alternativa rechazada: replicar la herencia por campo
+   también en el backend (columnas nullable por campo o una tabla de
+   overrides) — resolvería el problema de raíz pero viola el non-goal
+   de cero cambios de backend de este change; si se necesita, es un
+   change de backend aparte.
 7. **Un solo Popover**: `UiPopover` (outside-click, Escape,
    focus-trap) y AvatarMenu/AdminNav/InfoPopover lo consumen —
    elimina las 3 implementaciones duplicadas.
@@ -122,7 +153,12 @@ librería de componentes ni tests de frontend.
   manual por pantalla contra la matriz de `design/08` §Fase 6 +
   `npm run typecheck`/`build` como gates por tarea.
 - [Instrument Sans/JetBrains Mono aumentan el bundle] → subsets
-  woff2, presupuesto medido de ≤ 60 KB gzip adicionales.
+  woff2 (Instrument Sans variable "latin" ~29.4 KB; JetBrains Mono
+  re-subset en la tarea 6.2 a solo los caracteres que `TechValue`
+  renderiza en la práctica, ~5.0 KB). Presupuesto ampliado a ≤ 80 KB
+  gzip adicionales (antes ≤ 60 KB): la cifra original se fijó antes
+  de dimensionar 12 primitivas + 6 patrones + 8 pantallas + el módulo
+  `platform`, y las fuentes solas ya consumen ~50 KB de ese total.
 - [Contraste de la paleta sin verificar] → tarea temprana de medición
   AA documentada en `design/contrast-check.md`; los valores de
   `design/03` se ajustan si algún par falla.

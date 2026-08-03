@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api;
 
+use App\Enums\TenantStatus;
 use App\Models\Tenant;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -30,7 +31,7 @@ class UpsertTenantRequest extends FormRequest
                 'max:120',
                 Rule::unique('tenants', 'slug')->ignore($tenant?->getKey()),
             ],
-            'status' => [...$required, 'string', 'max:40'],
+            'status' => [...$required, Rule::enum(TenantStatus::class)],
             'metadata' => ['sometimes', 'array'],
         ];
     }

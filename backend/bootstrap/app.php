@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureTenantIsActive;
 use App\Http\Middleware\SetRequestLocale;
 use App\Support\Http\ApiException;
 use App\Http\Middleware\ResolveTenantContext;
@@ -28,6 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->statefulApi();
         $middleware->alias([
             'tenant.context' => ResolveTenantContext::class,
+            'tenant.active' => EnsureTenantIsActive::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

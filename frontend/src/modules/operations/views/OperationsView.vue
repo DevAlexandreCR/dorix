@@ -9,6 +9,11 @@ import InlineAlert from '../../../components/ui/InlineAlert.vue';
 import LoadingState from '../../../components/ui/LoadingState.vue';
 import StatusBadge from '../../../components/ui/StatusBadge.vue';
 import SurfaceCard from '../../../components/ui/SurfaceCard.vue';
+import UiButton from '../../../components/ui/UiButton.vue';
+import UiCheckbox from '../../../components/ui/UiCheckbox.vue';
+import UiInput from '../../../components/ui/UiInput.vue';
+import UiSelect from '../../../components/ui/UiSelect.vue';
+import UiTextarea from '../../../components/ui/UiTextarea.vue';
 import { useNavigationAccess } from '../../../composables/useNavigationAccess';
 import { useSession } from '../../../composables/useSession';
 import { useTenantSelection } from '../../../composables/useTenantSelection';
@@ -322,7 +327,7 @@ watch(
 
   <section v-else class="panel-grid xl:min-h-0 xl:flex-1 xl:overflow-hidden">
     <SurfaceCard class="xl:flex xl:min-h-0 xl:flex-col">
-      <div class="flex items-start justify-between gap-4 border-b pb-4" :style="{ borderColor: 'var(--border)' }">
+      <div class="flex items-start justify-between gap-4 border-b pb-4 border-[color:var(--border)]">
         <div>
           <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">
             {{ t('operations.eyebrow') }}
@@ -332,11 +337,10 @@ watch(
         <StatusBadge :label="t('operations.threadsCount', { count: conversations.length })" tone="neutral" />
       </div>
 
-      <form class="mt-5 grid gap-4 rounded-[20px] border bg-[var(--muted)] p-4" :style="{ borderColor: 'var(--border)' }" @submit.prevent="applyFilters">
+      <form class="mt-5 grid gap-4 rounded-2xl border bg-[var(--muted)] p-4 border-[color:var(--border)]" @submit.prevent="applyFilters">
         <FormField :label="t('operations.search')">
-          <input
+          <UiInput
             v-model="searchInput"
-            class="input-base"
             type="search"
             :placeholder="t('operations.searchPlaceholder')"
           />
@@ -344,22 +348,21 @@ watch(
 
         <div class="grid gap-4">
           <FormField :label="t('operations.status')">
-            <select v-model="statusFilter" class="input-base" @change="applyFilters">
+            <UiSelect v-model="statusFilter" @change="applyFilters">
               <option v-for="option in statusOptions" :key="option" :value="option">
                 {{ translateConversationStatus(option) }}
               </option>
-            </select>
+            </UiSelect>
           </FormField>
 
-          <label class="flex items-center gap-3 rounded-xl border px-3.5 py-3 text-sm" :style="{ borderColor: 'var(--border)' }">
-            <input v-model="assignedToMeOnly" type="checkbox" class="h-4 w-4" @change="applyFilters" />
-            <span>{{ t('operations.assignedToMe') }}</span>
-          </label>
+          <div class="flex items-center gap-3 rounded-xl border border-[color:var(--border)] px-3.5 py-3 text-sm">
+            <UiCheckbox v-model="assignedToMeOnly" :label="t('operations.assignedToMe')" @change="applyFilters" />
+          </div>
         </div>
 
-        <button class="btn-secondary w-full justify-center" type="submit">
+        <UiButton type="submit" variant="secondary" class="w-full justify-center">
           {{ t('common.applyFilters') }}
-        </button>
+        </UiButton>
       </form>
 
       <div class="mt-5 grid gap-3">
@@ -372,13 +375,12 @@ watch(
         <ul v-else-if="conversations.length > 0" class="grid max-h-[52vh] gap-2 overflow-y-auto pr-1 xl:max-h-none xl:min-h-0 xl:flex-1">
           <li v-for="conversation in conversations" :key="conversation.id">
             <button
-              class="w-full rounded-[20px] border px-4 py-4 text-left transition hover:border-[color:color-mix(in_srgb,var(--accent)_30%,var(--border))]"
+              class="w-full rounded-2xl border px-4 py-4 text-left transition hover:border-[color:color-mix(in_srgb,var(--accent)_30%,var(--border))]"
               :class="
                 selectedConversationId === conversation.id
-                  ? 'border-[color:color-mix(in_srgb,var(--accent)_28%,var(--border))] bg-[var(--muted)] shadow-[0_12px_24px_rgba(15,23,42,0.08)]'
-                  : 'bg-transparent'
+                  ? 'border-[color:color-mix(in_srgb,var(--accent)_28%,var(--border))] bg-[var(--muted)] shadow-[var(--shadow-md)]'
+                  : 'border-[color:var(--border)] bg-transparent'
               "
-              :style="selectedConversationId === conversation.id ? undefined : { borderColor: 'var(--border)' }"
               type="button"
               @click="replaceQuery({ conversation: String(conversation.id) })"
             >
@@ -416,7 +418,7 @@ watch(
 
     <SurfaceCard padding="lg" class="xl:flex xl:min-h-0 xl:flex-col">
       <template v-if="selectedConversation && thread">
-        <div class="flex shrink-0 flex-col gap-4 border-b pb-5 lg:flex-row lg:items-start lg:justify-between" :style="{ borderColor: 'var(--border)' }">
+        <div class="flex shrink-0 flex-col gap-4 border-b pb-5 lg:flex-row lg:items-start lg:justify-between border-[color:var(--border)]">
           <div>
             <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">
               {{ t('operations.threadEyebrow') }}
@@ -440,7 +442,7 @@ watch(
         </div>
 
         <div class="mt-5 grid gap-3 md:grid-cols-3">
-          <div class="rounded-[18px] border bg-[var(--muted)] p-4" :style="{ borderColor: 'var(--border)' }">
+          <div class="rounded-2xl border bg-[var(--muted)] p-4 border-[color:var(--border)]">
             <p class="text-xs uppercase tracking-[0.2em] text-[var(--text-mute)]">{{ t('operations.currentOwner') }}</p>
             <strong class="mt-3 block text-base">
               {{ selectedConversation.assigned_to_user?.name ?? t('operations.noAssignment') }}
@@ -450,7 +452,7 @@ watch(
             </p>
           </div>
 
-          <div class="rounded-[18px] border bg-[var(--muted)] p-4" :style="{ borderColor: 'var(--border)' }">
+          <div class="rounded-2xl border bg-[var(--muted)] p-4 border-[color:var(--border)]">
             <p class="text-xs uppercase tracking-[0.2em] text-[var(--text-mute)]">{{ t('operations.latestHandoff') }}</p>
             <strong class="mt-3 block text-base">
               {{ translateHandoffStatus(selectedConversation.latest_handoff?.status) }}
@@ -460,7 +462,7 @@ watch(
             </p>
           </div>
 
-          <div class="rounded-[18px] border bg-[var(--muted)] p-4" :style="{ borderColor: 'var(--border)' }">
+          <div class="rounded-2xl border bg-[var(--muted)] p-4 border-[color:var(--border)]">
             <p class="text-xs uppercase tracking-[0.2em] text-[var(--text-mute)]">{{ t('operations.runtimeState') }}</p>
             <strong class="mt-3 block text-base">
               {{ selectedConversation.state?.last_agent_action ?? t('operations.noSnapshot') }}
@@ -472,28 +474,29 @@ watch(
         </div>
 
         <div class="mt-5 grid gap-4 xl:grid-cols-2">
-          <div class="rounded-[20px] border bg-[var(--muted)] p-4" :style="{ borderColor: 'var(--border)' }">
+          <div class="rounded-2xl border bg-[var(--muted)] p-4 border-[color:var(--border)]">
             <FormField :label="t('operations.handoffReason')">
-              <input
+              <UiInput
                 v-model="handoffReason"
-                class="input-base"
                 type="text"
                 :disabled="!canManageHandoffs || actionLoading"
                 :placeholder="t('operations.handoffPlaceholder')"
               />
             </FormField>
 
-            <button
-              class="btn-primary mt-4 w-full justify-center"
+            <UiButton
+              variant="primary"
+              class="mt-4 w-full justify-center"
               type="button"
-              :disabled="!canManageHandoffs || actionLoading"
+              :loading="actionLoading"
+              :disabled="!canManageHandoffs"
               @click="takeConversation"
             >
               {{ actionLoading ? t('operations.processing') : t('operations.takeConversation') }}
-            </button>
+            </UiButton>
           </div>
 
-          <div class="rounded-[20px] border bg-[var(--muted)] p-4" :style="{ borderColor: 'var(--border)' }">
+          <div class="rounded-2xl border bg-[var(--muted)] p-4 border-[color:var(--border)]">
             <FormField :label="t('operations.assignOperator')">
               <select v-model.number="selectedAssigneeId" class="input-base" :disabled="!canManageHandoffs || actionLoading">
                 <option v-for="operator in availableOperators" :key="operator.user_id" :value="operator.user_id">
@@ -502,14 +505,16 @@ watch(
               </select>
             </FormField>
 
-            <button
-              class="btn-secondary mt-4 w-full justify-center"
+            <UiButton
+              variant="secondary"
+              class="mt-4 w-full justify-center"
               type="button"
-              :disabled="!canManageHandoffs || !selectedAssigneeId || actionLoading"
+              :loading="actionLoading"
+              :disabled="!canManageHandoffs || !selectedAssigneeId"
               @click="reassignConversation"
             >
               {{ t('operations.reassign') }}
-            </button>
+            </UiButton>
           </div>
         </div>
 
@@ -522,14 +527,13 @@ watch(
         <LoadingState v-if="threadLoading" class="mt-6" :label="t('operations.loadingThread')" />
 
         <div v-else class="mt-5 flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div class="min-h-[42vh] flex-1 overflow-y-auto rounded-[20px] border bg-[var(--muted)] p-3 sm:p-4 xl:min-h-0" :style="{ borderColor: 'var(--border)' }">
+          <div class="min-h-[42vh] flex-1 overflow-y-auto rounded-2xl border bg-[var(--muted)] p-3 sm:p-4 xl:min-h-0 border-[color:var(--border)]">
             <div class="space-y-3">
               <article
                 v-for="message in thread.messages"
                 :key="message.id"
-                class="max-w-3xl rounded-[20px] border px-4 py-4"
+                class="max-w-3xl rounded-2xl border px-4 py-4 border-[color:var(--border)]"
                 :class="message.direction === 'outbound' ? 'ml-auto bg-[color:color-mix(in_srgb,var(--accent)_10%,transparent)]' : 'bg-[var(--surface)]'"
-                :style="{ borderColor: 'var(--border)' }"
               >
                 <header class="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.14em] text-[var(--text-mute)]">
                   <strong class="text-[11px] font-semibold text-[var(--text)]">
@@ -548,33 +552,34 @@ watch(
             </div>
           </div>
 
-          <form class="mt-4 shrink-0 rounded-[20px] border bg-[var(--surface)] p-5" :style="{ borderColor: 'var(--border)' }" @submit.prevent="submitManualReply">
+          <form class="mt-4 shrink-0 rounded-2xl border bg-[var(--surface)] p-5 border-[color:var(--border)]" @submit.prevent="submitManualReply">
             <FormField :label="t('operations.manualReply')">
-              <textarea
+              <UiTextarea
                 v-model="manualReplyBody"
-                class="input-base min-h-32 resize-y"
-                rows="4"
+                class="min-h-32 resize-y"
+                :rows="4"
                 :disabled="!canManuallyReply || actionLoading"
                 :placeholder="t('operations.manualReplyPlaceholder')"
               />
             </FormField>
 
             <div class="mt-5 flex flex-wrap gap-3">
-              <button
-                class="btn-primary"
+              <UiButton
+                variant="primary"
                 type="submit"
-                :disabled="!canManuallyReply || manualReplyBody.trim() === '' || actionLoading"
+                :loading="actionLoading"
+                :disabled="!canManuallyReply || manualReplyBody.trim() === ''"
               >
                 {{ t('operations.sendManualReply') }}
-              </button>
+              </UiButton>
 
-              <button class="btn-secondary" type="button" :disabled="!canManageHandoffs || actionLoading" @click="resumeBot('BOT_ACTIVE')">
+              <UiButton variant="secondary" type="button" :disabled="!canManageHandoffs || actionLoading" @click="resumeBot('BOT_ACTIVE')">
                 {{ t('operations.resumeBot') }}
-              </button>
+              </UiButton>
 
-              <button class="btn-secondary" type="button" :disabled="!canManageHandoffs || actionLoading" @click="resumeBot('WAITING_CUSTOMER')">
+              <UiButton variant="secondary" type="button" :disabled="!canManageHandoffs || actionLoading" @click="resumeBot('WAITING_CUSTOMER')">
                 {{ t('operations.resumeWaiting') }}
-              </button>
+              </UiButton>
             </div>
 
             <p class="mt-4 text-sm leading-6 text-[var(--text-mute)]">

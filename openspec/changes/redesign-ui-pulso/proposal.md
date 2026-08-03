@@ -69,6 +69,11 @@ final está definido y centralizado en la carpeta `design/` (sistema
   necesarios existen (`fetchAdminTenants`, `createTenant`,
   `updateTenant`, configs de agente/herramientas por tenant y línea,
   upsert de credenciales).
-- Presupuesto de bundle: ≤ 60 KB gzip adicionales (fuentes incluidas).
+- Presupuesto de bundle: ≤ 80 KB gzip adicionales (fuentes incluidas).
+  Se revisó de la cifra original (≤ 60 KB) tras la medición de la
+  tarea 6.2: esa cifra se fijó antes de dimensionar el alcance final
+  (12 primitivas, 6 componentes de patrón, 8 pantallas reescritas y el
+  nuevo módulo `platform`), y las fuentes self-hosted por sí solas ya
+  representan ~50 KB de ese total.
 - Fuente de verdad de diseño: carpeta `design/` (sistema Pulso) +
   maqueta `design/mockups/admin-pulso.html`.

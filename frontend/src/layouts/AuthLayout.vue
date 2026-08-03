@@ -9,8 +9,7 @@
       <div class="flex flex-1 items-center">
         <div class="mx-auto grid w-full max-w-6xl gap-4 lg:grid-cols-[minmax(0,1fr)_460px] lg:gap-6">
           <section
-            class="rounded-lg border bg-[var(--surface)] p-6 shadow-[var(--shadow-sm)] sm:p-8 lg:p-10"
-            :style="{ borderColor: 'var(--border)' }"
+            class="rounded-lg border border-[color:var(--border)] bg-[var(--surface)] p-6 shadow-[var(--shadow-xs)] sm:p-8 lg:p-10"
           >
             <div class="space-y-8">
               <div class="space-y-4">
@@ -27,33 +26,29 @@
 
               <div class="grid gap-3 sm:grid-cols-3">
                 <span
-                  class="rounded-lg border px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-mute)]"
-                  :style="{ borderColor: 'var(--border)' }"
+                  class="rounded-lg border border-[color:var(--border)] px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-mute)]"
                 >
                   {{ t('operations.tab') }}
                 </span>
                 <span
-                  class="rounded-lg border px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-mute)]"
-                  :style="{ borderColor: 'var(--border)' }"
+                  class="rounded-lg border border-[color:var(--border)] px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-mute)]"
                 >
                   {{ t('sandbox.tab') }}
                 </span>
                 <span
-                  class="rounded-lg border px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-mute)]"
-                  :style="{ borderColor: 'var(--border)' }"
+                  class="rounded-lg border border-[color:var(--border)] px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-mute)]"
                 >
                   {{ t('admin.tab') }}
                 </span>
               </div>
 
               <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-                <div class="rounded-lg border px-4 py-4 text-sm leading-6 text-[var(--text-mute)]" :style="{ borderColor: 'var(--border)' }">
+                <div class="rounded-lg border border-[color:var(--border)] px-4 py-4 text-sm leading-6 text-[var(--text-mute)]">
                   {{ t('auth.workspaceNote') }}
                 </div>
                 <a
                   :href="appConfig.backendHealthUrl"
                   class="btn-secondary justify-center whitespace-nowrap"
-                  :style="{ borderColor: 'var(--border)' }"
                   rel="noreferrer"
                   target="_blank"
                 >

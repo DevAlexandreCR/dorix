@@ -25,7 +25,8 @@ Route::prefix('v1')->group(function (): void {
         Route::middleware('auth:sanctum')->post('/auth/logout', [AuthSessionController::class, 'destroy']);
     });
 
-    Route::middleware(['web', 'auth:sanctum', 'tenant.context'])->group(function (): void {
+    // Operativas: bloqueadas mientras el tenant está pausado (design.md decisión 3).
+    Route::middleware(['web', 'auth:sanctum', 'tenant.context', 'tenant.active'])->group(function (): void {
         Route::get('/conversations', [OperationalConversationController::class, 'index']);
         Route::get('/conversations/{conversation}', [OperationalConversationController::class, 'show']);
         Route::post('/conversations/{conversation}/handoff', [OperationalConversationController::class, 'handoff']);
@@ -42,7 +43,11 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/data-sources', [DataSourceController::class, 'store']);
         Route::post('/data-sources/excel', [DataSourceController::class, 'storeExcel']);
         Route::post('/data-sources/{dataSource}/imports/{import}/retry', [DataSourceController::class, 'retryImport']);
+    });
 
+    // Configuración tenant-scoped: sigue disponible con el tenant pausado
+    // (design.md decisión 4), para que siempre sea posible reactivarlo.
+    Route::middleware(['web', 'auth:sanctum', 'tenant.context'])->group(function (): void {
         Route::get('/admin/overview', [AdminTenantController::class, 'overview']);
         Route::post('/admin/tenant-users', [AdminTenantUserController::class, 'store']);
         Route::patch('/admin/tenant-users/{tenantUser}', [AdminTenantUserController::class, 'update']);

@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch, type Component } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { Building2, ChevronDown, Plug, Sparkles, Activity } from 'lucide-vue-next';
+import { Activity, Building2, ChevronDown, ChevronLeft, ChevronRight, Plug, Sparkles } from 'lucide-vue-next';
 import { useNavigationAccess } from '../../../composables/useNavigationAccess';
 import { useTenantSelection } from '../../../composables/useTenantSelection';
+import SearchInput from '../../../components/ui/SearchInput.vue';
+import UiDrawer from '../../../components/ui/UiDrawer.vue';
 import { ADMIN_ROUTE_REQUIRES } from '../router';
+import { searchSettings, type SettingsSearchResult } from '../composables/useSettingsSearch';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -26,14 +29,16 @@ interface NavGroup {
   items: NavItem[];
 }
 
+type VisibleGroup = NavGroup & { visibleItems: NavItem[] };
+
 const GROUPS: NavGroup[] = [
   {
     id: 'org',
     labelKey: 'admin.nav.org',
     icon: Building2,
     items: [
-      { path: '/admin/org/info', labelKey: 'admin.nav.org.info' },
-      { path: '/admin/org/members', labelKey: 'admin.nav.org.members' },
+      { path: '/admin/org/info', labelKey: 'admin.nav.orgInfo' },
+      { path: '/admin/org/members', labelKey: 'admin.nav.orgMembers' },
     ],
   },
   {
@@ -41,9 +46,9 @@ const GROUPS: NavGroup[] = [
     labelKey: 'admin.nav.connect',
     icon: Plug,
     items: [
-      { path: '/admin/connect/lines', labelKey: 'admin.nav.connect.lines' },
-      { path: '/admin/connect/credentials', labelKey: 'admin.nav.connect.credentials' },
-      { path: '/admin/connect/data', labelKey: 'admin.nav.connect.data' },
+      { path: '/admin/connect/lines', labelKey: 'admin.nav.connectLines' },
+      { path: '/admin/connect/credentials', labelKey: 'admin.nav.connectCredentials' },
+      { path: '/admin/connect/data', labelKey: 'admin.nav.connectData' },
     ],
   },
   {
@@ -51,8 +56,8 @@ const GROUPS: NavGroup[] = [
     labelKey: 'admin.nav.assistant',
     icon: Sparkles,
     items: [
-      { path: '/admin/assistant/behavior', labelKey: 'admin.nav.assistant.behavior' },
-      { path: '/admin/assistant/tools', labelKey: 'admin.nav.assistant.tools' },
+      { path: '/admin/assistant/behavior', labelKey: 'admin.nav.assistantBehavior' },
+      { path: '/admin/assistant/tools', labelKey: 'admin.nav.assistantTools' },
     ],
   },
   {
@@ -67,14 +72,24 @@ const GROUPS: NavGroup[] = [
 
 const access = computed(() => useNavigationAccess(selectedMembership));
 
-function itemVisible(item: NavItem): boolean {
-  const requires = ADMIN_ROUTE_REQUIRES[item.path];
+// Shared by AdminNav's own item filtering AND the settings search results,
+// so a search can never surface (or navigate to) a panel the nav itself
+// would hide.
+function hasAccess(requires: readonly string[] | undefined): boolean {
   if (!requires || requires.length === 0) return false;
   const acc = access.value as Record<string, { value: boolean }>;
   return requires.some((key) => acc[key]?.value === true);
 }
 
-const visibleGroups = computed(() =>
+function itemVisible(item: NavItem): boolean {
+  return hasAccess(ADMIN_ROUTE_REQUIRES[item.path]);
+}
+
+function isPanelAllowed(panelPath: string): boolean {
+  return hasAccess(ADMIN_ROUTE_REQUIRES[panelPath]);
+}
+
+const visibleGroups = computed<VisibleGroup[]>(() =>
   GROUPS
     .map((group) => ({
       ...group,
@@ -86,12 +101,6 @@ const visibleGroups = computed(() =>
 function isItemActive(itemPath: string): boolean {
   return route.path === itemPath || route.path.startsWith(itemPath + '/');
 }
-
-// Mobile dropdown state
-const open = ref(false);
-const triggerRef = ref<HTMLElement | null>(null);
-const popoverRef = ref<HTMLElement | null>(null);
-const dropdownId = 'admin-nav-dropdown';
 
 interface ActivePanel {
   groupLabel: string;
@@ -112,111 +121,244 @@ const activePanel = computed<ActivePanel | null>(() => {
   return null;
 });
 
-function toggle(): void {
-  open.value = !open.value;
+// --- settings search (task 4.9 / design.md decision 8) ----------------------
+
+const searchQuery = ref('');
+const activeResultIndex = ref(-1);
+const desktopSearchRef = ref<InstanceType<typeof SearchInput> | null>(null);
+const mobileSearchRef = ref<InstanceType<typeof SearchInput> | null>(null);
+
+const searchResults = computed<SettingsSearchResult[]>(() =>
+  searchSettings(searchQuery.value, (key) => t(key), isPanelAllowed),
+);
+
+watch(searchResults, (results) => {
+  activeResultIndex.value = results.length > 0 ? 0 : -1;
+});
+
+function resetSearch(): void {
+  searchQuery.value = '';
+  activeResultIndex.value = -1;
 }
 
-function close(): void {
-  open.value = false;
+function selectResult(result: SettingsSearchResult): void {
+  void router.push({ path: result.panelPath, query: { ...route.query, highlight: result.highlightKey } });
+  resetSearch();
+  mobileNavOpen.value = false;
 }
 
-function selectItem(path: string): void {
-  router.push({ path, query: route.query });
-  close();
-}
-
-function onPointerDown(event: PointerEvent): void {
-  const target = event.target as Node | null;
-  if (
-    triggerRef.value &&
-    !triggerRef.value.contains(target) &&
-    popoverRef.value &&
-    !popoverRef.value.contains(target)
-  ) {
-    close();
+function onSearchKeydown(event: KeyboardEvent): void {
+  if (event.key === 'ArrowDown') {
+    if (searchResults.value.length === 0) return;
+    event.preventDefault();
+    activeResultIndex.value = (activeResultIndex.value + 1) % searchResults.value.length;
+  } else if (event.key === 'ArrowUp') {
+    if (searchResults.value.length === 0) return;
+    event.preventDefault();
+    activeResultIndex.value =
+      (activeResultIndex.value - 1 + searchResults.value.length) % searchResults.value.length;
+  } else if (event.key === 'Enter') {
+    const result = searchResults.value[activeResultIndex.value] ?? searchResults.value[0];
+    if (result) {
+      event.preventDefault();
+      selectResult(result);
+    }
+  } else if (event.key === 'Escape') {
+    event.preventDefault();
+    if (searchQuery.value) {
+      resetSearch();
+    } else {
+      mobileNavOpen.value = false;
+    }
   }
 }
 
-function onKeyDown(event: KeyboardEvent): void {
-  if (event.key === 'Escape') {
-    close();
+// "/" focuses the search box, unless the user is already typing somewhere
+// else (an input/textarea/select/contenteditable) — otherwise a chat-style
+// message box or any text field using "/" would lose the character.
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  return target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT';
+}
+
+const DESKTOP_MEDIA_QUERY = '(min-width: 1024px)';
+
+async function focusSearch(): Promise<void> {
+  if (window.matchMedia(DESKTOP_MEDIA_QUERY).matches) {
+    desktopSearchRef.value?.focus();
+    return;
   }
+
+  openMobileNav();
+  // UiDrawer's own focus trap focuses its first focusable element (the
+  // close button) as soon as it opens (useModalBehavior); wait for that to
+  // settle before stealing focus back to the search input.
+  await nextTick();
+  await nextTick();
+  mobileSearchRef.value?.focus();
+}
+
+function onGlobalKeydown(event: KeyboardEvent): void {
+  if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey) return;
+  if (isTypingTarget(event.target)) return;
+  event.preventDefault();
+  void focusSearch();
 }
 
 onMounted(() => {
-  document.addEventListener('pointerdown', onPointerDown);
-  document.addEventListener('keydown', onKeyDown);
+  document.addEventListener('keydown', onGlobalKeydown);
 });
 
-onBeforeUnmount(() => {
-  document.removeEventListener('pointerdown', onPointerDown);
-  document.removeEventListener('keydown', onKeyDown);
+onUnmounted(() => {
+  document.removeEventListener('keydown', onGlobalKeydown);
+});
+
+// --- mobile drill-down (<lg): group list -> panel list, full screen --------
+
+const mobileNavOpen = ref(false);
+const mobileStep = ref<'groups' | 'panels'>('groups');
+const mobileActiveGroup = ref<VisibleGroup | null>(null);
+
+function openMobileNav(): void {
+  mobileStep.value = 'groups';
+  mobileActiveGroup.value = null;
+  resetSearch();
+  mobileNavOpen.value = true;
+}
+
+function openMobileGroup(group: VisibleGroup): void {
+  mobileActiveGroup.value = group;
+  mobileStep.value = 'panels';
+}
+
+function backToGroups(): void {
+  mobileStep.value = 'groups';
+  mobileActiveGroup.value = null;
+}
+
+function selectItem(path: string): void {
+  void router.push({ path, query: route.query });
+  mobileNavOpen.value = false;
+}
+
+const mobileDrawerTitle = computed(() => {
+  if (mobileStep.value === 'panels' && mobileActiveGroup.value) {
+    return t(mobileActiveGroup.value.labelKey);
+  }
+  return t('admin.nav.mobileTitle');
 });
 
 watch(route, () => {
-  open.value = false;
+  mobileNavOpen.value = false;
+  resetSearch();
 });
 </script>
 
 <template>
   <!-- Sidebar: visible at lg+ -->
   <nav
-    class="hidden lg:flex flex-col w-[240px] shrink-0 h-full overflow-y-auto"
-    :style="{ background: 'var(--surface)', borderRight: '1px solid var(--border)' }"
+    class="hidden lg:flex flex-col w-[240px] shrink-0 h-full overflow-y-auto border-r border-[color:var(--border)] bg-[var(--surface)]"
     aria-label="Admin navigation"
   >
-    <template v-for="group in visibleGroups" :key="group.id">
-      <section :aria-labelledby="`admin-nav-group-${group.id}`">
-        <!-- Group header -->
-        <div class="flex items-center gap-2 px-3 py-2 mt-4 first:mt-2">
-          <component
-            :is="group.icon"
-            class="h-3.5 w-3.5 shrink-0"
-            :stroke-width="2"
-            :style="{ color: 'var(--text-mute)' }"
-            aria-hidden="true"
-          />
-          <h2
-            :id="`admin-nav-group-${group.id}`"
-            class="text-micro font-semibold uppercase tracking-wider"
-            :style="{ color: 'var(--text-mute)' }"
-          >
-            {{ t(group.labelKey) }}
-          </h2>
-        </div>
+    <div class="px-2 pt-2">
+      <SearchInput
+        id="admin-nav-search-desktop"
+        ref="desktopSearchRef"
+        v-model="searchQuery"
+        role="combobox"
+        aria-autocomplete="list"
+        :aria-expanded="searchQuery.trim().length > 0"
+        aria-controls="admin-nav-search-listbox-desktop"
+        :aria-activedescendant="
+          activeResultIndex >= 0 ? `admin-nav-search-option-desktop-${activeResultIndex}` : undefined
+        "
+        :placeholder="t('admin.nav.search.placeholder')"
+        :aria-label="t('admin.nav.search.ariaLabel')"
+        shortcut-hint="/"
+        :clear-label="t('admin.nav.search.clear')"
+        @keydown="onSearchKeydown"
+      />
+    </div>
 
-        <!-- Group items -->
-        <ul class="flex flex-col gap-0.5 px-2 pb-1">
-          <li v-for="item in group.visibleItems" :key="item.path">
-            <RouterLink
-              :to="{ path: item.path, query: route.query }"
-              class="flex w-full items-center rounded-md px-3 py-2 pl-8 text-small transition-colors duration-150 ease-out"
-              :class="isItemActive(item.path)
-                ? 'font-medium'
-                : 'hover:[color:var(--text-soft)]'"
-              :style="isItemActive(item.path)
-                ? { color: 'var(--accent)', background: 'var(--muted)' }
-                : { color: 'var(--text-mute)' }"
-              :aria-current="isItemActive(item.path) ? 'page' : undefined"
+    <ul
+      v-if="searchQuery.trim()"
+      id="admin-nav-search-listbox-desktop"
+      role="listbox"
+      :aria-label="t('admin.nav.search.resultsLabel')"
+      class="admin-nav-search-results"
+    >
+      <li v-if="searchResults.length === 0" class="admin-nav-search-empty">
+        {{ t('admin.nav.search.noResults') }}
+      </li>
+      <li
+        v-for="(result, index) in searchResults"
+        :id="`admin-nav-search-option-desktop-${index}`"
+        :key="result.id"
+        role="option"
+        :aria-selected="index === activeResultIndex"
+        class="admin-nav-search-option"
+        :class="{ 'admin-nav-search-option--active': index === activeResultIndex }"
+        @click="selectResult(result)"
+        @mouseenter="activeResultIndex = index"
+      >
+        <span class="text-small admin-nav-search-option-title">{{ result.title }}</span>
+        <span class="text-micro admin-nav-search-option-panel">{{ result.panelTitle }}</span>
+      </li>
+    </ul>
+
+    <template v-else>
+      <template v-for="group in visibleGroups" :key="group.id">
+        <section :aria-labelledby="`admin-nav-group-${group.id}`">
+          <!-- Group header -->
+          <div class="flex items-center gap-2 px-3 py-2 mt-4 first:mt-2">
+            <component
+              :is="group.icon"
+              class="h-3.5 w-3.5 shrink-0"
+              :stroke-width="2"
+              :style="{ color: 'var(--text-mute)' }"
+              aria-hidden="true"
+            />
+            <h2
+              :id="`admin-nav-group-${group.id}`"
+              class="text-micro font-semibold uppercase tracking-wider"
+              :style="{ color: 'var(--text-mute)' }"
             >
-              {{ t(item.labelKey) }}
-            </RouterLink>
-          </li>
-        </ul>
-      </section>
+              {{ t(group.labelKey) }}
+            </h2>
+          </div>
+
+          <!-- Group items -->
+          <ul class="flex flex-col gap-0.5 px-2 pb-1">
+            <li v-for="item in group.visibleItems" :key="item.path">
+              <RouterLink
+                :to="{ path: item.path, query: route.query }"
+                class="flex w-full items-center rounded-md px-3 py-2 pl-8 text-small transition-colors duration-150 ease-out"
+                :class="isItemActive(item.path)
+                  ? 'font-medium'
+                  : 'hover:[color:var(--text-soft)]'"
+                :style="isItemActive(item.path)
+                  ? { color: 'var(--accent)', background: 'var(--muted)' }
+                  : { color: 'var(--text-mute)' }"
+                :aria-current="isItemActive(item.path) ? 'page' : undefined"
+              >
+                {{ t(item.labelKey) }}
+              </RouterLink>
+            </li>
+          </ul>
+        </section>
+      </template>
     </template>
   </nav>
 
-  <!-- Mobile dropdown trigger: visible at < lg -->
-  <div class="lg:hidden relative w-full">
+  <!-- Mobile trigger: visible at < lg, opens a full-screen drill-down -->
+  <div class="lg:hidden w-full">
     <button
-      ref="triggerRef"
       type="button"
       class="admin-nav-trigger"
-      :aria-haspopup="'menu'"
-      :aria-expanded="open"
-      :aria-controls="dropdownId"
-      @click="toggle"
+      :aria-haspopup="'dialog'"
+      :aria-expanded="mobileNavOpen"
+      @click="openMobileNav"
     >
       <span class="text-small truncate" :style="{ color: 'var(--text)' }">
         <template v-if="activePanel">
@@ -228,62 +370,96 @@ watch(route, () => {
       </span>
       <ChevronDown
         class="admin-nav-chevron"
-        :class="{ 'rotate-180': open }"
         :stroke-width="1.75"
         :style="{ color: 'var(--text-mute)' }"
         aria-hidden="true"
       />
     </button>
+  </div>
 
-    <!-- Popover -->
-    <Transition name="admin-nav-popover">
-      <div
-        v-if="open"
-        :id="dropdownId"
-        ref="popoverRef"
-        class="admin-nav-popover"
-        role="menu"
-        aria-label="Admin navigation"
+  <UiDrawer
+    :open="mobileNavOpen"
+    :title="mobileDrawerTitle"
+    :close-label="t('common.close')"
+    @update:open="mobileNavOpen = $event"
+  >
+    <SearchInput
+      id="admin-nav-search-mobile"
+      ref="mobileSearchRef"
+      v-model="searchQuery"
+      role="combobox"
+      aria-autocomplete="list"
+      :aria-expanded="searchQuery.trim().length > 0"
+      aria-controls="admin-nav-search-listbox-mobile"
+      :aria-activedescendant="
+        activeResultIndex >= 0 ? `admin-nav-search-option-mobile-${activeResultIndex}` : undefined
+      "
+      :placeholder="t('admin.nav.search.placeholder')"
+      :aria-label="t('admin.nav.search.ariaLabel')"
+      :clear-label="t('admin.nav.search.clear')"
+      @keydown="onSearchKeydown"
+    />
+
+    <ul
+      v-if="searchQuery.trim()"
+      id="admin-nav-search-listbox-mobile"
+      role="listbox"
+      :aria-label="t('admin.nav.search.resultsLabel')"
+      class="admin-nav-search-results admin-nav-search-results--mobile"
+    >
+      <li v-if="searchResults.length === 0" class="admin-nav-search-empty">
+        {{ t('admin.nav.search.noResults') }}
+      </li>
+      <li
+        v-for="(result, index) in searchResults"
+        :id="`admin-nav-search-option-mobile-${index}`"
+        :key="result.id"
+        role="option"
+        :aria-selected="index === activeResultIndex"
+        class="admin-nav-search-option"
+        :class="{ 'admin-nav-search-option--active': index === activeResultIndex }"
+        @click="selectResult(result)"
+        @mouseenter="activeResultIndex = index"
       >
-        <template v-for="group in visibleGroups" :key="group.id">
-          <!-- Group label -->
-          <div class="flex items-center gap-2 px-2 py-1 mt-2 first:mt-0">
-            <component
-              :is="group.icon"
-              class="h-3 w-3 shrink-0"
-              :stroke-width="2"
-              :style="{ color: 'var(--text-mute)' }"
-              aria-hidden="true"
-            />
-            <span
-              class="text-micro font-semibold uppercase tracking-wider"
-              :style="{ color: 'var(--text-mute)' }"
-            >
+        <span class="text-small admin-nav-search-option-title">{{ result.title }}</span>
+        <span class="text-micro admin-nav-search-option-panel">{{ result.panelTitle }}</span>
+      </li>
+    </ul>
+
+    <template v-else>
+      <ul v-if="mobileStep === 'groups'" class="admin-nav-mobile-list" role="list">
+        <li v-for="group in visibleGroups" :key="group.id">
+          <button type="button" class="admin-nav-mobile-group" @click="openMobileGroup(group)">
+            <span class="admin-nav-mobile-group-label">
+              <component :is="group.icon" class="h-4 w-4" :stroke-width="2" aria-hidden="true" />
               {{ t(group.labelKey) }}
             </span>
-          </div>
+            <ChevronRight class="h-4 w-4" :stroke-width="1.75" aria-hidden="true" />
+          </button>
+        </li>
+      </ul>
 
-          <!-- Group items -->
-          <ul class="flex flex-col gap-0.5">
-            <li v-for="item in group.visibleItems" :key="item.path">
-              <button
-                type="button"
-                role="menuitem"
-                class="admin-nav-item"
-                :class="{ 'admin-nav-item--active': isItemActive(item.path) }"
-                :style="isItemActive(item.path)
-                  ? { color: 'var(--accent)', background: 'var(--muted)' }
-                  : { color: 'var(--text-soft)' }"
-                @click="selectItem(item.path)"
-              >
-                {{ t(item.labelKey) }}
-              </button>
-            </li>
-          </ul>
-        </template>
+      <div v-else-if="mobileActiveGroup">
+        <button type="button" class="admin-nav-mobile-back" @click="backToGroups">
+          <ChevronLeft class="h-4 w-4" :stroke-width="1.75" aria-hidden="true" />
+          {{ t('common.back') }}
+        </button>
+        <ul class="admin-nav-mobile-list" role="list">
+          <li v-for="item in mobileActiveGroup.visibleItems" :key="item.path">
+            <button
+              type="button"
+              class="admin-nav-mobile-item"
+              :class="{ 'admin-nav-mobile-item--active': isItemActive(item.path) }"
+              :aria-current="isItemActive(item.path) ? 'page' : undefined"
+              @click="selectItem(item.path)"
+            >
+              {{ t(item.labelKey) }}
+            </button>
+          </li>
+        </ul>
       </div>
-    </Transition>
-  </div>
+    </template>
+  </UiDrawer>
 </template>
 
 <style scoped>
@@ -309,49 +485,122 @@ watch(route, () => {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  transition: transform 150ms ease;
 }
 
-.admin-nav-popover {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  border-radius: var(--radius-lg);
+/* Settings search results (shared shape for the desktop sidebar list and
+   the mobile drawer list — `--mobile` only changes spacing/border, since
+   the drawer body already provides its own padding). */
+.admin-nav-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 6px 8px 8px;
+  padding: 4px;
   border: 1px solid var(--border);
-  background: var(--bg-elev);
-  box-shadow: var(--shadow-sm);
-  padding: 8px;
-  z-index: 40;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  max-height: 60vh;
+  overflow-y: auto;
 }
 
-.admin-nav-item {
+.admin-nav-search-results--mobile {
+  margin: 0;
+  max-height: none;
+}
+
+.admin-nav-search-empty {
+  padding: 10px 8px;
+  font-size: 0.8125rem;
+  color: var(--text-mute);
+}
+
+.admin-nav-search-option {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.admin-nav-search-option--active {
+  background: var(--muted);
+}
+
+.admin-nav-search-option-title {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.admin-nav-search-option-panel {
+  color: var(--text-mute);
+}
+
+/* Mobile drill-down (task 4.9): full-screen group list -> panel list,
+   rendered inside UiDrawer's body (already `<lg`-only via UiDrawer's own
+   width breakpoint, see components/ui/UiDrawer.vue). */
+.admin-nav-mobile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-nav-mobile-group,
+.admin-nav-mobile-item {
   display: flex;
   align-items: center;
   width: 100%;
-  padding: 8px 10px;
+  min-height: 44px;
+  padding: 10px 12px;
   border-radius: var(--radius-md);
   background: transparent;
   border: none;
   cursor: pointer;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   text-align: left;
+  color: var(--text-soft);
   transition: background 120ms ease, color 120ms ease;
 }
 
-.admin-nav-item:not(.admin-nav-item--active):hover {
+.admin-nav-mobile-group {
+  justify-content: space-between;
+  color: var(--text);
+}
+
+.admin-nav-mobile-group-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-nav-mobile-group:hover,
+.admin-nav-mobile-item:not(.admin-nav-mobile-item--active):hover {
   background: var(--muted);
-  color: var(--text) !important;
 }
 
-.admin-nav-popover-enter-active,
-.admin-nav-popover-leave-active {
-  transition: opacity 120ms ease, transform 120ms ease;
+.admin-nav-mobile-item--active {
+  color: var(--accent);
+  background: var(--muted);
+  font-weight: 500;
 }
 
-.admin-nav-popover-enter-from,
-.admin-nav-popover-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
+.admin-nav-mobile-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 4px;
+  margin-bottom: 4px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-mute);
+}
+
+.admin-nav-mobile-back:hover {
+  color: var(--text);
 }
 </style>

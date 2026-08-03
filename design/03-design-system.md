@@ -13,8 +13,8 @@ pulso de conversaciones que el negocio atiende por WhatsApp.
 | `--bg` | `#F6F7F9` | `#101216` |
 | `--surface` | `#FFFFFF` | `#171A20` |
 | `--muted` | `#EFF1F4` | `#1E222A` |
-| `--border` | `#E2E5EA` | `#2A2F3A` |
-| `--border-st` | `#C9CED7` | `#3B4250` |
+| `--border` | `#7E8BA1` | `#616D86` |
+| `--border-st` | `#616D83` | `#7F8AA1` |
 | `--text` | `#16181D` | `#E9EBEF` |
 | `--text-soft` | `#3D434E` | `#C2C7D1` |
 | `--text-mute` | `#5F6672` | `#98A0AE` |
@@ -33,7 +33,7 @@ Uso: botones primarios, links, foco, selección, navegación activa.
 | `--accent` | `#2B4FD8` | `#8AA3FF` |
 | `--accent-hover` | `#2342BE` | `#A3B6FF` |
 | `--accent-subtle` (fondos) | `#EBEFFD` | `#1B2340` |
-| `--accent-border` | `#B9C6F5` | `#33407A` |
+| `--accent-border` | `#6884E9` | `#5567B8` |
 
 ### Verde conexión (semántico, mundo WhatsApp)
 
@@ -58,6 +58,17 @@ webhook OK. Nunca en botones, nav ni decoración.
 > de cada par texto/fondo en ambos temas (AA: 4.5:1 cuerpo, 3:1
 > grande/bold) y documentarlo en `design/contrast-check.md`,
 > ajustando pasos si algo falla.
+>
+> **Hecho** (tarea 2.2): medición completa en
+> `design/contrast-check.md`. `--border`, `--border-st` y
+> `--accent-border` se oscurecieron (mismo tono, luminosidad ajustada)
+> en ambos temas porque el hairline original (~1.2–1.9:1) no alcanzaba
+> el 3:1 no-text de WCAG 1.4.11 contra `--bg`/`--surface`/`--muted`;
+> los valores de esta tabla ya reflejan el ajuste. El texto de
+> `.btn-primary` usa `var(--bg)` en vez de blanco fijo — un blanco fijo
+> fallaba contra el `--accent` claro del tema oscuro (2.4:1); `--bg` da
+> el mismo contraste que ya se verifica en la fila "acento / fondo de
+> página" de este documento, en ambos temas.
 
 ## 2. Tipografía
 

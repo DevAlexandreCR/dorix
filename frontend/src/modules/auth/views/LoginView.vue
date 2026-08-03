@@ -5,6 +5,8 @@ import { useRoute, useRouter } from 'vue-router';
 import SurfaceCard from '../../../components/ui/SurfaceCard.vue';
 import FormField from '../../../components/ui/FormField.vue';
 import InlineAlert from '../../../components/ui/InlineAlert.vue';
+import UiButton from '../../../components/ui/UiButton.vue';
+import UiInput from '../../../components/ui/UiInput.vue';
 import { useSession } from '../../../composables/useSession';
 
 const { t } = useI18n();
@@ -48,13 +50,12 @@ async function submitLogin(): Promise<void> {
 
       <form class="grid gap-5" @submit.prevent="submitLogin">
         <FormField :label="t('auth.email')">
-          <input v-model="email" class="input-base" type="email" autocomplete="email" required />
+          <UiInput v-model="email" type="email" autocomplete="email" required />
         </FormField>
 
         <FormField :label="t('auth.password')">
-          <input
+          <UiInput
             v-model="password"
-            class="input-base"
             type="password"
             autocomplete="current-password"
             required
@@ -63,9 +64,9 @@ async function submitLogin(): Promise<void> {
 
         <InlineAlert v-if="authError" :message="authError" tone="danger" />
 
-        <button class="btn-primary mt-2 w-full justify-center py-3.5" type="submit" :disabled="authLoading">
+        <UiButton variant="primary" class="mt-2 w-full justify-center" type="submit" :loading="authLoading">
           {{ authLoading ? t('auth.submitting') : t('auth.submit') }}
-        </button>
+        </UiButton>
       </form>
     </div>
   </SurfaceCard>

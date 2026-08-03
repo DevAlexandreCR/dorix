@@ -12,6 +12,7 @@ return [
         'tenant_context_missing_runtime' => 'No hay contexto de tenant disponible para esta ejecución.',
         'tenant_not_found_id' => 'No fue posible resolver el tenant :tenant_id desde el contexto :source.',
         'tenant_not_found_slug' => 'No fue posible resolver el tenant con slug ":slug" desde el contexto :source.',
+        'tenant_paused' => 'Esta organización está pausada y por eso no puede enviar ni recibir mensajes en este momento. Pídele a un administrador de la organización que la reactive desde el panel de administración.',
     ],
     'auth' => [
         'invalid_credentials' => 'El correo o la contraseña no coinciden.',

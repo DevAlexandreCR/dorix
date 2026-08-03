@@ -8,7 +8,7 @@
               <th
                 v-for="col in columns"
                 :key="col.key"
-                class="data-table-th text-small"
+                scope="col"
                 :style="{ textAlign: col.align ?? 'left' }"
               >
                 {{ col.label }}
@@ -19,10 +19,7 @@
         <tbody>
           <slot name="body">
             <tr v-if="emptyMessage">
-              <td
-                :colspan="columns?.length ?? 1"
-                class="data-table-td data-table-empty text-body"
-              >
+              <td :colspan="columns?.length ?? 1" class="data-table-empty">
                 {{ emptyMessage }}
               </td>
             </tr>
@@ -58,11 +55,19 @@ defineProps<{
   background: var(--muted);
 }
 
-.data-table-th {
-  padding: 12px 16px;
+/* Header row: 32px (design/03 §3). `:deep` targets both the default
+   column headers above and anything a caller renders via the `head`
+   slot, so future adopters (phase 4) get correct density for free
+   without needing to know an internal class name. */
+.data-table :deep(th) {
+  height: 32px;
+  padding: 0 16px;
   text-align: left;
+  font-size: 0.6875rem; /* 11px */
   font-weight: 600;
-  color: var(--text-soft);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-mute);
   white-space: nowrap;
 }
 
@@ -78,12 +83,19 @@ defineProps<{
   background: var(--muted);
 }
 
-.data-table-td {
-  padding: 12px 16px;
+/* Body row: 40px (design/03 §3), same `:deep` reasoning as the header. */
+.data-table :deep(td) {
+  height: 40px;
+  padding: 0 16px;
   color: var(--text);
+  font-size: 0.8125rem; /* 13px, .text-body */
+  vertical-align: middle;
 }
 
-.data-table-empty {
+/* Matches `:deep(td)`'s specificity so this override actually wins
+   (a bare `.data-table-empty` class selector alone loses to the
+   `.data-table :deep(td)` element+class combo above). */
+.data-table :deep(td.data-table-empty) {
   text-align: center;
   color: var(--text-mute);
 }

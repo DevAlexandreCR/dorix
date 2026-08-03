@@ -245,7 +245,7 @@ class InternalConsoleTest extends TestCase
         $sender = app(OutboundMessageSender::class);
 
         $this->expectException(WhatsAppSendFailedException::class);
-        $this->expectExceptionMessage('Automated outbound messages are blocked while the conversation is in HUMAN_HANDOFF.');
+        $this->expectExceptionMessage(__('api.whatsapp.outbound_blocked_handoff'));
 
         try {
             $sender->send(new OutboundMessageData(

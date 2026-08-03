@@ -31,6 +31,7 @@ export function useNavigationAccess(selectedMembership: Ref<TenantMembership | n
   const canAccessAdmin = computed(
     () =>
       canManageTenant.value ||
+      canManageTenantUsers.value ||
       canManageAgentConfig.value ||
       canViewCredentialMetadata.value,
   );

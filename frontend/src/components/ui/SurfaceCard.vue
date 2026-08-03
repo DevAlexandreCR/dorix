@@ -23,11 +23,16 @@ const paddingClass = computed(() => {
 </script>
 
 <template>
-  <article
-    class="rounded-lg border bg-[var(--surface)]"
-    :class="paddingClass"
-    :style="{ borderColor: 'var(--border)' }"
-  >
+  <article class="surface-card" :class="paddingClass">
     <slot />
   </article>
 </template>
+
+<style scoped>
+.surface-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+}
+</style>

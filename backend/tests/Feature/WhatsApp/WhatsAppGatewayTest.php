@@ -6,6 +6,7 @@ use App\Domain\WhatsApp\Contracts\OutboundMessageSender;
 use App\Domain\WhatsApp\DTO\OutboundMessageData;
 use App\Enums\ConversationStatus;
 use App\Enums\MessageDirection;
+use App\Enums\TenantStatus;
 use App\Jobs\ProcessIncomingMessageJob;
 use App\Models\ApiCredential;
 use App\Models\AgentEvent;
@@ -136,6 +137,78 @@ class WhatsAppGatewayTest extends TestCase
         });
     }
 
+    public function test_it_skips_persisting_an_inbound_message_and_dispatching_a_job_for_a_paused_tenant(): void
+    {
+        Queue::fake();
+
+        $tenant = $this->createTenant('wayne-paused');
+        $tenant->update(['status' => TenantStatus::Paused]);
+        $line = $this->createLine($tenant, 'wayne-phone-number-id');
+
+        $payload = $this->inboundPayload($line->phone_number_id, 'wamid.inbound.paused.1', 'Hola desde WhatsApp pausado');
+
+        $this->postJson('/api/webhooks/meta/whatsapp', $payload)
+            ->assertOk()
+            ->assertExactJson([
+                'status' => 'accepted',
+                'received_messages' => 0,
+                'deduplicated_messages' => 0,
+                'status_updates' => 0,
+                'jobs_dispatched' => 0,
+            ]);
+
+        $this->assertDatabaseCount('conversation_messages', 0);
+
+        Queue::assertNotPushed(ProcessIncomingMessageJob::class);
+
+        $this->assertDatabaseHas('agent_events', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'webhook_skipped_tenant_paused',
+        ]);
+    }
+
+    public function test_it_resumes_normal_processing_after_a_paused_tenant_is_reactivated(): void
+    {
+        Queue::fake();
+
+        $tenant = $this->createTenant('stark-reactivated');
+        $tenant->update(['status' => TenantStatus::Paused]);
+        $line = $this->createLine($tenant, 'stark-phone-number-id');
+
+        $pausedPayload = $this->inboundPayload($line->phone_number_id, 'wamid.inbound.paused.2', 'Mensaje mientras está pausado');
+
+        $this->postJson('/api/webhooks/meta/whatsapp', $pausedPayload)->assertOk();
+
+        $this->assertDatabaseCount('conversation_messages', 0);
+        Queue::assertNotPushed(ProcessIncomingMessageJob::class);
+
+        $tenant->update(['status' => TenantStatus::Active]);
+
+        $payload = $this->inboundPayload($line->phone_number_id, 'wamid.inbound.reactivated.1', 'Hola de nuevo');
+
+        $this->postJson('/api/webhooks/meta/whatsapp', $payload)
+            ->assertOk()
+            ->assertExactJson([
+                'status' => 'accepted',
+                'received_messages' => 1,
+                'deduplicated_messages' => 0,
+                'status_updates' => 0,
+                'jobs_dispatched' => 1,
+            ]);
+
+        $message = ConversationMessage::query()->firstOrFail();
+        $conversation = Conversation::query()->firstOrFail();
+
+        $this->assertSame('wamid.inbound.reactivated.1', $message->provider_message_id);
+
+        Queue::assertPushed(ProcessIncomingMessageJob::class, 1);
+        Queue::assertPushed(ProcessIncomingMessageJob::class, function (ProcessIncomingMessageJob $job) use ($tenant, $conversation, $message): bool {
+            return $job->tenantId() === $tenant->id
+                && $job->conversationId === $conversation->id
+                && $job->messageId === $message->id;
+        });
+    }
+
     public function test_it_persists_status_callbacks_on_the_existing_outbound_message(): void
     {
         $tenant = $this->createTenant('globex');
@@ -180,6 +253,114 @@ class WhatsAppGatewayTest extends TestCase
             'event_type' => 'whatsapp_status_updated',
             'conversation_message_id' => $message->id,
         ]);
+    }
+
+    /**
+     * Deliberate carve-out, not an oversight (design.md decision 5): status
+     * updates are pure delivery bookkeeping for messages already sent to the
+     * customer. Persisting them does not invoke the agent and does not
+     * serve a new customer request, so a paused tenant must NOT stop them
+     * from being recorded — dropping this "for symmetry" with the inbound
+     * skip in task 3.1 would silently freeze the delivery state of messages
+     * that went out before the pause, so a `failed` delivery would keep
+     * showing as `accepted`/`sent` forever, which is the most harmful case
+     * since the operator would believe the message was delivered.
+     *
+     * If a future refactor extends the paused-tenant skip from the inbound
+     * loop into `persistStatusUpdate`, this test must fail loudly.
+     */
+    public function test_it_still_persists_a_failed_status_update_while_the_tenant_is_paused(): void
+    {
+        $tenant = $this->createTenant('umbrella');
+        $tenant->update(['status' => TenantStatus::Paused]);
+
+        $line = $this->createLine($tenant, 'umbrella-phone-number-id');
+        $conversation = $this->createConversation($tenant, $line);
+
+        $message = ConversationMessage::query()->create([
+            'tenant_id' => $tenant->id,
+            'conversation_id' => $conversation->id,
+            'direction' => MessageDirection::Outbound,
+            'message_type' => 'text',
+            'body' => 'Mensaje saliente antes de pausar',
+            'provider_message_id' => 'wamid.outbound.paused.1',
+            'idempotency_key' => 'outbound-key-paused-1',
+            'status' => 'accepted',
+            'payload' => [
+                'source' => 'outbound_sender',
+            ],
+        ]);
+
+        $this->postJson('/api/webhooks/meta/whatsapp', $this->statusPayload($line->phone_number_id, 'wamid.outbound.paused.1'))
+            ->assertOk()
+            ->assertExactJson([
+                'status' => 'accepted',
+                'received_messages' => 0,
+                'deduplicated_messages' => 0,
+                'status_updates' => 1,
+                'jobs_dispatched' => 0,
+            ]);
+
+        $message->refresh();
+
+        $this->assertSame('failed', $message->status);
+        $this->assertSame('131047', $message->error_code);
+        $this->assertSame('Message failed to send because the customer is unavailable.', $message->error_message);
+        $this->assertNotNull($message->failed_at);
+        $this->assertSame('failed', data_get($message->payload, 'latest_status.status'));
+
+        $this->assertDatabaseHas('agent_events', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'whatsapp_status_updated',
+            'conversation_message_id' => $message->id,
+        ]);
+    }
+
+    /**
+     * Same carve-out as above, for a non-failure status: a `read` receipt on
+     * an already-sent message must also keep updating while the tenant is
+     * paused, since it is bookkeeping too, not a new customer interaction.
+     */
+    public function test_it_still_persists_a_read_status_update_while_the_tenant_is_paused(): void
+    {
+        $tenant = $this->createTenant('initrode');
+        $tenant->update(['status' => TenantStatus::Paused]);
+
+        $line = $this->createLine($tenant, 'initrode-phone-number-id');
+        $conversation = $this->createConversation($tenant, $line);
+
+        $message = ConversationMessage::query()->create([
+            'tenant_id' => $tenant->id,
+            'conversation_id' => $conversation->id,
+            'direction' => MessageDirection::Outbound,
+            'message_type' => 'text',
+            'body' => 'Mensaje saliente antes de pausar',
+            'provider_message_id' => 'wamid.outbound.paused.2',
+            'idempotency_key' => 'outbound-key-paused-2',
+            'status' => 'sent',
+            'sent_at' => now(),
+            'payload' => [
+                'source' => 'outbound_sender',
+            ],
+        ]);
+
+        $this->postJson(
+            '/api/webhooks/meta/whatsapp',
+            $this->statusPayload($line->phone_number_id, 'wamid.outbound.paused.2', 'read', [])
+        )
+            ->assertOk()
+            ->assertExactJson([
+                'status' => 'accepted',
+                'received_messages' => 0,
+                'deduplicated_messages' => 0,
+                'status_updates' => 1,
+                'jobs_dispatched' => 0,
+            ]);
+
+        $message->refresh();
+
+        $this->assertSame('read', $message->status);
+        $this->assertSame('read', data_get($message->payload, 'latest_status.status'));
     }
 
     public function test_it_persists_outbound_messages_before_calling_meta_and_reuses_the_existing_record_for_the_same_idempotency_key(): void
@@ -325,8 +506,33 @@ class WhatsAppGatewayTest extends TestCase
         ];
     }
 
-    protected function statusPayload(string $phoneNumberId, string $providerMessageId): array
-    {
+    /**
+     * @param  array<int, array<string, string>>|null  $errors  Pass `[]` explicitly to omit
+     *                                                          the `errors` key (e.g. for a `read`/`delivered` status).
+     *                                                          Defaults to the historical `failed` error so existing
+     *                                                          callers are unaffected.
+     */
+    protected function statusPayload(
+        string $phoneNumberId,
+        string $providerMessageId,
+        string $status = 'failed',
+        ?array $errors = [
+            [
+                'code' => '131047',
+                'title' => 'Message failed to send because the customer is unavailable.',
+            ],
+        ],
+    ): array {
+        $statusEntry = [
+            'id' => $providerMessageId,
+            'status' => $status,
+            'timestamp' => '1714305100',
+        ];
+
+        if ($errors !== []) {
+            $statusEntry['errors'] = $errors;
+        }
+
         return [
             'object' => 'whatsapp_business_account',
             'entry' => [
@@ -341,19 +547,7 @@ class WhatsAppGatewayTest extends TestCase
                                     'display_phone_number' => '+573001112233',
                                     'phone_number_id' => $phoneNumberId,
                                 ],
-                                'statuses' => [
-                                    [
-                                        'id' => $providerMessageId,
-                                        'status' => 'failed',
-                                        'timestamp' => '1714305100',
-                                        'errors' => [
-                                            [
-                                                'code' => '131047',
-                                                'title' => 'Message failed to send because the customer is unavailable.',
-                                            ],
-                                        ],
-                                    ],
-                                ],
+                                'statuses' => [$statusEntry],
                             ],
                         ],
                     ],

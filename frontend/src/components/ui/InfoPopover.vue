@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { ref, watch } from 'vue';
+import UiPopover from './UiPopover.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -13,7 +14,6 @@ const props = withDefaults(
 
 const open = ref(false);
 const pinned = ref(false);
-const root = ref<HTMLElement | null>(null);
 
 function supportsHover(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
@@ -33,7 +33,6 @@ function hideFromHover(): void {
 
 function togglePinned(): void {
   if (pinned.value) {
-    pinned.value = false;
     open.value = false;
     return;
   }
@@ -42,63 +41,39 @@ function togglePinned(): void {
   open.value = true;
 }
 
-function closePopover(): void {
-  pinned.value = false;
-  open.value = false;
-}
-
-function handleDocumentClick(event: MouseEvent): void {
-  if (!root.value) {
-    return;
+// Outside-click and Escape (handled by UiPopover) both close by setting
+// `open` to false — unpin whenever that happens so a later hover doesn't
+// reopen a popover the user just dismissed.
+watch(open, (isOpen) => {
+  if (!isOpen) {
+    pinned.value = false;
   }
-
-  if (event.target instanceof Node && !root.value.contains(event.target)) {
-    closePopover();
-  }
-}
-
-function handleEscape(event: KeyboardEvent): void {
-  if (event.key === 'Escape') {
-    closePopover();
-  }
-}
-
-onMounted(() => {
-  document.addEventListener('click', handleDocumentClick);
-  document.addEventListener('keydown', handleEscape);
-});
-
-onBeforeUnmount(() => {
-  document.removeEventListener('click', handleDocumentClick);
-  document.removeEventListener('keydown', handleEscape);
 });
 </script>
 
 <template>
-  <span
-    ref="root"
-    class="relative inline-flex"
+  <UiPopover
+    v-model:open="open"
+    placement="bottom-center"
+    panel-class="w-56"
+    role="tooltip"
     @mouseenter="showFromHover"
     @mouseleave="hideFromHover"
   >
-    <button
-      class="inline-flex h-5 w-5 items-center justify-center rounded-md border text-[11px] font-semibold text-[var(--text-mute)] transition hover:text-[var(--text)]"
-      :style="{ borderColor: 'var(--border)' }"
-      type="button"
-      :aria-expanded="open"
-      :aria-label="props.label || props.content"
-      @click.stop="togglePinned"
-    >
-      i
-    </button>
+    <template #trigger>
+      <button
+        class="inline-flex h-5 w-5 items-center justify-center rounded-md border border-[color:var(--border)] text-[11px] font-semibold text-[var(--text-mute)] transition hover:text-[var(--text)]"
+        type="button"
+        :aria-expanded="open"
+        :aria-label="props.label || props.content"
+        @click.stop="togglePinned"
+      >
+        i
+      </button>
+    </template>
 
-    <div
-      v-if="open"
-      class="absolute left-1/2 top-full z-30 mt-2 w-56 -translate-x-1/2 rounded-lg border bg-[var(--surface)] p-3 text-left text-xs leading-5 text-[var(--text-mute)] shadow-[var(--shadow-sm)]"
-      :style="{ borderColor: 'var(--border)' }"
-      role="tooltip"
-    >
+    <p class="text-left text-xs leading-5" :style="{ color: 'var(--text-mute)' }">
       {{ props.content }}
-    </div>
-  </span>
+    </p>
+  </UiPopover>
 </template>

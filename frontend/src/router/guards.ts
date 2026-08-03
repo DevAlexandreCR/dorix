@@ -1,7 +1,7 @@
 import type { RouteLocationNormalized, Router } from 'vue-router';
 import type { TenantMembership } from '../app/providers/session';
 import { useSessionStore } from '../app/providers/session';
-import { LEGACY_PANEL_REDIRECTS, resolveAdminFallback } from '../modules/admin/router';
+import { hasRequiredAccess, resolveAdminFallback } from '../modules/admin/router';
 
 function safeRedirect(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//')
@@ -43,20 +43,6 @@ export function registerRouterGuards(router: Router): void {
       return safeRedirect(to.query.redirect, '/operations');
     }
 
-    // Legacy /admin?panel=X redirect
-    if (to.path === '/admin' && to.query.panel !== undefined) {
-      const panelKey = Array.isArray(to.query.panel) ? to.query.panel[0] : to.query.panel;
-      const { panel: _panel, ...queryWithoutPanel } = to.query;
-      const target = panelKey ? LEGACY_PANEL_REDIRECTS[panelKey] : undefined;
-
-      if (target) {
-        return { path: target, query: queryWithoutPanel };
-      }
-
-      // Unknown panel value — drop it so bare /admin fallback walker takes over
-      return { path: '/admin', query: queryWithoutPanel };
-    }
-
     // Bare /admin redirect — walk fallback order to find first accessible sub-route
     if (to.path === '/admin') {
       const membership = resolveSelectedMembership(to, session.memberships.value);
@@ -66,8 +52,27 @@ export function registerRouterGuards(router: Router): void {
         return { path: fallback, query: to.query };
       }
 
-      // No accessible sub-route — let the existing AdminView render (handles forbidden state)
+      // No accessible sub-route — AdminLayout renders ForbiddenState for this flag.
+      to.meta.forbidden = true;
       return true;
+    }
+
+    // Admin and platform sub-route gating — meta.requires
+    // (useNavigationAccess keys, OR semantics). Never redirected (that
+    // would risk looping with the bare /admin fallback above): AdminLayout
+    // / PlatformLayout read `forbidden` and render ForbiddenState in place
+    // of the RouterView, without a URL change. Same mechanism for both
+    // prefixes (design.md decision 2: "/platform/** usa el mismo mecanismo
+    // con canManagePlatform") — no parallel guard implementation.
+    if (to.path.startsWith('/admin/') || to.path.startsWith('/platform/')) {
+      const requires = Array.isArray(to.meta.requires) ? (to.meta.requires as string[]) : undefined;
+
+      if (requires) {
+        const membership = resolveSelectedMembership(to, session.memberships.value);
+        if (!hasRequiredAccess(requires, membership)) {
+          to.meta.forbidden = true;
+        }
+      }
     }
 
     return true;
