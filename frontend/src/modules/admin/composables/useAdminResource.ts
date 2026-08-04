@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { useNavigationAccess } from '../../../composables/useNavigationAccess';
 import { useTenantSelection } from '../../../composables/useTenantSelection';
 import {
+  connectWhatsAppLine,
   createCatalogItem,
   createTenantUser,
   createWhatsAppLine,
@@ -43,6 +44,7 @@ import type {
   AgentConfigRecord,
   AgentModelOption,
   CatalogItemRecord,
+  ConnectWhatsAppLinePayload,
   CredentialMetadataRecord,
   DataSourceRecord,
   TenantRecord,
@@ -328,6 +330,10 @@ export function useAdminResource() {
     update(lineId: number, payload: LinePayload, options?: AdminActionOptions): Promise<WhatsAppLineRecord | undefined>;
     remove(lineId: number, options?: AdminActionOptions): Promise<boolean>;
     requestCalendarConnection(lineId: number, options?: AdminActionOptions): Promise<string | undefined>;
+    connect(
+      payload: ConnectWhatsAppLinePayload,
+      options?: AdminActionOptions,
+    ): Promise<WhatsAppLineRecord | undefined>;
   } = {
     data: computed(() => sessionState.overview?.whatsapp_lines ?? []),
     loading: linesFeedback.loading,
@@ -382,6 +388,22 @@ export function useAdminResource() {
       return linesFeedback.run(async () => {
         const response = await requestCalendarConsentUrl(tenantId, lineId);
         return response.data.consent_url;
+      }, options);
+    },
+    // Embedded Signup connect (task 5.2): unlike `requestCalendarConnection`,
+    // this call *does* return the finished line in its response (creation or
+    // reconnection), so it patches `sessionState` from that response the same
+    // way `create`/`update` do above — no follow-up overview reload needed.
+    async connect(payload, options) {
+      const tenantId = currentTenantId();
+      if (!tenantId) return undefined;
+
+      return linesFeedback.run(async () => {
+        const response = await connectWhatsAppLine(tenantId, payload);
+        mutateOverview((overview) => {
+          overview.whatsapp_lines = upsertById(overview.whatsapp_lines, response.data);
+        });
+        return response.data;
       }, options);
     },
   };

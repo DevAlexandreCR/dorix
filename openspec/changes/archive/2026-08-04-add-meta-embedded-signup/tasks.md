@@ -24,10 +24,10 @@
 ## 5. Frontend — flujo de conexión
 
 - [x] 5.1 Verificar en el App Dashboard de Meta si una sola config de Embedded Signup sirve para ambos modos o se necesitan dos (ver Open Questions del design); agregar `VITE_META_APP_ID` / `VITE_META_ES_CONFIG_ID` a `frontend/.env` (y ejemplo — desdoblar en dos config ids si Meta lo exige, con mapeo modo → config id en el helper), crear composable/helper que carga el Facebook JS SDK on-demand y lanza `FB.login` con `config_id`, `response_type: 'code'`, `override_default_response_type: true`, `extras.sessionInfoVersion: '3'` y `extras.featureType: 'whatsapp_business_app_onboarding'` solo en coexistencia; escuchar el evento `WA_EMBEDDED_SIGNUP` validando `event.origin` y actuando solo sobre `data.event` terminal del modo elegido (`FINISH`/`FINISH_ONLY_WABA` para cloud_api, `FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING` para coexistencia; estados intermedios y `CANCEL` se ignoran)
-- [ ] 5.2 Agregar `connectWhatsAppLine` a `modules/admin/api.ts` y `connection_mode` a `WhatsAppLineRecord` en `types.ts` (+ tipos del payload connect); integrar en `useAdminResource`
-- [ ] 5.3 Rediseñar la cabecera de `LinesView.vue`: botón primario "Conectar con WhatsApp" con selector de modo (coexistencia vs API directa con explicación), estados conectando/éxito/error/cancelado según spec `ui-admin`; drawer manual como acción secundaria "Conexión manual"; badge de solo lectura del modo en tabla y drawer
-- [ ] 5.4 Agregar strings i18n (es-CO primario + en fallback) del flujo completo y corregir el hint de `credential_key` en la vista de credenciales de plataforma (`wa_token` → `access_token`); correr `npm run typecheck`
+- [x] 5.2 Agregar `connectWhatsAppLine` a `modules/admin/api.ts` y `connection_mode` a `WhatsAppLineRecord` en `types.ts` (+ tipos del payload connect); integrar en `useAdminResource`
+- [x] 5.3 Rediseñar la cabecera de `LinesView.vue`: botón primario "Conectar con WhatsApp" con selector de modo (coexistencia vs API directa con explicación), estados conectando/éxito/error/cancelado según spec `ui-admin`; drawer manual como acción secundaria "Conexión manual"; badge de solo lectura del modo en tabla y drawer
+- [x] 5.4 Agregar strings i18n (es-CO primario + en fallback) del flujo completo y corregir el hint de `credential_key` en la vista de credenciales de plataforma (`wa_token` → `access_token`); correr `npm run typecheck`
 
 ## 6. Validación final
 
-- [ ] 6.1 Correr suite completa backend (`php artisan test`) y typecheck/build frontend; verificar checklist mínimo del repo (stack levanta, `/api/health` responde, frontend carga) y revisar `openspec status` del change
+- [x] 6.1 Correr suite completa backend (`php artisan test`) y typecheck/build frontend; verificar checklist mínimo del repo (stack levanta, `/api/health` responde, frontend carga) y revisar `openspec status` del change

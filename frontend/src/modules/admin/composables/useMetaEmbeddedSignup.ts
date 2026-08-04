@@ -1,4 +1,5 @@
 import { appConfig } from '../../../config/app';
+import type { WhatsAppConnectionMode } from '../types';
 
 // ---------------------------------------------------------------------------
 // Facebook JS SDK — minimal ambient typing for the surface this file uses.
@@ -42,7 +43,10 @@ declare global {
 // Public types
 // ---------------------------------------------------------------------------
 
-export type EmbeddedSignupConnectionMode = 'cloud_api' | 'coexistence';
+// Re-exports `types.ts`'s `WhatsAppConnectionMode` (task 5.2) — that file is
+// the single source of truth for the union; this alias just keeps the name
+// this composable's public API was already using.
+export type EmbeddedSignupConnectionMode = WhatsAppConnectionMode;
 
 /** Session info (v3) plus the OAuth code, ready to send to `connect` (task 5.2). */
 export interface EmbeddedSignupResult {

@@ -28,6 +28,12 @@ export interface TenantUserRecord {
 // CalendarConnectionUnavailableException on the tool side).
 export type CalendarConnectionStatus = 'connected' | 'broken' | 'none';
 
+// `add-meta-embedded-signup` design.md D3: single source of truth for the
+// connection-mode union. `useMetaEmbeddedSignup`'s `EmbeddedSignupConnectionMode`
+// (task 5.1) re-exports this type rather than redeclaring it, so the frontend
+// has exactly one place that knows the two valid values.
+export type WhatsAppConnectionMode = 'cloud_api' | 'coexistence';
+
 export interface WhatsAppLineRecord {
   id: number;
   tenant_id: number;
@@ -37,10 +43,23 @@ export interface WhatsAppLineRecord {
   waba_id: string | null;
   status: string;
   is_enabled: boolean;
+  connection_mode: WhatsAppConnectionMode;
   calendar_connection_status: CalendarConnectionStatus;
   metadata: Record<string, unknown>;
   created_at: string | null;
   updated_at: string | null;
+}
+
+// Payload for `POST /admin/whatsapp-lines/connect` (design.md D2): the
+// Embedded Signup result (task 5.1's `EmbeddedSignupResult`) plus the chosen
+// mode, sent to the backend to exchange the code and provision the line. The
+// backend responds with the serialized `WhatsAppLineRecord` (never the token).
+export interface ConnectWhatsAppLinePayload {
+  code: string;
+  phone_number_id: string;
+  waba_id: string;
+  connection_mode: WhatsAppConnectionMode;
+  name?: string;
 }
 
 export interface CredentialMetadataRecord {

@@ -22,8 +22,9 @@ import { useNavigationAccess } from '../../../../composables/useNavigationAccess
 import { useTenantSelection } from '../../../../composables/useTenantSelection';
 import { useToast } from '../../../../composables/useToast';
 import PanelHeader from '../../components/PanelHeader.vue';
+import { useMetaEmbeddedSignup } from '../../composables/useMetaEmbeddedSignup';
 import { useAdminResource } from '../../composables/useAdminResource';
-import type { AdminOverview, CalendarConnectionStatus, WhatsAppLineRecord } from '../../types';
+import type { AdminOverview, CalendarConnectionStatus, WhatsAppConnectionMode, WhatsAppLineRecord } from '../../types';
 
 // design.md decision 6 (all-or-nothing line scope): whether a line "has its
 // own assistant" is a whole-row fact (an AgentConfigRecord with
@@ -69,6 +70,17 @@ function lineStatusLabel(line: WhatsAppLineRecord): string {
   return line.is_enabled ? t('admin.connect.lines.statusActive') : t('admin.connect.lines.statusPaused');
 }
 
+// `connection_mode` (add-meta-embedded-signup design.md D3) is a read-only
+// fact set at connect time, never editable here — surfaced as a badge in
+// both the table and the drawer, sharing the same short label as the mode
+// picker in the Embedded Signup modal below (no separate "badge copy" to
+// keep in sync).
+function connectionModeLabel(mode: WhatsAppConnectionMode): string {
+  return mode === 'coexistence'
+    ? t('admin.connect.lines.embeddedSignup.modeCoexistenceLabel')
+    : t('admin.connect.lines.embeddedSignup.modeCloudApiLabel');
+}
+
 function lineHasOwnAssistant(overview: AdminOverview, lineId: number): boolean {
   return overview.agent_configs.some(
     (config) => config.scope_type === 'whatsapp_line' && config.whatsapp_line_id === lineId,
@@ -95,7 +107,78 @@ function calendarStatusTone(status: CalendarConnectionStatus): 'danger' | 'neutr
   }
 }
 
-// --- connect drawer ----------------------------------------------------------
+// --- Embedded Signup (primary connect flow) ---------------------------------
+//
+// design.md D7 / spec `ui-admin` ("Estados del flujo de conexión con Meta"):
+// eligiendo modo -> popup de Meta abierto -> conectando -> éxito/error/
+// cancelado. The mode picker is a small modal; once the user confirms it
+// closes and `connecting` alone drives the primary button's loading/disabled
+// state for the rest of the flow (popup open + backend exchange), so the
+// flow truly cannot be relaunched until it resolves either way.
+const { launch: launchEmbeddedSignup } = useMetaEmbeddedSignup();
+
+const modeSelectOpen = ref(false);
+const selectedMode = ref<WhatsAppConnectionMode>('cloud_api');
+const connecting = ref(false);
+
+function openModeSelect(): void {
+  selectedMode.value = 'cloud_api';
+  modeSelectOpen.value = true;
+}
+
+function closeModeSelect(): void {
+  modeSelectOpen.value = false;
+}
+
+function onModeSelectOpenChange(value: boolean): void {
+  if (!value) {
+    closeModeSelect();
+  }
+}
+
+async function confirmModeAndConnect(): Promise<void> {
+  const mode = selectedMode.value;
+  closeModeSelect();
+  connecting.value = true;
+
+  try {
+    const outcome = await launchEmbeddedSignup(mode);
+
+    if (outcome.status === 'cancelled') {
+      // Spec "Popup cancelado": return to the initial state, no error toast.
+      return;
+    }
+
+    const { result } = outcome;
+
+    if (!result.phoneNumberId) {
+      // `FINISH_ONLY_WABA` (cloud_api): a WABA was authorized but no phone
+      // number was provisioned in the popup — nothing to send to `connect`.
+      toast.error(t('admin.connect.lines.embeddedSignup.missingPhoneNumberError'));
+      return;
+    }
+
+    await lines.connect(
+      {
+        code: result.code,
+        phone_number_id: result.phoneNumberId,
+        waba_id: result.wabaId,
+        connection_mode: result.connectionMode,
+      },
+      { successMessage: t('admin.success.lineConnected') },
+    );
+  } catch {
+    // Genuine client-side failure from `launchEmbeddedSignup` itself (SDK
+    // failed to load, malformed WA_EMBEDDED_SIGNUP payload, flow timed out)
+    // — not a Graph/backend error (those are already actionable via
+    // `lines.connect`'s own translated ApiError message above).
+    toast.error(t('admin.connect.lines.embeddedSignup.error'));
+  } finally {
+    connecting.value = false;
+  }
+}
+
+// --- manual connect drawer (secondary fallback) -----------------------------
 
 const connectOpen = ref(false);
 const connectForm = ref<ConnectForm>(defaultConnectForm());
@@ -133,7 +216,7 @@ async function submitConnect(): Promise<void> {
       status: 'active',
       is_enabled: true,
     },
-    { successMessage: t('admin.success.lineCreated') },
+    { successMessage: t('admin.success.lineConnected') },
   );
 
   if (created) {
@@ -355,7 +438,19 @@ watch(
       description="admin.connect.lines.description"
     >
       <template #actions>
-        <UiButton variant="primary" :disabled="!canManageTenant" @click="openConnectDrawer">
+        <UiButton
+          variant="secondary"
+          :disabled="!canManageTenant || connecting"
+          @click="openConnectDrawer"
+        >
+          {{ t('admin.connect.lines.manualConnectAction') }}
+        </UiButton>
+        <UiButton
+          variant="primary"
+          :loading="connecting"
+          :disabled="!canManageTenant"
+          @click="openModeSelect"
+        >
           <template #icon>
             <Plus class="h-4 w-4" :stroke-width="2" aria-hidden="true" />
           </template>
@@ -382,13 +477,14 @@ watch(
           { key: 'line', label: t('admin.connect.lines.columns.line') },
           { key: 'number', label: t('admin.connect.lines.columns.number') },
           { key: 'status', label: t('admin.connect.lines.columns.status') },
+          { key: 'mode', label: t('admin.connect.lines.columns.mode') },
           { key: 'assistant', label: t('admin.connect.lines.columns.assistant') },
           { key: 'calendar', label: t('admin.connect.lines.columns.calendar') },
         ]"
       >
         <template #body>
           <tr v-if="adminOverview.whatsapp_lines.length === 0">
-            <td colspan="5" class="data-table-empty">{{ t('admin.connect.lines.empty') }}</td>
+            <td colspan="6" class="data-table-empty">{{ t('admin.connect.lines.empty') }}</td>
           </tr>
           <tr
             v-for="line in adminOverview.whatsapp_lines"
@@ -404,6 +500,9 @@ watch(
             <td class="text-mono">{{ lineDisplayNumber(line) }}</td>
             <td>
               <LiveDot :label="lineStatusLabel(line)" :live="line.is_enabled" />
+            </td>
+            <td>
+              <StatusBadge :label="connectionModeLabel(line.connection_mode)" tone="neutral" />
             </td>
             <td>
               <InheritanceChip
@@ -462,6 +561,9 @@ watch(
             </FormField>
             <FormField :label="t('admin.connect.lines.detail.wabaIdLabel')">
               <TechValue :value="detailLine.waba_id ?? t('common.notAvailable')" />
+            </FormField>
+            <FormField :label="t('admin.connect.lines.detail.connectionModeLabel')">
+              <StatusBadge :label="connectionModeLabel(detailLine.connection_mode)" tone="neutral" />
             </FormField>
           </div>
         </details>
@@ -527,7 +629,48 @@ watch(
       </template>
     </UiDrawer>
 
-    <!-- Connect drawer -->
+    <!-- Mode select modal (Embedded Signup — primary connect flow) -->
+    <UiModal
+      :open="modeSelectOpen"
+      :title="t('admin.connect.lines.embeddedSignup.modalTitle')"
+      :message="t('admin.connect.lines.embeddedSignup.modalDescription')"
+      :confirm-label="t('admin.connect.lines.embeddedSignup.continueAction')"
+      :cancel-label="t('common.cancel')"
+      @confirm="confirmModeAndConnect"
+      @cancel="closeModeSelect"
+      @update:open="onModeSelectOpenChange"
+    >
+      <div class="mode-opts" role="radiogroup" :aria-label="t('admin.connect.lines.embeddedSignup.modalTitle')">
+        <button
+          type="button"
+          class="mode-opt"
+          :class="{ 'mode-opt--selected': selectedMode === 'cloud_api' }"
+          role="radio"
+          :aria-checked="selectedMode === 'cloud_api'"
+          @click="selectedMode = 'cloud_api'"
+        >
+          <strong class="text-body">{{ t('admin.connect.lines.embeddedSignup.modeCloudApiLabel') }}</strong>
+          <span class="text-small" style="color: var(--text-mute)">
+            {{ t('admin.connect.lines.embeddedSignup.modeCloudApiDescription') }}
+          </span>
+        </button>
+        <button
+          type="button"
+          class="mode-opt"
+          :class="{ 'mode-opt--selected': selectedMode === 'coexistence' }"
+          role="radio"
+          :aria-checked="selectedMode === 'coexistence'"
+          @click="selectedMode = 'coexistence'"
+        >
+          <strong class="text-body">{{ t('admin.connect.lines.embeddedSignup.modeCoexistenceLabel') }}</strong>
+          <span class="text-small" style="color: var(--text-mute)">
+            {{ t('admin.connect.lines.embeddedSignup.modeCoexistenceDescription') }}
+          </span>
+        </button>
+      </div>
+    </UiModal>
+
+    <!-- Manual connect drawer (secondary fallback) -->
     <UiDrawer
       :open="connectOpen"
       :title="t('admin.connect.lines.connectDrawer.title')"
@@ -618,5 +761,33 @@ watch(
 .danger-zone-hint {
   color: var(--text-mute);
   margin-top: -6px;
+}
+
+/* Mode picker cards inside the Embedded Signup modal — mirrors the
+   `.model-opt` radiogroup pattern from BehaviorView's model selector. */
+.mode-opts {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.mode-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  padding: 10px 12px;
+  transition: border-color 150ms ease-out, background-color 150ms ease-out;
+}
+
+.mode-opt:hover {
+  border-color: var(--border-st);
+}
+
+.mode-opt--selected {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
 }
 </style>

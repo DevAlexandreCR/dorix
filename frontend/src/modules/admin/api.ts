@@ -14,6 +14,7 @@ import type {
   CatalogItemKind,
   CatalogItemPriceType,
   CatalogItemRecord,
+  ConnectWhatsAppLinePayload,
   DataSourceRecord,
   TenantRecord,
   TenantUserRecord,
@@ -169,6 +170,27 @@ export async function deleteWhatsAppLine(
   await deleteJson<void>(`${appConfig.adminBaseUrl}/whatsapp-lines/${lineId}`, {
     headers: tenantHeaders(tenantId),
   });
+}
+
+// Embedded Signup connect (add-meta-embedded-signup design.md D2): the
+// frontend never handles the token — it only forwards the OAuth code plus
+// the session info collected by `useMetaEmbeddedSignup` (task 5.1). The
+// backend responds `201` with the serialized line (creation or reconnection),
+// `422` on a Graph failure, `409` on a cross-tenant `phone_number_id`
+// conflict, matching the same `ApiError`/status handling as every other call
+// in this file — no special-casing needed here.
+export async function connectWhatsAppLine(
+  tenantId: number,
+  payload: ConnectWhatsAppLinePayload,
+): Promise<ResourceResponse<WhatsAppLineRecord>> {
+  await ensureCsrfCookie(appConfig.sanctumCsrfCookieUrl);
+  return postJson<ResourceResponse<WhatsAppLineRecord>>(
+    `${appConfig.adminBaseUrl}/whatsapp-lines/connect`,
+    payload,
+    {
+      headers: tenantHeaders(tenantId),
+    },
+  );
 }
 
 // Google Calendar connection per line (add-catalog-and-scheduling design.md
