@@ -25,8 +25,9 @@ class WhatsAppWebhookController
         $mode = $query['hub.mode'] ?? $query['hub_mode'] ?? null;
         $token = $query['hub.verify_token'] ?? $query['hub_verify_token'] ?? null;
         $challenge = $query['hub.challenge'] ?? $query['hub_challenge'] ?? null;
+        $configuredToken = config('services.whatsapp.meta.webhook_verify_token');
 
-        if ($mode !== 'subscribe' || ! is_string($token) || $token !== config('services.whatsapp.meta.webhook_verify_token')) {
+        if ($mode !== 'subscribe' || ! is_string($token) || ! is_string($configuredToken) || ! hash_equals($configuredToken, $token)) {
             throw new ApiException(
                 'webhook_verification_request_invalid',
                 'api.webhook.verification_request_invalid',
@@ -48,6 +49,8 @@ class WhatsAppWebhookController
 
     public function handle(Request $request): JsonResponse
     {
+        $this->verifySignature($request);
+
         try {
             $result = $this->handler->handle($request->all());
         } catch (InvalidWhatsAppWebhookPayloadException $exception) {
@@ -69,5 +72,38 @@ class WhatsAppWebhookController
             'status_updates' => $result->statusUpdates,
             'jobs_dispatched' => $result->jobsDispatched,
         ]);
+    }
+
+    /**
+     * Fail-closed signature verification (design.md decision D5): a missing
+     * app secret or a missing/invalid X-Hub-Signature-256 header must both
+     * reject the request before it reaches the handler.
+     */
+    protected function verifySignature(Request $request): void
+    {
+        $appSecret = config('services.whatsapp.meta.app_secret');
+
+        if (! is_string($appSecret) || $appSecret === '') {
+            Log::warning('Rejected WhatsApp webhook because META_APP_SECRET is not configured.');
+
+            throw new ApiException(
+                'webhook_signature_verification_unavailable',
+                'api.webhook.signature_verification_unavailable',
+                status: Response::HTTP_FORBIDDEN,
+            );
+        }
+
+        $signatureHeader = $request->header('X-Hub-Signature-256');
+        $expectedSignature = 'sha256=' . hash_hmac('sha256', $request->getContent(), $appSecret);
+
+        if (! is_string($signatureHeader) || ! hash_equals($expectedSignature, $signatureHeader)) {
+            Log::warning('Rejected WhatsApp webhook because the signature is missing or invalid.');
+
+            throw new ApiException(
+                'webhook_signature_invalid',
+                'api.webhook.signature_invalid',
+                status: Response::HTTP_FORBIDDEN,
+            );
+        }
     }
 }

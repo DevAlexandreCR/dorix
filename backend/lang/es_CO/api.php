@@ -20,6 +20,8 @@ return [
     'webhook' => [
         'verification_request_invalid' => 'La solicitud de verificación del webhook no es válida.',
         'challenge_required' => 'Hace falta el challenge del webhook.',
+        'signature_invalid' => 'La firma del webhook falta o no es válida.',
+        'signature_verification_unavailable' => 'La verificación de firma del webhook no está configurada.',
         'line_not_found' => 'No se encontró una línea de WhatsApp para el phone_number_id :phone_number_id.',
         'payload' => [
             'invalid_object' => 'El objeto del payload del webhook debe ser whatsapp_business_account.',
@@ -108,6 +110,13 @@ return [
         'outbound_blocked_handoff' => 'Los mensajes salientes automáticos se bloquean mientras la conversación esté en HUMAN_HANDOFF.',
         'meta_missing_message_id' => 'Meta aceptó la solicitud saliente, pero no devolvió un ID de mensaje del proveedor.',
         'send_failed' => 'No fue posible enviar el mensaje saliente de WhatsApp.',
+        'embedded_signup' => [
+            'exchange_failed' => 'La autorización expiró o no es válida. Intenta conectar de nuevo.',
+            'subscribe_failed' => 'No pudimos suscribir tu cuenta de WhatsApp Business. Intenta conectar de nuevo.',
+            'register_failed' => 'No pudimos registrar tu número de teléfono para la Cloud API. Intenta conectar de nuevo.',
+            'line_name_fetch_failed' => 'No pudimos obtener el nombre de tu línea de WhatsApp desde Meta.',
+            'number_already_connected' => 'Este número de WhatsApp ya está conectado a otra cuenta.',
+        ],
     ],
     'admin' => [
         'credential_scope_line_required' => 'Para credenciales con alcance whatsapp_line debes seleccionar una línea de WhatsApp del tenant.',

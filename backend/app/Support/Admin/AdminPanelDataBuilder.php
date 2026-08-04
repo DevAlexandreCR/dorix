@@ -223,6 +223,7 @@ class AdminPanelDataBuilder
             'waba_id' => $line->waba_id,
             'status' => $line->status,
             'is_enabled' => $line->is_enabled,
+            'connection_mode' => $line->connection_mode->value,
             'metadata' => $line->metadata ?? [],
             'calendar_connection_status' => CalendarConnectionStatus::forCredential($calendarCredential)->value,
             'created_at' => $line->created_at?->toIso8601String(),

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\WhatsAppConnectionMode;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class WhatsAppLine extends TenantScopedModel
@@ -13,6 +14,7 @@ class WhatsAppLine extends TenantScopedModel
         return [
             'is_enabled' => 'boolean',
             'metadata' => 'array',
+            'connection_mode' => WhatsAppConnectionMode::class,
         ];
     }
 

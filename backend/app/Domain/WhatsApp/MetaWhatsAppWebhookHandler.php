@@ -5,10 +5,13 @@ namespace App\Domain\WhatsApp;
 use App\Domain\Conversations\Contracts\ConversationResolver;
 use App\Domain\WhatsApp\Contracts\WhatsAppLineResolver;
 use App\Domain\WhatsApp\Contracts\WhatsAppWebhookHandler;
+use App\Domain\WhatsApp\DTO\EchoMessageData;
 use App\Domain\WhatsApp\DTO\InboundMessageData;
 use App\Domain\WhatsApp\DTO\ResolvedWhatsAppLine;
 use App\Domain\WhatsApp\DTO\StatusUpdateData;
 use App\Domain\WhatsApp\DTO\WebhookHandlingResult;
+use App\Enums\ConversationSource;
+use App\Enums\ConversationStatus;
 use App\Enums\MessageDirection;
 use App\Enums\TenantStatus;
 use App\Jobs\ProcessIncomingMessageJob;
@@ -70,6 +73,14 @@ class MetaWhatsAppWebhookHandler implements WhatsAppWebhookHandler
             $this->withinTenantContext($resolvedLine, function () use ($resolvedLine, $statusUpdate, &$statusUpdates): void {
                 $this->persistStatusUpdate($resolvedLine, $statusUpdate);
                 $statusUpdates++;
+            });
+        }
+
+        foreach ($normalized->echoes as $echo) {
+            $resolvedLine = $this->lineResolver->resolve($echo->phoneNumberId);
+
+            $this->withinTenantContext($resolvedLine, function () use ($resolvedLine, $echo): void {
+                $this->persistEcho($resolvedLine, $echo);
             });
         }
 
@@ -279,6 +290,142 @@ class MetaWhatsAppWebhookHandler implements WhatsAppWebhookHandler
                 'errors' => $statusUpdate->errors,
             ],
             'occurred_at' => $statusUpdate->occurredAt,
+        ]);
+    }
+
+    /**
+     * Persists a `smb_message_echoes` entry (design.md decision D6): a
+     * message the human already sent to the customer from the WhatsApp
+     * Business app. It is recorded as an outbound `ConversationMessage`
+     * with `payload.source = business_app` purely for visibility in the
+     * conversation timeline — it MUST NOT dispatch `ProcessIncomingMessageJob`,
+     * MUST NOT invoke the agent, and MUST NOT change the conversation status.
+     */
+    protected function persistEcho(ResolvedWhatsAppLine $resolvedLine, EchoMessageData $echo): void
+    {
+        $this->events->record($resolvedLine->tenantId(), 'webhook_received', [
+            'whatsapp_line_id' => $resolvedLine->line->getKey(),
+            'payload' => [
+                'kind' => 'message_echo',
+                'provider_message_id' => $echo->providerMessageId,
+                'provider_message_type' => $echo->providerMessageType,
+            ],
+            'occurred_at' => $echo->sentAt,
+        ]);
+
+        $existingMessage = ConversationMessage::query()
+            ->forTenant($resolvedLine->tenantId())
+            ->where('provider_message_id', $echo->providerMessageId)
+            ->first();
+
+        if ($existingMessage) {
+            $this->events->record($resolvedLine->tenantId(), 'message_deduplicated', [
+                'whatsapp_line_id' => $resolvedLine->line->getKey(),
+                'conversation_id' => $existingMessage->conversation_id,
+                'conversation_message_id' => $existingMessage->getKey(),
+                'payload' => [
+                    'provider_message_id' => $echo->providerMessageId,
+                ],
+                'occurred_at' => $echo->sentAt,
+            ]);
+
+            return;
+        }
+
+        $conversation = $this->resolveConversationForEcho($resolvedLine, $echo);
+
+        try {
+            $conversationMessage = DB::transaction(function () use ($resolvedLine, $conversation, $echo): ConversationMessage {
+                return ConversationMessage::query()->create([
+                    'tenant_id' => $resolvedLine->tenantId(),
+                    'conversation_id' => $conversation->getKey(),
+                    'direction' => MessageDirection::Outbound,
+                    'message_type' => $echo->messageType,
+                    'body' => $echo->body,
+                    'payload' => [
+                        'source' => 'business_app',
+                        'phone_number_id' => $echo->phoneNumberId,
+                        'provider_message_type' => $echo->providerMessageType,
+                        'raw' => $echo->payload,
+                    ],
+                    'provider_message_id' => $echo->providerMessageId,
+                    'status' => 'sent',
+                    'sent_at' => $echo->sentAt,
+                ]);
+            });
+        } catch (QueryException $exception) {
+            if (! $this->isDuplicateMessageException($exception)) {
+                throw $exception;
+            }
+
+            $existingMessage = ConversationMessage::query()
+                ->forTenant($resolvedLine->tenantId())
+                ->where('provider_message_id', $echo->providerMessageId)
+                ->first();
+
+            $this->events->record($resolvedLine->tenantId(), 'message_deduplicated', [
+                'whatsapp_line_id' => $resolvedLine->line->getKey(),
+                'conversation_id' => $existingMessage?->conversation_id ?? $conversation->getKey(),
+                'conversation_message_id' => $existingMessage?->getKey(),
+                'payload' => [
+                    'provider_message_id' => $echo->providerMessageId,
+                ],
+                'occurred_at' => $echo->sentAt,
+            ]);
+
+            return;
+        }
+
+        $conversation->forceFill([
+            'last_message_at' => $echo->sentAt,
+        ])->save();
+
+        $this->events->record($resolvedLine->tenantId(), 'message_saved', [
+            'whatsapp_line_id' => $resolvedLine->line->getKey(),
+            'conversation_id' => $conversation->getKey(),
+            'conversation_message_id' => $conversationMessage->getKey(),
+            'payload' => [
+                'provider_message_id' => $echo->providerMessageId,
+                'message_type' => $echo->messageType,
+                'source' => 'business_app',
+            ],
+            'occurred_at' => $echo->sentAt,
+        ]);
+    }
+
+    /**
+     * Resolves the conversation an echo belongs to without ever transitioning
+     * its status (design.md decision D6): unlike `resolveForInbound`, this
+     * intentionally does not call the status transitioner, since the human
+     * sending a message from the WhatsApp Business app is not a customer
+     * reply and must not be mistaken for one.
+     */
+    protected function resolveConversationForEcho(ResolvedWhatsAppLine $resolvedLine, EchoMessageData $echo): Conversation
+    {
+        $conversation = Conversation::query()
+            ->forTenant($resolvedLine->tenantId())
+            ->where('whatsapp_line_id', $resolvedLine->line->getKey())
+            ->where('contact_phone', $echo->contactPhone)
+            ->where('source', ConversationSource::WhatsApp->value)
+            ->orderByDesc('last_message_at')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($conversation && $conversation->status !== ConversationStatus::Closed) {
+            return $conversation;
+        }
+
+        return Conversation::query()->create([
+            'tenant_id' => $resolvedLine->tenantId(),
+            'whatsapp_line_id' => $resolvedLine->line->getKey(),
+            'contact_phone' => $echo->contactPhone,
+            'contact_name' => $echo->contactName,
+            'status' => ConversationStatus::BotActive,
+            'source' => ConversationSource::WhatsApp,
+            'last_message_at' => $echo->sentAt,
+            'metadata' => [
+                'source' => 'whatsapp_webhook',
+            ],
         ]);
     }
 

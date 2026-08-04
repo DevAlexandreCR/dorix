@@ -45,7 +45,7 @@ class AdminWhatsAppLineController
         );
 
         return response()->json([
-            'data' => $this->builder->serializeWhatsAppLine($line),
+            'data' => $this->builder->serializeWhatsAppLine($line->fresh()),
         ], Response::HTTP_CREATED);
     }
 

@@ -7,6 +7,7 @@ use App\Domain\WhatsApp\DTO\OutboundMessageData;
 use App\Enums\ConversationStatus;
 use App\Enums\MessageDirection;
 use App\Enums\TenantStatus;
+use App\Enums\WhatsAppConnectionMode;
 use App\Jobs\ProcessIncomingMessageJob;
 use App\Models\ApiCredential;
 use App\Models\AgentEvent;
@@ -19,6 +20,7 @@ use App\Support\Tenancy\TenantScopeKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
@@ -33,6 +35,7 @@ class WhatsAppGatewayTest extends TestCase
         Config::set('services.whatsapp.meta.webhook_verify_token', 'test-verify-token');
         Config::set('services.whatsapp.meta.api_version', 'v23.0');
         Config::set('services.whatsapp.meta.base_url', 'https://graph.facebook.com');
+        Config::set('services.whatsapp.meta.app_secret', 'test-app-secret');
     }
 
     public function test_it_verifies_the_meta_webhook_challenge(): void
@@ -54,7 +57,7 @@ class WhatsAppGatewayTest extends TestCase
 
     public function test_it_returns_a_localized_error_for_invalid_webhook_payloads(): void
     {
-        $this->postJson('/api/webhooks/meta/whatsapp', [
+        $this->postSignedJson('/api/webhooks/meta/whatsapp', [
             'object' => 'whatsapp_business_account',
             'entry' => [
                 [
@@ -83,7 +86,7 @@ class WhatsAppGatewayTest extends TestCase
 
         $payload = $this->inboundPayload($line->phone_number_id, 'wamid.inbound.1', 'Hola desde WhatsApp');
 
-        $this->postJson('/api/webhooks/meta/whatsapp', $payload)
+        $this->postSignedJson('/api/webhooks/meta/whatsapp', $payload)
             ->assertOk()
             ->assertExactJson([
                 'status' => 'accepted',
@@ -107,7 +110,7 @@ class WhatsAppGatewayTest extends TestCase
             'conversation_id' => $conversation->id,
         ]);
 
-        $this->postJson('/api/webhooks/meta/whatsapp', $payload)
+        $this->postSignedJson('/api/webhooks/meta/whatsapp', $payload)
             ->assertOk()
             ->assertExactJson([
                 'status' => 'accepted',
@@ -147,7 +150,7 @@ class WhatsAppGatewayTest extends TestCase
 
         $payload = $this->inboundPayload($line->phone_number_id, 'wamid.inbound.paused.1', 'Hola desde WhatsApp pausado');
 
-        $this->postJson('/api/webhooks/meta/whatsapp', $payload)
+        $this->postSignedJson('/api/webhooks/meta/whatsapp', $payload)
             ->assertOk()
             ->assertExactJson([
                 'status' => 'accepted',
@@ -177,7 +180,7 @@ class WhatsAppGatewayTest extends TestCase
 
         $pausedPayload = $this->inboundPayload($line->phone_number_id, 'wamid.inbound.paused.2', 'Mensaje mientras está pausado');
 
-        $this->postJson('/api/webhooks/meta/whatsapp', $pausedPayload)->assertOk();
+        $this->postSignedJson('/api/webhooks/meta/whatsapp', $pausedPayload)->assertOk();
 
         $this->assertDatabaseCount('conversation_messages', 0);
         Queue::assertNotPushed(ProcessIncomingMessageJob::class);
@@ -186,7 +189,7 @@ class WhatsAppGatewayTest extends TestCase
 
         $payload = $this->inboundPayload($line->phone_number_id, 'wamid.inbound.reactivated.1', 'Hola de nuevo');
 
-        $this->postJson('/api/webhooks/meta/whatsapp', $payload)
+        $this->postSignedJson('/api/webhooks/meta/whatsapp', $payload)
             ->assertOk()
             ->assertExactJson([
                 'status' => 'accepted',
@@ -229,7 +232,7 @@ class WhatsAppGatewayTest extends TestCase
             ],
         ]);
 
-        $this->postJson('/api/webhooks/meta/whatsapp', $this->statusPayload($line->phone_number_id, 'wamid.outbound.1'))
+        $this->postSignedJson('/api/webhooks/meta/whatsapp', $this->statusPayload($line->phone_number_id, 'wamid.outbound.1'))
             ->assertOk()
             ->assertExactJson([
                 'status' => 'accepted',
@@ -291,7 +294,7 @@ class WhatsAppGatewayTest extends TestCase
             ],
         ]);
 
-        $this->postJson('/api/webhooks/meta/whatsapp', $this->statusPayload($line->phone_number_id, 'wamid.outbound.paused.1'))
+        $this->postSignedJson('/api/webhooks/meta/whatsapp', $this->statusPayload($line->phone_number_id, 'wamid.outbound.paused.1'))
             ->assertOk()
             ->assertExactJson([
                 'status' => 'accepted',
@@ -344,7 +347,7 @@ class WhatsAppGatewayTest extends TestCase
             ],
         ]);
 
-        $this->postJson(
+        $this->postSignedJson(
             '/api/webhooks/meta/whatsapp',
             $this->statusPayload($line->phone_number_id, 'wamid.outbound.paused.2', 'read', [])
         )
@@ -432,6 +435,275 @@ class WhatsAppGatewayTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    /**
+     * design.md decision D6 / spec scenario "Echo de mensaje enviado desde
+     * la app de WhatsApp Business": a `smb_message_echoes` entry must be
+     * persisted as an outbound message with `payload.source = business_app`
+     * without ever dispatching `ProcessIncomingMessageJob`.
+     */
+    public function test_it_persists_a_message_echo_as_outbound_without_dispatching_a_job(): void
+    {
+        Queue::fake();
+
+        $tenant = $this->createTenant('coexistence-echo');
+        $line = $this->createLine($tenant, 'echo-phone-number-id', WhatsAppConnectionMode::Coexistence->value);
+
+        $payload = $this->echoPayload($line->phone_number_id, 'wamid.echo.1', '573009876543', 'Ya te contactamos desde la app');
+
+        $this->postSignedJson('/api/webhooks/meta/whatsapp', $payload)
+            ->assertOk()
+            ->assertExactJson([
+                'status' => 'accepted',
+                'received_messages' => 0,
+                'deduplicated_messages' => 0,
+                'status_updates' => 0,
+                'jobs_dispatched' => 0,
+            ]);
+
+        $message = ConversationMessage::query()->firstOrFail();
+        $conversation = Conversation::query()->firstOrFail();
+
+        $this->assertSame(MessageDirection::Outbound, $message->direction);
+        $this->assertSame('text', $message->message_type);
+        $this->assertSame('Ya te contactamos desde la app', $message->body);
+        $this->assertSame('wamid.echo.1', $message->provider_message_id);
+        $this->assertSame('business_app', data_get($message->payload, 'source'));
+        $this->assertSame($line->id, $conversation->whatsapp_line_id);
+        $this->assertSame('573009876543', $conversation->contact_phone);
+        $this->assertSame(ConversationStatus::BotActive, $conversation->status);
+
+        Queue::assertNotPushed(ProcessIncomingMessageJob::class);
+
+        $this->assertDatabaseHas('agent_events', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'message_saved',
+            'conversation_message_id' => $message->id,
+        ]);
+
+        // Replaying the same echo (Meta retry) must not duplicate the message
+        // nor change the conversation status.
+        $this->postSignedJson('/api/webhooks/meta/whatsapp', $payload)
+            ->assertOk()
+            ->assertExactJson([
+                'status' => 'accepted',
+                'received_messages' => 0,
+                'deduplicated_messages' => 0,
+                'status_updates' => 0,
+                'jobs_dispatched' => 0,
+            ]);
+
+        $this->assertDatabaseCount('conversation_messages', 1);
+        $this->assertSame(ConversationStatus::BotActive, $conversation->fresh()->status);
+        $this->assertDatabaseHas('agent_events', [
+            'tenant_id' => $tenant->id,
+            'event_type' => 'message_deduplicated',
+            'conversation_message_id' => $message->id,
+        ]);
+    }
+
+    /**
+     * design.md decision D6 / spec scenario "Echo de mensaje enviado desde
+     * la app de WhatsApp Business": an echo on an existing conversation must
+     * not disturb its current status (e.g. WAITING_CUSTOMER while the agent
+     * awaits the customer's reply).
+     */
+    public function test_it_persists_a_message_echo_without_altering_an_existing_conversation_status(): void
+    {
+        Queue::fake();
+
+        $tenant = $this->createTenant('coexistence-echo-existing');
+        $line = $this->createLine($tenant, 'echo-existing-phone-number-id', WhatsAppConnectionMode::Coexistence->value);
+
+        $conversation = Conversation::query()->create([
+            'tenant_id' => $tenant->id,
+            'whatsapp_line_id' => $line->id,
+            'contact_phone' => '573001112222',
+            'contact_name' => 'Cliente Existente',
+            'status' => ConversationStatus::WaitingCustomer,
+        ]);
+
+        $payload = $this->echoPayload($line->phone_number_id, 'wamid.echo.2', '573001112222', 'Seguimos pendientes de tu respuesta');
+
+        $this->postSignedJson('/api/webhooks/meta/whatsapp', $payload)->assertOk();
+
+        $message = ConversationMessage::query()->firstOrFail();
+
+        $this->assertSame($conversation->id, $message->conversation_id);
+        $this->assertSame(ConversationStatus::WaitingCustomer, $conversation->fresh()->status);
+
+        Queue::assertNotPushed(ProcessIncomingMessageJob::class);
+    }
+
+    /**
+     * design.md decision D6 / spec scenario "Fields de historial y
+     * sincronización de contactos": `history` and `smb_app_state_sync` must
+     * be accepted with a 200 and discarded without persisting anything.
+     */
+    public function test_it_ignores_history_and_app_state_sync_fields_with_a_200(): void
+    {
+        Queue::fake();
+
+        $tenant = $this->createTenant('coexistence-tolerated-fields');
+        $line = $this->createLine($tenant, 'tolerated-phone-number-id', WhatsAppConnectionMode::Coexistence->value);
+
+        foreach (['history', 'smb_app_state_sync', 'some_future_field'] as $field) {
+            $this->postSignedJson('/api/webhooks/meta/whatsapp', [
+                'object' => 'whatsapp_business_account',
+                'entry' => [
+                    [
+                        'id' => 'entry-tolerated',
+                        'changes' => [
+                            [
+                                'field' => $field,
+                                'value' => [
+                                    'messaging_product' => 'whatsapp',
+                                    'metadata' => [
+                                        'phone_number_id' => $line->phone_number_id,
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ])
+                ->assertOk()
+                ->assertExactJson([
+                    'status' => 'accepted',
+                    'received_messages' => 0,
+                    'deduplicated_messages' => 0,
+                    'status_updates' => 0,
+                    'jobs_dispatched' => 0,
+                ]);
+        }
+
+        $this->assertDatabaseCount('conversation_messages', 0);
+        $this->assertDatabaseCount('conversations', 0);
+        Queue::assertNotPushed(ProcessIncomingMessageJob::class);
+    }
+
+    /**
+     * design.md decision D6 / spec scenario "Mensaje entrante en
+     * coexistencia": the `messages` field pipeline must be unchanged for a
+     * line in coexistence mode.
+     */
+    public function test_it_processes_the_messages_field_unchanged_for_a_coexistence_line(): void
+    {
+        Queue::fake();
+
+        $tenant = $this->createTenant('coexistence-messages-intact');
+        $line = $this->createLine($tenant, 'coexistence-messages-phone-number-id', WhatsAppConnectionMode::Coexistence->value);
+
+        $payload = $this->inboundPayload($line->phone_number_id, 'wamid.coexistence.inbound.1', 'Hola en coexistencia');
+
+        $this->postSignedJson('/api/webhooks/meta/whatsapp', $payload)
+            ->assertOk()
+            ->assertExactJson([
+                'status' => 'accepted',
+                'received_messages' => 1,
+                'deduplicated_messages' => 0,
+                'status_updates' => 0,
+                'jobs_dispatched' => 1,
+            ]);
+
+        $message = ConversationMessage::query()->firstOrFail();
+
+        $this->assertSame(MessageDirection::Inbound, $message->direction);
+        $this->assertSame('wamid.coexistence.inbound.1', $message->provider_message_id);
+
+        Queue::assertPushed(ProcessIncomingMessageJob::class, 1);
+    }
+
+    public function test_it_processes_a_webhook_request_with_a_valid_signature(): void
+    {
+        Queue::fake();
+
+        $tenant = $this->createTenant('signature-valid');
+        $line = $this->createLine($tenant, 'signature-valid-phone-number-id');
+
+        $payload = $this->inboundPayload($line->phone_number_id, 'wamid.signature.valid.1', 'Hola con firma válida');
+
+        $this->postSignedJson('/api/webhooks/meta/whatsapp', $payload)
+            ->assertOk()
+            ->assertExactJson([
+                'status' => 'accepted',
+                'received_messages' => 1,
+                'deduplicated_messages' => 0,
+                'status_updates' => 0,
+                'jobs_dispatched' => 1,
+            ]);
+    }
+
+    public function test_it_rejects_a_webhook_request_with_an_invalid_signature(): void
+    {
+        Queue::fake();
+
+        $tenant = $this->createTenant('signature-invalid');
+        $line = $this->createLine($tenant, 'signature-invalid-phone-number-id');
+
+        $payload = $this->inboundPayload($line->phone_number_id, 'wamid.signature.invalid.1', 'Hola con firma inválida');
+
+        $this->postJson('/api/webhooks/meta/whatsapp', $payload, [
+            'X-Hub-Signature-256' => 'sha256=' . str_repeat('0', 64),
+        ])
+            ->assertForbidden()
+            ->assertJsonPath('code', 'webhook_signature_invalid');
+
+        $this->assertDatabaseCount('conversation_messages', 0);
+        Queue::assertNotPushed(ProcessIncomingMessageJob::class);
+    }
+
+    public function test_it_rejects_a_webhook_request_without_a_signature_header(): void
+    {
+        Queue::fake();
+
+        $tenant = $this->createTenant('signature-missing');
+        $line = $this->createLine($tenant, 'signature-missing-phone-number-id');
+
+        $payload = $this->inboundPayload($line->phone_number_id, 'wamid.signature.missing.1', 'Hola sin firma');
+
+        $this->postJson('/api/webhooks/meta/whatsapp', $payload)
+            ->assertForbidden()
+            ->assertJsonPath('code', 'webhook_signature_invalid');
+
+        $this->assertDatabaseCount('conversation_messages', 0);
+        Queue::assertNotPushed(ProcessIncomingMessageJob::class);
+    }
+
+    public function test_it_rejects_a_webhook_request_when_the_app_secret_is_not_configured(): void
+    {
+        Config::set('services.whatsapp.meta.app_secret', null);
+
+        Log::spy();
+
+        $tenant = $this->createTenant('secret-missing');
+        $line = $this->createLine($tenant, 'secret-missing-phone-number-id');
+
+        $payload = $this->inboundPayload($line->phone_number_id, 'wamid.secret.missing.1', 'Hola sin secreto configurado');
+
+        $this->postJson('/api/webhooks/meta/whatsapp', $payload, [
+            'X-Hub-Signature-256' => 'sha256=' . str_repeat('0', 64),
+        ])
+            ->assertForbidden()
+            ->assertJsonPath('code', 'webhook_signature_verification_unavailable');
+
+        $this->assertDatabaseCount('conversation_messages', 0);
+
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->with('Rejected WhatsApp webhook because META_APP_SECRET is not configured.');
+    }
+
+    protected function postSignedJson(string $uri, array $payload, array $headers = [])
+    {
+        $appSecret = config('services.whatsapp.meta.app_secret');
+        $body = json_encode($payload);
+        $signature = 'sha256=' . hash_hmac('sha256', $body, $appSecret);
+
+        return $this->postJson($uri, $payload, array_merge($headers, [
+            'X-Hub-Signature-256' => $signature,
+        ]));
+    }
+
     protected function createTenant(string $slug): Tenant
     {
         return Tenant::query()->create([
@@ -440,7 +712,7 @@ class WhatsAppGatewayTest extends TestCase
         ]);
     }
 
-    protected function createLine(Tenant $tenant, string $phoneNumberId): WhatsAppLine
+    protected function createLine(Tenant $tenant, string $phoneNumberId, ?string $connectionMode = null): WhatsAppLine
     {
         return WhatsAppLine::query()->create([
             'tenant_id' => $tenant->id,
@@ -449,6 +721,7 @@ class WhatsAppGatewayTest extends TestCase
             'display_phone_number' => '+573001112233',
             'status' => 'active',
             'is_enabled' => true,
+            ...($connectionMode !== null ? ['connection_mode' => $connectionMode] : []),
         ]);
     }
 
@@ -496,6 +769,57 @@ class WhatsAppGatewayTest extends TestCase
                                             'body' => $body,
                                         ],
                                         'type' => 'text',
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * `smb_message_echoes` shape per Meta's WhatsApp coexistence docs: the
+     * echo mirrors `messages` but under `value.message_echoes[]`, with `to`
+     * carrying the customer's wa_id (the business already sent the message
+     * from the WhatsApp Business app, so there is no inbound `from`
+     * customer here).
+     */
+    protected function echoPayload(string $phoneNumberId, string $providerMessageId, string $customerWaId, string $body): array
+    {
+        return [
+            'object' => 'whatsapp_business_account',
+            'entry' => [
+                [
+                    'id' => 'entry-echo',
+                    'changes' => [
+                        [
+                            'field' => 'smb_message_echoes',
+                            'value' => [
+                                'messaging_product' => 'whatsapp',
+                                'metadata' => [
+                                    'display_phone_number' => '+573001112233',
+                                    'phone_number_id' => $phoneNumberId,
+                                ],
+                                'contacts' => [
+                                    [
+                                        'profile' => [
+                                            'name' => 'Cliente Coexistencia',
+                                        ],
+                                        'wa_id' => $customerWaId,
+                                    ],
+                                ],
+                                'message_echoes' => [
+                                    [
+                                        'from' => $phoneNumberId,
+                                        'to' => $customerWaId,
+                                        'id' => $providerMessageId,
+                                        'timestamp' => '1714305200',
+                                        'type' => 'text',
+                                        'text' => [
+                                            'body' => $body,
+                                        ],
                                     ],
                                 ],
                             ],

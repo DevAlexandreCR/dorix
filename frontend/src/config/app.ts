@@ -12,4 +12,9 @@ export const appConfig = {
   agentSandboxBaseUrl: `${apiBaseUrl}/v1/agent-sandbox`,
   dataSourcesUrl: `${apiBaseUrl}/v1/data-sources`,
   adminBaseUrl: `${apiBaseUrl}/v1/admin`,
+  // Meta Embedded Signup (add-meta-embedded-signup design.md decision D4):
+  // public values that ship in the browser JS bundle regardless, mirrored
+  // from the backend's own META_APP_ID / META_ES_CONFIG_ID.
+  metaAppId: import.meta.env.VITE_META_APP_ID ?? '',
+  metaEmbeddedSignupConfigId: import.meta.env.VITE_META_ES_CONFIG_ID ?? '',
 } as const;

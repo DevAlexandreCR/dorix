@@ -40,6 +40,9 @@ return [
             'base_url' => env('WHATSAPP_META_BASE_URL', 'https://graph.facebook.com'),
             'api_version' => env('WHATSAPP_META_API_VERSION', 'v23.0'),
             'webhook_verify_token' => env('WHATSAPP_WEBHOOK_VERIFY_TOKEN'),
+            'app_id' => env('META_APP_ID'),
+            'app_secret' => env('META_APP_SECRET'),
+            'embedded_signup_config_id' => env('META_ES_CONFIG_ID'),
         ],
     ],
 

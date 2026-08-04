@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\AdminCredentialController;
 use App\Http\Controllers\Api\AdminTenantController;
 use App\Http\Controllers\Api\AdminTenantUserController;
 use App\Http\Controllers\Api\AdminToolConfigController;
+use App\Http\Controllers\Api\AdminWhatsAppLineConnectController;
 use App\Http\Controllers\Api\AdminWhatsAppLineController;
 use App\Http\Controllers\Api\AgentSandboxController;
 use App\Http\Controllers\Api\AuthSessionController;
@@ -57,6 +58,7 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('/admin/tenant-users/{tenantUser}', [AdminTenantUserController::class, 'update']);
         Route::delete('/admin/tenant-users/{tenantUser}', [AdminTenantUserController::class, 'destroy']);
         Route::post('/admin/whatsapp-lines', [AdminWhatsAppLineController::class, 'store']);
+        Route::post('/admin/whatsapp-lines/connect', [AdminWhatsAppLineConnectController::class, 'store']);
         Route::patch('/admin/whatsapp-lines/{whatsappLine}', [AdminWhatsAppLineController::class, 'update']);
         Route::delete('/admin/whatsapp-lines/{whatsappLine}', [AdminWhatsAppLineController::class, 'destroy']);
         Route::put('/admin/agent-configs/tenant', [AdminAgentConfigController::class, 'updateTenant']);

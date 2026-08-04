@@ -2,11 +2,13 @@
 
 namespace App\Domain\WhatsApp;
 
+use App\Domain\WhatsApp\DTO\EchoMessageData;
 use App\Domain\WhatsApp\DTO\InboundMessageData;
 use App\Domain\WhatsApp\DTO\NormalizedWebhookPayload;
 use App\Domain\WhatsApp\DTO\StatusUpdateData;
 use App\Domain\WhatsApp\Exceptions\InvalidWhatsAppWebhookPayloadException;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Log;
 
 class MetaWebhookPayloadNormalizer
 {
@@ -32,6 +34,7 @@ class MetaWebhookPayloadNormalizer
 
         $inboundMessages = [];
         $statusUpdates = [];
+        $echoes = [];
 
         foreach ($entries as $entry) {
             $changes = $entry['changes'] ?? null;
@@ -41,7 +44,25 @@ class MetaWebhookPayloadNormalizer
             }
 
             foreach ($changes as $change) {
-                if (($change['field'] ?? null) !== 'messages') {
+                $field = $change['field'] ?? null;
+
+                if ($field === 'smb_message_echoes') {
+                    foreach ($this->normalizeEchoes($change['value'] ?? null) as $echo) {
+                        $echoes[] = $echo;
+                    }
+
+                    continue;
+                }
+
+                if ($field !== 'messages') {
+                    // `history` and `smb_app_state_sync` are coexistence fields
+                    // Dorix does not process (design.md decision D6); any other
+                    // field is equally tolerated. Meta retries on non-2xx, so
+                    // unknown fields must not raise an error.
+                    Log::info('Ignored WhatsApp webhook field.', [
+                        'field' => $field,
+                    ]);
+
                     continue;
                 }
 
@@ -99,15 +120,96 @@ class MetaWebhookPayloadNormalizer
             }
         }
 
-        if ($inboundMessages === [] && $statusUpdates === []) {
-            throw new InvalidWhatsAppWebhookPayloadException(
-                'invalid_whatsapp_webhook_payload',
-                'api.webhook.payload.missing_activity',
-                status: 422,
-            );
+        // No trailing "nothing was found" guard here: a payload made up
+        // entirely of tolerated fields (`history`, `smb_app_state_sync`, or
+        // anything unrecognized) legitimately normalizes to zero inbound
+        // messages, status updates, and echoes, and design.md decision D6
+        // requires that to resolve as a 200, not a 422.
+        return new NormalizedWebhookPayload($inboundMessages, $statusUpdates, $echoes);
+    }
+
+    /**
+     * @return array<int, EchoMessageData>
+     */
+    protected function normalizeEchoes(mixed $value): array
+    {
+        if (! is_array($value)) {
+            Log::info('Ignored malformed smb_message_echoes webhook value.');
+
+            return [];
         }
 
-        return new NormalizedWebhookPayload($inboundMessages, $statusUpdates);
+        $phoneNumberId = data_get($value, 'metadata.phone_number_id');
+        $echoMessages = $value['message_echoes'] ?? [];
+
+        if (! is_string($phoneNumberId) || $phoneNumberId === '' || ! is_array($echoMessages)) {
+            Log::info('Ignored malformed smb_message_echoes webhook value.');
+
+            return [];
+        }
+
+        $contactNames = $this->extractContactNames($value['contacts'] ?? []);
+
+        $echoes = [];
+
+        foreach ($echoMessages as $echoMessage) {
+            $echo = $this->normalizeEchoMessage($phoneNumberId, $echoMessage, $contactNames);
+
+            if ($echo !== null) {
+                $echoes[] = $echo;
+            }
+        }
+
+        return $echoes;
+    }
+
+    /**
+     * @param  array<string, mixed>  $echoMessage
+     * @param  array<string, string>  $contactNames
+     */
+    protected function normalizeEchoMessage(string $phoneNumberId, mixed $echoMessage, array $contactNames): ?EchoMessageData
+    {
+        if (! is_array($echoMessage)) {
+            return null;
+        }
+
+        $providerMessageId = $echoMessage['id'] ?? null;
+        $contactPhone = $echoMessage['to'] ?? null;
+        $providerMessageType = $echoMessage['type'] ?? null;
+        $timestamp = $echoMessage['timestamp'] ?? null;
+
+        if (
+            ! is_string($providerMessageId) || $providerMessageId === ''
+            || ! is_string($contactPhone) || $contactPhone === ''
+            || ! is_string($providerMessageType) || $providerMessageType === ''
+            || ! is_scalar($timestamp) || (string) $timestamp === ''
+        ) {
+            Log::info('Ignored malformed smb_message_echoes entry.');
+
+            return null;
+        }
+
+        $body = $providerMessageType === 'text'
+            ? data_get($echoMessage, 'text.body')
+            : null;
+
+        return new EchoMessageData(
+            phoneNumberId: $phoneNumberId,
+            providerMessageId: $providerMessageId,
+            contactPhone: $contactPhone,
+            contactName: $contactNames[$contactPhone] ?? null,
+            messageType: $providerMessageType === 'text' ? 'text' : 'unsupported',
+            body: is_string($body) ? $body : null,
+            providerMessageType: $providerMessageType,
+            payload: [
+                'message' => $echoMessage,
+                'contact' => [
+                    'wa_id' => $contactPhone,
+                    'name' => $contactNames[$contactPhone] ?? null,
+                ],
+            ],
+            sentAt: CarbonImmutable::createFromTimestampUTC((int) $timestamp),
+        );
     }
 
     /**

@@ -273,6 +273,34 @@ class AdminPanelTest extends TestCase
         $this->assertSame('none', $lines[$noneLine->id]['calendar_connection_status']);
     }
 
+    public function test_admin_overview_exposes_connection_mode_defaulting_to_cloud_api(): void
+    {
+        $tenant = Tenant::query()->create([
+            'name' => 'Acme Connection Mode',
+            'slug' => 'acme-connection-mode',
+        ]);
+        $tenantAdmin = $this->tenantUser($tenant, TenantRole::TenantAdmin);
+
+        // Created without specifying connection_mode: existing lines migrate to cloud_api.
+        $line = $this->line($tenant, 'Default Mode Line', 'default-mode-line-id')->fresh();
+
+        $this->assertSame(\App\Enums\WhatsAppConnectionMode::CloudApi, $line->connection_mode);
+        $this->assertDatabaseHas('whatsapp_lines', [
+            'id' => $line->id,
+            'connection_mode' => 'cloud_api',
+        ]);
+
+        $response = $this->actingAs($tenantAdmin)
+            ->withHeader('X-Tenant-Id', (string) $tenant->id)
+            ->getJson('/api/v1/admin/overview');
+
+        $response->assertOk();
+
+        $lines = collect($response->json('data.whatsapp_lines'))->keyBy('id');
+
+        $this->assertSame('cloud_api', $lines[$line->id]['connection_mode']);
+    }
+
     public function test_admin_agent_config_rejects_legacy_free_text_model_input(): void
     {
         $tenant = Tenant::query()->create([

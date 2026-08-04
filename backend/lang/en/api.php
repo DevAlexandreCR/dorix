@@ -20,6 +20,8 @@ return [
     'webhook' => [
         'verification_request_invalid' => 'The webhook verification request is invalid.',
         'challenge_required' => 'The webhook challenge is required.',
+        'signature_invalid' => 'The webhook signature is missing or invalid.',
+        'signature_verification_unavailable' => 'Webhook signature verification is not configured.',
         'line_not_found' => 'No WhatsApp line was found for phone_number_id :phone_number_id.',
         'payload' => [
             'invalid_object' => 'The webhook payload object must be whatsapp_business_account.',
@@ -108,6 +110,13 @@ return [
         'outbound_blocked_handoff' => 'Automated outbound messages are blocked while the conversation is in HUMAN_HANDOFF.',
         'meta_missing_message_id' => 'Meta accepted the outbound request but did not return a provider message ID.',
         'send_failed' => 'The outbound WhatsApp message could not be sent.',
+        'embedded_signup' => [
+            'exchange_failed' => 'The authorization expired or is invalid. Please try connecting again.',
+            'subscribe_failed' => 'We could not subscribe your WhatsApp Business Account. Please try connecting again.',
+            'register_failed' => 'We could not register your phone number for the Cloud API. Please try connecting again.',
+            'line_name_fetch_failed' => 'We could not retrieve your WhatsApp line name from Meta.',
+            'number_already_connected' => 'This WhatsApp number is already connected to another account.',
+        ],
     ],
     'admin' => [
         'credential_scope_line_required' => 'A tenant-owned WhatsApp line is required for whatsapp_line scoped credentials.',
