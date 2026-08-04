@@ -5,11 +5,16 @@ namespace App\Support\Admin;
 use App\Domain\Agent\AgentConfigSettings;
 use App\Domain\Agent\AgentModelCatalog;
 use App\Domain\Agent\AgentPackRegistry;
+use App\Domain\Catalog\CatalogItemPolicy;
+use App\Domain\Catalog\CatalogItemPricePresenter;
+use App\Domain\Connectors\GoogleCalendar\CalendarConnectionStatus;
+use App\Domain\Connectors\GoogleCalendar\GoogleCalendarAccessTokenProvider;
 use App\Domain\Tools\ToolRegistry;
 use App\Models\AgentConfig;
 use App\Models\AgentEvent;
 use App\Models\ApiCredential;
 use App\Models\AuditEvent;
+use App\Models\CatalogItem;
 use App\Models\DataSource;
 use App\Models\Tenant;
 use App\Models\TenantToolConfig;
@@ -26,6 +31,8 @@ class AdminPanelDataBuilder
         protected AgentModelCatalog $models,
         protected ToolRegistry $toolRegistry,
         protected ObservabilityPayloadSanitizer $sanitizer,
+        protected CatalogItemPolicy $catalogPolicy,
+        protected CatalogItemPricePresenter $catalogPricePresenter,
     ) {
     }
 
@@ -56,6 +63,9 @@ class AdminPanelDataBuilder
                 ->all(),
             'whatsapp_lines' => WhatsAppLine::query()
                 ->forTenant($tenant->getKey())
+                ->with(['apiCredentials' => fn ($query) => $query
+                    ->where('provider', GoogleCalendarAccessTokenProvider::PROVIDER)
+                    ->where('credential_key', GoogleCalendarAccessTokenProvider::CREDENTIAL_KEY)])
                 ->orderBy('name')
                 ->orderBy('id')
                 ->get()
@@ -81,6 +91,12 @@ class AdminPanelDataBuilder
                 ->orderBy('id')
                 ->get()
                 ->map(fn (TenantToolConfig $config): array => $this->serializeToolConfig($config))
+                ->all(),
+            'catalog_items' => CatalogItem::query()
+                ->forTenant($tenant->getKey())
+                ->orderBy('name')
+                ->get()
+                ->map(fn (CatalogItem $item): array => $this->serializeCatalogItem($item))
                 ->all(),
             'data_sources' => $this->dataSourcesForTenant($tenant->getKey())
                 ->map(fn (DataSource $source): array => $this->serializeDataSource($source))
@@ -191,6 +207,13 @@ class AdminPanelDataBuilder
      */
     public function serializeWhatsAppLine(WhatsAppLine $line): array
     {
+        $calendarCredential = $line->relationLoaded('apiCredentials')
+            ? $line->apiCredentials->first()
+            : $line->apiCredentials()
+                ->where('provider', GoogleCalendarAccessTokenProvider::PROVIDER)
+                ->where('credential_key', GoogleCalendarAccessTokenProvider::CREDENTIAL_KEY)
+                ->first();
+
         return [
             'id' => $line->getKey(),
             'tenant_id' => $line->tenant_id,
@@ -201,6 +224,7 @@ class AdminPanelDataBuilder
             'status' => $line->status,
             'is_enabled' => $line->is_enabled,
             'metadata' => $line->metadata ?? [],
+            'calendar_connection_status' => CalendarConnectionStatus::forCredential($calendarCredential)->value,
             'created_at' => $line->created_at?->toIso8601String(),
             'updated_at' => $line->updated_at?->toIso8601String(),
         ];
@@ -303,6 +327,33 @@ class AdminPanelDataBuilder
                 'name' => $config->whatsappLine->name,
                 'display_phone_number' => $config->whatsappLine->display_phone_number,
             ] : null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function serializeCatalogItem(CatalogItem $item): array
+    {
+        return [
+            'id' => $item->getKey(),
+            'kind' => $item->kind,
+            'name' => $item->name,
+            'category' => $item->category,
+            'description' => $item->description,
+            'price_type' => $item->price_type,
+            'price_amount' => $item->price_amount,
+            'price_min' => $item->price_min,
+            'price_max' => $item->price_max,
+            'currency' => $item->currency,
+            'price_label' => $this->catalogPricePresenter->present($item),
+            'duration_minutes' => $item->duration_minutes,
+            'assessment_item_id' => $item->assessment_item_id,
+            'is_bookable' => $this->catalogPolicy->isBookable($item),
+            'active' => $item->active,
+            'metadata' => $item->metadata,
+            'created_at' => $item->created_at?->toIso8601String(),
+            'updated_at' => $item->updated_at?->toIso8601String(),
         ];
     }
 

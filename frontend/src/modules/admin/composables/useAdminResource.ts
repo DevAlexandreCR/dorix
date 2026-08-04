@@ -4,14 +4,18 @@ import { useI18n } from 'vue-i18n';
 import { useNavigationAccess } from '../../../composables/useNavigationAccess';
 import { useTenantSelection } from '../../../composables/useTenantSelection';
 import {
+  createCatalogItem,
   createTenantUser,
   createWhatsAppLine,
+  deleteCatalogItem,
   deleteLineAgentConfig,
   deleteLineToolConfig,
   deleteTenantUser,
   deleteWhatsAppLine,
   fetchAdminOverview,
+  requestCalendarConsentUrl,
   retryDataSourceImport,
+  updateCatalogItem,
   updateLineAgentConfig,
   updateLineToolConfig,
   updateTenant,
@@ -21,6 +25,7 @@ import {
   updateWhatsAppLine,
   uploadDataSource,
 } from '../api';
+import type { CatalogItemPayload } from '../api';
 // `upsertCredential` is owned by `modules/platform/api.ts` (task 5.4): the
 // only caller of `credentials.upsert()` below is
 // `modules/platform/views/CredentialsView.vue` (task 5.3) — no tenant-side
@@ -37,6 +42,7 @@ import type {
   AdminOverview,
   AgentConfigRecord,
   AgentModelOption,
+  CatalogItemRecord,
   CredentialMetadataRecord,
   DataSourceRecord,
   TenantRecord,
@@ -321,6 +327,7 @@ export function useAdminResource() {
     create(payload: LinePayload, options?: AdminActionOptions): Promise<WhatsAppLineRecord | undefined>;
     update(lineId: number, payload: LinePayload, options?: AdminActionOptions): Promise<WhatsAppLineRecord | undefined>;
     remove(lineId: number, options?: AdminActionOptions): Promise<boolean>;
+    requestCalendarConnection(lineId: number, options?: AdminActionOptions): Promise<string | undefined>;
   } = {
     data: computed(() => sessionState.overview?.whatsapp_lines ?? []),
     loading: linesFeedback.loading,
@@ -363,6 +370,19 @@ export function useAdminResource() {
       }, options);
 
       return result ?? false;
+    },
+    // Only requests the consent URL — the caller navigates the browser to
+    // it. The actual `calendar_connection_status` change happens on Google's
+    // callback redirect, not here, so this never patches `sessionState`;
+    // the view reloads the overview after the browser returns.
+    async requestCalendarConnection(lineId, options) {
+      const tenantId = currentTenantId();
+      if (!tenantId) return undefined;
+
+      return linesFeedback.run(async () => {
+        const response = await requestCalendarConsentUrl(tenantId, lineId);
+        return response.data.consent_url;
+      }, options);
     },
   };
 
@@ -540,6 +560,62 @@ export function useAdminResource() {
     },
   };
 
+  // --- catalogItems (catalog_items) --------------------------------------------------
+
+  const catalogItemsFeedback = useAdminFeedback();
+  const catalogItems: AdminCollectionResource<CatalogItemRecord> & {
+    create(payload: CatalogItemPayload, options?: AdminActionOptions): Promise<CatalogItemRecord | undefined>;
+    update(
+      catalogItemId: number,
+      payload: CatalogItemPayload,
+      options?: AdminActionOptions,
+    ): Promise<CatalogItemRecord | undefined>;
+    remove(catalogItemId: number, options?: AdminActionOptions): Promise<boolean>;
+  } = {
+    data: computed(() => sessionState.overview?.catalog_items ?? []),
+    loading: catalogItemsFeedback.loading,
+    error: catalogItemsFeedback.error,
+    success: catalogItemsFeedback.success,
+    async create(payload, options) {
+      const tenantId = currentTenantId();
+      if (!tenantId) return undefined;
+
+      return catalogItemsFeedback.run(async () => {
+        const response = await createCatalogItem(tenantId, payload);
+        mutateOverview((overview) => {
+          overview.catalog_items = upsertById(overview.catalog_items, response.data);
+        });
+        return response.data;
+      }, options);
+    },
+    async update(catalogItemId, payload, options) {
+      const tenantId = currentTenantId();
+      if (!tenantId) return undefined;
+
+      return catalogItemsFeedback.run(async () => {
+        const response = await updateCatalogItem(tenantId, catalogItemId, payload);
+        mutateOverview((overview) => {
+          overview.catalog_items = upsertById(overview.catalog_items, response.data);
+        });
+        return response.data;
+      }, options);
+    },
+    async remove(catalogItemId, options) {
+      const tenantId = currentTenantId();
+      if (!tenantId) return false;
+
+      const result = await catalogItemsFeedback.run(async () => {
+        await deleteCatalogItem(tenantId, catalogItemId);
+        mutateOverview((overview) => {
+          overview.catalog_items = removeById(overview.catalog_items, catalogItemId);
+        });
+        return true;
+      }, options);
+
+      return result ?? false;
+    },
+  };
+
   // --- dataSources ------------------------------------------------------------------
 
   const dataSourcesFeedback = useAdminFeedback();
@@ -612,6 +688,7 @@ export function useAdminResource() {
     credentials,
     agentConfigs,
     toolConfigs,
+    catalogItems,
     dataSources,
     events,
   };

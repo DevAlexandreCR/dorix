@@ -51,14 +51,23 @@ class ToolExecutionIntegrationTest extends TestCase
             'handoff_to_human',
             'search_inventory',
             'search_knowledge',
+            'get_service_details',
+            'check_availability',
+            'create_appointment',
         ], $definitions->keys()->all());
         $this->assertTrue($definitions['create_lead']->isImplemented);
         $this->assertTrue($definitions['save_customer_data']->isImplemented);
         $this->assertTrue($definitions['handoff_to_human']->isImplemented);
         $this->assertTrue($definitions['search_inventory']->isImplemented);
         $this->assertTrue($definitions['search_knowledge']->isImplemented);
+        $this->assertTrue($definitions['get_service_details']->isImplemented);
+        $this->assertTrue($definitions['check_availability']->isImplemented);
+        $this->assertTrue($definitions['create_appointment']->isImplemented);
         $this->assertSame(6, $definitions['search_inventory']->implementationPhase);
         $this->assertSame(6, $definitions['search_knowledge']->implementationPhase);
+        $this->assertSame(7, $definitions['get_service_details']->implementationPhase);
+        $this->assertSame(7, $definitions['check_availability']->implementationPhase);
+        $this->assertSame(7, $definitions['create_appointment']->implementationPhase);
     }
 
     public function test_processing_job_executes_save_customer_data_and_logs_the_tool_execution(): void

@@ -22,10 +22,10 @@ Al ser una sola app de Meta para toda la plataforma, la URL de webhook única y 
 
 **Non-Goals:**
 
-- Importar el historial de chats de coexistencia (`history` se acepta y se ignora en este cambio).
+- Importar el historial de chats de coexistencia (`history` se acepta y se ignora en este cambio) y sincronizar contactos de coexistencia (`smb_app_state_sync` — tercer field que Meta exige suscribir para coexistencia — también se acepta y se ignora vía la ruta genérica de fields desconocidos).
 - Refresh/rotación automática de tokens (los business integration system user tokens de Tech Provider no expiran; la rotación manual sigue en `/platform/credentials`).
 - Cambios en el sender saliente (templates, media) o en la lógica del agente.
-- Desconexión/deautorización desde Meta hacia Dorix (webhook `account_update`) — se registra como deuda conocida.
+- Desconexión/deautorización desde Meta hacia Dorix (webhook `account_update`) y limpieza en Graph al eliminar una línea (`DELETE /{waba_id}/subscribed_apps` en `destroy()`) — deuda conocida: tras borrar una línea conectada, Meta puede seguir entregando webhooks para ese número, que caerán en `WhatsAppLineNotFoundException` como ocurre hoy con cualquier línea borrada.
 - Eliminar el drawer manual de creación de línea (queda como fallback).
 
 ## Decisions
@@ -36,7 +36,7 @@ El frontend carga el Facebook JS SDK y lanza `FB.login` con `config_id` (configu
 
 El resultado llega por dos canales que el frontend combina:
 - `authResponse.code` del callback de `FB.login` (código de un solo uso, ~30 s de vida).
-- Evento `message` de `window` con `data.type === 'WA_EMBEDDED_SIGNUP'` que trae `phone_number_id` y `waba_id` (session info v3). Se valida `event.origin` contra `https://www.facebook.com` / `https://web.facebook.com`.
+- Evento `message` de `window` con `data.type === 'WA_EMBEDDED_SIGNUP'` que trae `phone_number_id` y `waba_id` (session info v3). Se valida `event.origin` contra `https://www.facebook.com` / `https://web.facebook.com`, **y `data.event` debe ser un valor terminal del flujo elegido**: `FINISH`/`FINISH_ONLY_WABA` para `cloud_api`, `FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING` para coexistencia. Mensajes del mismo `type` con otros valores de `event` (estados intermedios, `CANCEL`) se ignoran — sin este filtro el frontend podría llamar al backend prematuramente o más de una vez por intento, quemando el code de un solo uso.
 
 El frontend envía `{ code, phone_number_id, waba_id, connection_mode, name? }` al backend. El token **nunca** transita por el frontend.
 
@@ -44,12 +44,14 @@ El frontend envía `{ code, phone_number_id, waba_id, connection_mode, name? }` 
 
 ### D2 — Endpoint único de conexión: `POST /v1/admin/whatsapp-lines/connect`
 
-Nuevo método en `AdminWhatsAppLineController` (o controller dedicado `AdminWhatsAppLineConnectController`), gate `Permission::ManageTenant`, mismo grupo de middleware que el resto de rutas admin (deliberadamente sin `tenant.active`, igual que las rutas de líneas actuales). Orquesta vía un nuevo servicio de dominio `Domain/WhatsApp/EmbeddedSignupConnector`:
+Controller dedicado `AdminWhatsAppLineConnectController` (el contrato request/response difiere materialmente de `store`/`update`/`destroy`, y el codebase favorece controllers delgados), gate `Permission::ManageTenant`, mismo grupo de middleware que el resto de rutas admin (deliberadamente sin `tenant.active`, igual que las rutas de líneas actuales).
+
+Esta escritura de credenciales por un tenant admin es una **excepción explícita y acotada** al requirement "Separación de ámbitos" de `ui-platform-admin` ("editar secretos existe solo bajo `/platform/**`") — ver el delta de spec de este cambio. Justificación: la frontera de autorización la impone Meta (el token intercambiado solo cubre los assets que el usuario autorizó en el popup), el secreto nunca pasa por un formulario ni se muestra en `/admin/**`, y la edición manual sigue siendo exclusiva de plataforma. Orquesta vía un nuevo servicio de dominio `Domain/WhatsApp/EmbeddedSignupConnector`:
 
 1. **Exchange**: `GET {base_url}/{api_version}/oauth/access_token?client_id={app_id}&client_secret={app_secret}&code={code}` → business token.
 2. **Subscribe**: `POST /{waba_id}/subscribed_apps` con el token.
 3. **Register** (solo `cloud_api`): `POST /{phone_number_id}/register` con `messaging_product=whatsapp` y un `pin` de 6 dígitos generado aleatoriamente, guardado como credencial de línea `credential_key=registration_pin` (necesario para re-registros futuros). En coexistencia el número ya está registrado en la app de WhatsApp Business — no se llama `register`.
-4. **Persistencia** (transacción DB, después de que las llamadas Graph tuvieron éxito): crear/actualizar `WhatsAppLine` (`connection_mode`, `status=active`, `is_enabled=true`) y upsert de `ApiCredential` line-scoped con `provider=whatsapp_meta`, `credential_key=access_token` — exactamente el par que `MetaGraphOutboundMessageSender` ya resuelve.
+4. **Persistencia** (transacción DB, después de que las llamadas Graph tuvieron éxito): crear/actualizar `WhatsAppLine` (`connection_mode`, `status=active`, `is_enabled=true`) y upsert de `ApiCredential` line-scoped con `provider=whatsapp_meta`, `credential_key=access_token` — exactamente el par que `MetaGraphOutboundMessageSender` ya resuelve. Ante dos connects concurrentes del mismo número, la persistencia se apoya en el unique de `phone_number_id`: el conflicto de inserción se captura y se reintenta como actualización dentro de la transacción, de modo que la carrera degrada a un resultado consistente, nunca a estado parcial.
 
 Orden Graph-antes-de-DB: si la DB falla tras las llamadas Graph, reintentar el flujo es seguro (`subscribed_apps` y `register` son idempotentes); lo inverso dejaría líneas "conectadas" sin token.
 
@@ -81,8 +83,8 @@ En `WhatsAppWebhookController@handle` (POST), antes de procesar: calcular `hash_
 
 `MetaWebhookPayloadNormalizer` hoy exige `field === 'messages'` y lanza para el resto. Cambios:
 
-- `smb_message_echoes`: se normaliza como mensaje **saliente** enviado por el humano desde la app de WhatsApp Business. `MetaWhatsAppWebhookHandler` lo persiste en la conversación (dirección outbound, fuente `business_app`) **sin** disparar el pipeline del agente ni `ProcessIncomingMessageJob`. No altera el estado de la conversación: en coexistencia el agente y el humano conviven por diseño, y el humano ya tiene el handoff explícito si quiere silenciar al agente.
-- `history` y cualquier field no reconocido: se responde `200` y se ignora con log informativo (Meta reintenta ante non-2xx; fields desconocidos no deben generar reintentos infinitos).
+- `smb_message_echoes`: se normaliza como mensaje **saliente** enviado por el humano desde la app de WhatsApp Business. `MetaWhatsAppWebhookHandler` lo persiste en la conversación (dirección outbound, fuente `business_app`) **sin** disparar el pipeline del agente ni `ProcessIncomingMessageJob`. `business_app` es un valor de `payload.source` en `ConversationMessage`, siguiendo la convención existente (`meta_webhook`, `agent_runtime`, `outbound_sender`) — **no** un caso nuevo del enum `ConversationSource`, que es de nivel conversación. No altera el estado de la conversación: en coexistencia el agente y el humano conviven por diseño, y el humano ya tiene el handoff explícito si quiere silenciar al agente.
+- `history`, `smb_app_state_sync` y cualquier field no reconocido: se responde `200` y se ignora con log informativo (Meta reintenta ante non-2xx; fields desconocidos no deben generar reintentos infinitos).
 - `messages` no cambia: los mensajes entrantes de clientes en coexistencia llegan por el mismo field y siguen el pipeline existente.
 
 ### D7 — UI del flujo de conexión
@@ -107,5 +109,5 @@ En `/admin/connect/lines`, el botón primario pasa a ser "Conectar con WhatsApp"
 
 ## Open Questions
 
-- ¿La app de Meta ya tiene **dos** configuraciones de Embedded Signup (una con `featureType` de coexistencia y otra estándar) o una sola config sirve para ambos flujos pasando `featureType` en `extras`? Se asume lo segundo (una config + `extras.featureType`); si Meta exige configs separadas, `META_ES_CONFIG_ID` se desdobla en dos variables — impacto solo en config/env.
+- ¿La app de Meta ya tiene **dos** configuraciones de Embedded Signup (una con `featureType` de coexistencia y otra estándar) o una sola config sirve para ambos flujos pasando `featureType` en `extras`? Se asume lo segundo (una config + `extras.featureType`). **Resolver contra el App Dashboard de Meta antes de la task 5.1.** Si Meta exige configs separadas, el impacto no es solo env: `VITE_META_ES_CONFIG_ID` se desdobla en dos variables y el helper del frontend mapea modo → config id — la task 5.1 incluye esta rama como fallback previsto.
 - Nombre de la línea: el flujo ES no lo pide a Meta; se usa `display_phone_number` (obtenible tras conectar vía `GET /{phone_number_id}` con `fields=display_phone_number,verified_name`) o `verified_name` como nombre inicial, editable después en el drawer. Decisión tomada en specs: usar `verified_name` con fallback al número.

@@ -82,14 +82,14 @@ El POST de `/api/webhooks/meta/whatsapp` SHALL verificar el header `X-Hub-Signat
 - **THEN** todo POST al webhook responde `403` y se registra un warning de configuración
 
 ### Requirement: Tolerancia a webhooks de coexistencia
-El pipeline de webhooks SHALL aceptar los fields de coexistencia sin error: `smb_message_echoes` se persiste como mensaje saliente de la conversación con fuente `business_app` sin disparar el pipeline del agente ni alterar el estado de la conversación; `history` y cualquier field no reconocido SHALL responderse con `200` y descartarse con log informativo.
+El pipeline de webhooks SHALL aceptar los fields de coexistencia sin error: `smb_message_echoes` se persiste como mensaje saliente de la conversación con `payload.source = business_app` (la convención existente de origen por mensaje en `ConversationMessage`, no un caso nuevo del enum `ConversationSource`) sin disparar el pipeline del agente ni alterar el estado de la conversación; `history`, `smb_app_state_sync` y cualquier field no reconocido SHALL responderse con `200` y descartarse con log informativo.
 
 #### Scenario: Echo de mensaje enviado desde la app de WhatsApp Business
 - **WHEN** llega un webhook con field `smb_message_echoes` para una línea en coexistencia
-- **THEN** el mensaje se registra como saliente con fuente `business_app` en la conversación correspondiente y no se encola `ProcessIncomingMessageJob`
+- **THEN** el mensaje se registra como saliente con `payload.source = business_app` en la conversación correspondiente y no se encola `ProcessIncomingMessageJob`
 
-#### Scenario: Field de historial
-- **WHEN** llega un webhook con field `history`
+#### Scenario: Fields de historial y sincronización de contactos
+- **WHEN** llega un webhook con field `history` o `smb_app_state_sync`
 - **THEN** el backend responde `200` sin procesar el contenido y sin registrar error
 
 #### Scenario: Mensaje entrante en coexistencia

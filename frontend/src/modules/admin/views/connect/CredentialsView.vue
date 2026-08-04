@@ -33,12 +33,14 @@ const { canManagePlatform } = useNavigationAccess(selectedMembership);
 
 const { overview: adminOverview, overviewLoading: loading } = useAdminResource();
 
-// Only known provider in this system today (see
-// `MetaGraphOutboundMessageSender::PROVIDER`); falls back to the raw value
-// for anything else, same pattern `DataView.sourceTypeLabel` uses for
-// unmapped file types.
+// `whatsapp_meta` (see `MetaGraphOutboundMessageSender::PROVIDER`) and
+// `google_calendar` (line calendar connections, written by the OAuth flow —
+// see `LinesView`, never by hand) are the only known providers today. Falls
+// back to the raw value for anything else, same pattern `DataView.sourceTypeLabel`
+// uses for unmapped file types.
 const providerLabels: Record<string, string> = {
   whatsapp_meta: 'admin.connect.credentials.providers.whatsapp_meta',
+  google_calendar: 'admin.connect.credentials.providers.google_calendar',
 };
 
 function providerLabel(provider: string): string {

@@ -7,6 +7,10 @@ use App\Domain\Agent\AgentPackRegistry;
 use App\Domain\Agent\Contracts\AgentRuntimeInterface;
 use App\Domain\Agent\Contracts\LlmProviderInterface;
 use App\Domain\Agent\OpenAIResponsesLlmProvider;
+use App\Domain\Connectors\GoogleCalendar\FakeGoogleCalendarClient;
+use App\Domain\Connectors\GoogleCalendar\GoogleCalendarClient;
+use App\Domain\Connectors\GoogleCalendar\GoogleCalendarClientResolver;
+use App\Domain\Connectors\GoogleCalendar\HttpGoogleCalendarClient;
 use App\Domain\Conversations\CacheConversationLockManager;
 use App\Domain\Conversations\Contracts\ConversationLockManager;
 use App\Domain\Conversations\Contracts\ConversationResolver;
@@ -23,7 +27,10 @@ use App\Domain\DataSources\Excel\ExcelChunkedDataSourceReader;
 use App\Domain\DataSources\Excel\NativeXlsxParser;
 use App\Domain\DataSources\ToolBoundDataSourceResolver;
 use App\Domain\Tools\ToolRegistry;
+use App\Domain\Tools\Tools\CheckAvailabilityTool;
+use App\Domain\Tools\Tools\CreateAppointmentTool;
 use App\Domain\Tools\Tools\CreateLeadTool;
+use App\Domain\Tools\Tools\GetServiceDetailsTool;
 use App\Domain\Tools\Tools\HandoffToHumanTool;
 use App\Domain\Tools\Tools\SaveCustomerDataTool;
 use App\Domain\Tools\Tools\SearchInventoryTool;
@@ -72,18 +79,30 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(WhatsAppLineResolver::class, DatabaseWhatsAppLineResolver::class);
         $this->app->bind(WhatsAppWebhookHandler::class, MetaWhatsAppWebhookHandler::class);
         $this->app->bind(OutboundMessageSender::class, MetaGraphOutboundMessageSender::class);
+        // Real client by default. Tests swap this via Tests\TestCase::fakeGoogleCalendar().
+        // The agent sandbox does NOT rely on this binding — see GoogleCalendarClientResolver's
+        // docblock for why sandbox conversations need their own resolution path.
+        $this->app->singleton(GoogleCalendarClient::class, HttpGoogleCalendarClient::class);
+        $this->app->singleton(FakeGoogleCalendarClient::class);
+        $this->app->singleton(GoogleCalendarClientResolver::class);
         $this->app->singleton(TenantAccess::class);
         $this->app->singleton(CreateLeadTool::class);
         $this->app->singleton(SaveCustomerDataTool::class);
         $this->app->singleton(HandoffToHumanTool::class);
         $this->app->singleton(SearchInventoryTool::class);
         $this->app->singleton(SearchKnowledgeTool::class);
+        $this->app->singleton(GetServiceDetailsTool::class);
+        $this->app->singleton(CheckAvailabilityTool::class);
+        $this->app->singleton(CreateAppointmentTool::class);
         $this->app->tag([
             CreateLeadTool::class,
             SaveCustomerDataTool::class,
             HandoffToHumanTool::class,
             SearchInventoryTool::class,
             SearchKnowledgeTool::class,
+            GetServiceDetailsTool::class,
+            CheckAvailabilityTool::class,
+            CreateAppointmentTool::class,
         ], 'agent-tools');
         $this->app->singleton(ToolRegistry::class, fn ($app): ToolRegistry => new ToolRegistry($app->tagged('agent-tools')));
     }

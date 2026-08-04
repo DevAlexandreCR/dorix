@@ -33,6 +33,9 @@ como acción secundaria.
 ## ADDED Requirements
 
 ### Requirement: Estados del flujo de conexión con Meta
+Este requirement extiende el flujo introducido en "Entidades en
+tablas con drawer" (scenario "Conectar una línea con Meta") con los
+estados de progreso y error.
 El flujo de Embedded Signup SHALL comunicar su progreso y fallos sin
 estados mudos: mientras el backend procesa la conexión se muestra un
 estado de "conectando"; los errores del intercambio se muestran con

@@ -21,6 +21,13 @@ export interface TenantUserRecord {
   } | null;
 }
 
+// `google-calendar-connection` (add-catalog-and-scheduling design.md D11/D12):
+// per-line connection state exposed by `AdminPanelDataBuilder`. `none` means
+// the line never started the OAuth flow; `broken` means the stored
+// credential was revoked/refresh failed (surfaced via
+// CalendarConnectionUnavailableException on the tool side).
+export type CalendarConnectionStatus = 'connected' | 'broken' | 'none';
+
 export interface WhatsAppLineRecord {
   id: number;
   tenant_id: number;
@@ -30,6 +37,7 @@ export interface WhatsAppLineRecord {
   waba_id: string | null;
   status: string;
   is_enabled: boolean;
+  calendar_connection_status: CalendarConnectionStatus;
   metadata: Record<string, unknown>;
   created_at: string | null;
   updated_at: string | null;
@@ -136,6 +144,34 @@ export interface DataSourceRecord {
   } | null;
 }
 
+export type CatalogItemKind = 'service' | 'product';
+export type CatalogItemPriceType = 'fixed' | 'from' | 'range';
+
+export interface CatalogItemRecord {
+  id: number;
+  kind: CatalogItemKind;
+  name: string;
+  category: string | null;
+  description: string | null;
+  price_type: CatalogItemPriceType;
+  // Decimal columns come back as strings (Eloquent's decimal cast never
+  // returns a native number — see project_catalog_items_1_1 memory), never
+  // parsed here: the table/drawer only ever display `price_label` (the
+  // backend-computed human copy) and re-send whatever the form collected.
+  price_amount: string | null;
+  price_min: string | null;
+  price_max: string | null;
+  currency: string;
+  price_label: string;
+  duration_minutes: number | null;
+  assessment_item_id: number | null;
+  is_bookable: boolean;
+  active: boolean;
+  metadata: Record<string, unknown> | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
 export interface AgentEventLog {
   id: number;
   event_type: string;
@@ -192,6 +228,7 @@ export interface AdminOverview {
   credential_metadata: CredentialMetadataRecord[];
   agent_configs: AgentConfigRecord[];
   tool_configs: ToolConfigRecord[];
+  catalog_items: CatalogItemRecord[];
   data_sources: DataSourceRecord[];
   logs: {
     agent_events: AgentEventLog[];

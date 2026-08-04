@@ -11,6 +11,9 @@ import {
 import type {
   AdminOverview,
   AgentConfigRecord,
+  CatalogItemKind,
+  CatalogItemPriceType,
+  CatalogItemRecord,
   DataSourceRecord,
   TenantRecord,
   TenantUserRecord,
@@ -168,6 +171,24 @@ export async function deleteWhatsAppLine(
   });
 }
 
+// Google Calendar connection per line (add-catalog-and-scheduling design.md
+// D11): kicks off the OAuth consent flow. Gated server-side by
+// `Permission::ManageAgentConfig`, not `tenant.manage` — see
+// `useNavigationAccess().canManageAgentConfig` at the call site.
+export async function requestCalendarConsentUrl(
+  tenantId: number,
+  lineId: number,
+): Promise<ResourceResponse<{ consent_url: string }>> {
+  await ensureCsrfCookie(appConfig.sanctumCsrfCookieUrl);
+  return postJson<ResourceResponse<{ consent_url: string }>>(
+    `${appConfig.adminBaseUrl}/calendar-connections/${lineId}`,
+    {},
+    {
+      headers: tenantHeaders(tenantId),
+    },
+  );
+}
+
 export async function updateTenantAgentConfig(
   tenantId: number,
   payload: {
@@ -271,6 +292,63 @@ export async function deleteLineToolConfig(
 ): Promise<void> {
   await ensureCsrfCookie(appConfig.sanctumCsrfCookieUrl);
   await deleteJson<void>(`${appConfig.adminBaseUrl}/tool-configs/lines/${lineId}/${toolName}`, {
+    headers: tenantHeaders(tenantId),
+  });
+}
+
+export interface CatalogItemPayload {
+  kind: CatalogItemKind;
+  name: string;
+  category?: string;
+  description?: string;
+  price_type: CatalogItemPriceType;
+  price_amount?: number;
+  price_min?: number;
+  price_max?: number;
+  currency?: string;
+  duration_minutes?: number;
+  assessment_item_id?: number;
+  active: boolean;
+}
+
+export async function createCatalogItem(
+  tenantId: number,
+  payload: CatalogItemPayload,
+): Promise<ResourceResponse<CatalogItemRecord>> {
+  await ensureCsrfCookie(appConfig.sanctumCsrfCookieUrl);
+  return postJson<ResourceResponse<CatalogItemRecord>>(
+    `${appConfig.adminBaseUrl}/catalog-items`,
+    payload,
+    {
+      headers: tenantHeaders(tenantId),
+    },
+  );
+}
+
+// `PUT` (full replace), matching `AdminCatalogItemController::update()` —
+// unlike the other admin resources above, the backend has no PATCH here,
+// so the drawer always sends the complete shape (task 5.1).
+export async function updateCatalogItem(
+  tenantId: number,
+  catalogItemId: number,
+  payload: CatalogItemPayload,
+): Promise<ResourceResponse<CatalogItemRecord>> {
+  await ensureCsrfCookie(appConfig.sanctumCsrfCookieUrl);
+  return putJson<ResourceResponse<CatalogItemRecord>>(
+    `${appConfig.adminBaseUrl}/catalog-items/${catalogItemId}`,
+    payload,
+    {
+      headers: tenantHeaders(tenantId),
+    },
+  );
+}
+
+export async function deleteCatalogItem(
+  tenantId: number,
+  catalogItemId: number,
+): Promise<void> {
+  await ensureCsrfCookie(appConfig.sanctumCsrfCookieUrl);
+  await deleteJson<void>(`${appConfig.adminBaseUrl}/catalog-items/${catalogItemId}`, {
     headers: tenantHeaders(tenantId),
   });
 }

@@ -25,6 +25,7 @@ Hoy un tenant puede crear una línea de WhatsApp desde el admin, pero la línea 
 ### Modified Capabilities
 
 - `ui-admin`: el scenario "Conectar una línea" cambia — la vía principal deja de ser un drawer con campos técnicos de Meta y pasa a ser el botón de Embedded Signup con estados de progreso/error del flujo; el drawer manual queda como opción secundaria.
+- `ui-platform-admin`: el requirement "Separación de ámbitos" ("editar secretos existe solo bajo `/platform/**`") incorpora una excepción explícita y acotada: las credenciales derivadas del flujo de Embedded Signup para líneas del propio tenant las escribe el backend automáticamente desde `/admin/connect/lines` — la frontera de autorización la pone Meta (el token intercambiado solo cubre los assets que el usuario autorizó), no el platform admin. La edición manual de secretos sigue siendo exclusiva de `/platform/**`.
 
 ## Impact
 

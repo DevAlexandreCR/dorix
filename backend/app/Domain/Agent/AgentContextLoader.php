@@ -7,15 +7,28 @@ use App\Domain\Agent\Exceptions\MissingAgentConfigurationException;
 use App\Domain\Tools\DTO\EnabledTool;
 use App\Domain\Tools\ToolRegistry;
 use App\Models\AgentConfig;
+use App\Models\CatalogItem;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
 use App\Models\ConversationState;
 use App\Models\TenantToolConfig;
 use App\Models\WhatsAppLine;
 use App\Support\Tenancy\TenantScopeKey;
+use Illuminate\Support\Collection;
 
 class AgentContextLoader
 {
+    /**
+     * Defensive caps for the catalog index injected into the prompt (D10 /
+     * "Catálogo crece más allá del prompt" risk). Target catalogs are 15-40
+     * items and fit uncapped; these caps only bite for outlier tenants with
+     * hundreds of items, truncating by category so no single category can
+     * crowd out the rest of the index.
+     */
+    protected const int CATALOG_INDEX_TOTAL_CAP = 60;
+
+    protected const int CATALOG_INDEX_PER_CATEGORY_CAP = 20;
+
     public function __construct(
         protected ToolRegistry $toolRegistry,
         protected AgentModelCatalog $models,
@@ -57,6 +70,7 @@ class AgentContextLoader
             lineAgentConfig: $lineAgentConfig,
             tenantAgentConfig: $tenantAgentConfig,
             resolvedModel: $this->models->effectiveForConfigs($lineAgentConfig, $tenantAgentConfig),
+            catalogItems: $this->resolveCatalogItems($conversation),
         );
     }
 
@@ -115,5 +129,49 @@ class AgentContextLoader
             ->all();
 
         return $this->toolRegistry->resolveEnabledTools($configs);
+    }
+
+    /**
+     * @return array<int, CatalogItem>
+     */
+    protected function resolveCatalogItems(Conversation $conversation): array
+    {
+        $items = CatalogItem::query()
+            ->forTenant($conversation->tenant_id)
+            ->where('active', true)
+            ->orderBy('category')
+            ->orderBy('name')
+            ->get();
+
+        return $this->truncateCatalogItems($items);
+    }
+
+    /**
+     * Truncates the catalog by category rather than by a flat cut, so a
+     * single oversized category cannot crowd out the rest of the index
+     * (see the "Catálogo crece más allá del prompt" risk in design.md).
+     *
+     * @param  Collection<int, CatalogItem>  $items
+     * @return array<int, CatalogItem>
+     */
+    protected function truncateCatalogItems(Collection $items): array
+    {
+        $grouped = $items->groupBy(
+            static fn (CatalogItem $item): string => $item->category ?? '',
+        );
+
+        $result = [];
+
+        foreach ($grouped as $categoryItems) {
+            foreach ($categoryItems->take(self::CATALOG_INDEX_PER_CATEGORY_CAP) as $item) {
+                if (count($result) >= self::CATALOG_INDEX_TOTAL_CAP) {
+                    return $result;
+                }
+
+                $result[] = $item;
+            }
+        }
+
+        return $result;
     }
 }

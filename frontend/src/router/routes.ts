@@ -130,6 +130,15 @@ export const routes: RouteRecordRaw[] = [
             },
           },
           {
+            path: 'assistant/catalog',
+            name: 'admin.assistant.catalog',
+            component: () => import('../modules/admin/views/assistant/CatalogView.vue'),
+            meta: {
+              requiresAuth: true,
+              requires: ADMIN_ROUTE_REQUIRES['/admin/assistant/catalog'],
+            },
+          },
+          {
             path: 'activity',
             name: 'admin.activity',
             component: () => import('../modules/admin/views/activity/ActivityView.vue'),

@@ -4,6 +4,7 @@ namespace App\Domain\Agent\DTO;
 
 use App\Domain\Tools\DTO\EnabledTool;
 use App\Models\AgentConfig;
+use App\Models\CatalogItem;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
 use App\Models\ConversationState;
@@ -17,6 +18,7 @@ final readonly class AgentContext
      * @param  array<int, EnabledTool>  $enabledTools
      * @param  array<int, array<string, mixed>>  $retrievedContext
      * @param  array<string, mixed>  $retrievalMetadata
+     * @param  array<int, CatalogItem>  $catalogItems
      */
     public function __construct(
         public Tenant $tenant,
@@ -32,6 +34,7 @@ final readonly class AgentContext
         public ?AgentConfig $lineAgentConfig = null,
         public ?AgentConfig $tenantAgentConfig = null,
         public array $resolvedModel = [],
+        public array $catalogItems = [],
     ) {
     }
 
@@ -66,6 +69,7 @@ final readonly class AgentContext
             lineAgentConfig: $this->lineAgentConfig,
             tenantAgentConfig: $this->tenantAgentConfig,
             resolvedModel: $this->resolvedModel,
+            catalogItems: $this->catalogItems,
         );
     }
 }

@@ -9,6 +9,7 @@ use App\Domain\Agent\AgentContextLoader;
 use App\Models\AgentConfig;
 use App\Models\ApiCredential;
 use App\Models\AgentEvent;
+use App\Models\CatalogItem;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
 use App\Models\ConversationState;
@@ -55,6 +56,16 @@ class AdminPanelTest extends TestCase
             'provider' => 'whatsapp_meta',
             'credential_key' => 'access_token',
             'secret' => 'hidden-token',
+        ]);
+
+        CatalogItem::query()->create([
+            'tenant_id' => $tenant->id,
+            'kind' => 'service',
+            'name' => 'Limpieza facial',
+            'price_type' => 'fixed',
+            'price_amount' => 120000,
+            'duration_minutes' => 45,
+            'active' => true,
         ]);
 
         AgentEvent::query()->create([
@@ -171,6 +182,9 @@ class AdminPanelTest extends TestCase
             ->assertJsonPath('data.tool_configs.0.data_source_id', $dataSource->id)
             ->assertJsonPath('data.credential_metadata.0.provider', 'whatsapp_meta')
             ->assertJsonPath('data.credential_metadata.0.has_secret', true)
+            ->assertJsonPath('data.catalog_items.0.name', 'Limpieza facial')
+            ->assertJsonPath('data.catalog_items.0.is_bookable', true)
+            ->assertJsonPath('data.catalog_items.0.price_label', '120,000 COP')
             ->assertJsonPath('data.available_agent_packs.0.key', 'sales_support_v1')
             ->assertJsonPath('data.available_models.0.key', 'balanced');
 
@@ -194,6 +208,69 @@ class AdminPanelTest extends TestCase
             'tenant_id' => $tenant->id,
             'event_type' => 'tenant_user_added',
         ]);
+    }
+
+    public function test_admin_overview_exposes_calendar_connection_status_per_line(): void
+    {
+        $tenant = Tenant::query()->create([
+            'name' => 'Acme Calendar',
+            'slug' => 'acme-calendar',
+        ]);
+        $tenantAdmin = $this->tenantUser($tenant, TenantRole::TenantAdmin);
+
+        $connectedLine = $this->line($tenant, 'Connected Line', 'connected-line-id');
+        $brokenLine = $this->line($tenant, 'Broken Line', 'broken-line-id');
+        $noneLine = $this->line($tenant, 'No Calendar Line', 'none-line-id');
+
+        ApiCredential::query()->create([
+            'tenant_id' => $tenant->id,
+            'whatsapp_line_id' => $connectedLine->id,
+            'scope_type' => 'whatsapp_line',
+            'scope_key' => TenantScopeKey::forWhatsAppLine($connectedLine),
+            'provider' => 'google_calendar',
+            'credential_key' => 'refresh_token',
+            'secret' => 'connected-refresh-token',
+        ]);
+
+        ApiCredential::query()->create([
+            'tenant_id' => $tenant->id,
+            'whatsapp_line_id' => $brokenLine->id,
+            'scope_type' => 'whatsapp_line',
+            'scope_key' => TenantScopeKey::forWhatsAppLine($brokenLine),
+            'provider' => 'google_calendar',
+            'credential_key' => 'refresh_token',
+            'secret' => 'broken-refresh-token',
+            'metadata' => ['calendar_connection_status' => 'broken'],
+        ]);
+
+        // Tenant isolation: another tenant's line/credential must not leak into this overview.
+        $otherTenant = Tenant::query()->create([
+            'name' => 'Other Tenant',
+            'slug' => 'other-tenant-calendar',
+        ]);
+        $otherLine = $this->line($otherTenant, 'Other Connected Line', 'other-connected-line-id');
+        ApiCredential::query()->create([
+            'tenant_id' => $otherTenant->id,
+            'whatsapp_line_id' => $otherLine->id,
+            'scope_type' => 'whatsapp_line',
+            'scope_key' => TenantScopeKey::forWhatsAppLine($otherLine),
+            'provider' => 'google_calendar',
+            'credential_key' => 'refresh_token',
+            'secret' => 'other-tenant-refresh-token',
+        ]);
+
+        $response = $this->actingAs($tenantAdmin)
+            ->withHeader('X-Tenant-Id', (string) $tenant->id)
+            ->getJson('/api/v1/admin/overview');
+
+        $response->assertOk();
+
+        $lines = collect($response->json('data.whatsapp_lines'))->keyBy('id');
+
+        $this->assertCount(3, $lines);
+        $this->assertSame('connected', $lines[$connectedLine->id]['calendar_connection_status']);
+        $this->assertSame('broken', $lines[$brokenLine->id]['calendar_connection_status']);
+        $this->assertSame('none', $lines[$noneLine->id]['calendar_connection_status']);
     }
 
     public function test_admin_agent_config_rejects_legacy_free_text_model_input(): void

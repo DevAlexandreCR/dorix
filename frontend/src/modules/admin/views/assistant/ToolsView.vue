@@ -50,6 +50,18 @@ const toolCopyKeys: Record<string, { title: string; effect: string }> = {
     title: 'admin.assistant.tools.toolLabels.handoff_to_human.title',
     effect: 'admin.assistant.tools.toolLabels.handoff_to_human.effect',
   },
+  get_service_details: {
+    title: 'admin.assistant.tools.toolLabels.get_service_details.title',
+    effect: 'admin.assistant.tools.toolLabels.get_service_details.effect',
+  },
+  check_availability: {
+    title: 'admin.assistant.tools.toolLabels.check_availability.title',
+    effect: 'admin.assistant.tools.toolLabels.check_availability.effect',
+  },
+  create_appointment: {
+    title: 'admin.assistant.tools.toolLabels.create_appointment.title',
+    effect: 'admin.assistant.tools.toolLabels.create_appointment.effect',
+  },
 };
 
 const { t } = useI18n();

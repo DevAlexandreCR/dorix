@@ -37,6 +37,19 @@ final class AgentPackRegistry
                     ],
                     requiresRetrievedContextForSendMessage: true,
                 ),
+                'service_scheduling' => new IntentDefinition(
+                    key: 'service_scheduling',
+                    allowedOutcomes: [
+                        AgentDecisionOutcome::CallTool,
+                        AgentDecisionOutcome::SendMessage,
+                    ],
+                    allowedTools: [
+                        'get_service_details',
+                        'check_availability',
+                        'create_appointment',
+                    ],
+                    requiresRetrievedContextForSendMessage: true,
+                ),
                 'customer_data_capture' => new IntentDefinition(
                     key: 'customer_data_capture',
                     allowedOutcomes: [

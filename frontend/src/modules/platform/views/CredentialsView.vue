@@ -67,17 +67,34 @@ const { overview, overviewLoading: loading, lines, credentials } = useAdminResou
 const lineOptions = lines.data;
 const { loading: saving, error, success } = credentials;
 
-// Only known provider today (`MetaGraphOutboundMessageSender::PROVIDER`,
-// same fact already established in `admin/connect/CredentialsView` — task
-// 4.7). Kept as a small local array + label map rather than importing the
-// admin view's own copy, matching the platform module's "duplicate small
-// screen-local copy" convention from task 5.1.
+// Only provider this drawer lets an admin type in by hand
+// (`MetaGraphOutboundMessageSender::PROVIDER`, same fact already
+// established in `admin/connect/CredentialsView` — task 4.7). Kept as a
+// small local array + label map rather than importing the admin view's own
+// copy, matching the platform module's "duplicate small screen-local copy"
+// convention from task 5.1.
+//
+// `google_calendar` (task 5.3) is deliberately NOT added here: per
+// proposal.md, that credential's refresh token is "written by the OAuth
+// flow, not by hand" — exposing it in this free-text upsert form would let
+// an admin overwrite a line's working OAuth-issued refresh token with an
+// arbitrary typed string, defeating the whole connector. It is still
+// recognized for *display* (see `KNOWN_PROVIDER_LABELS` below) so an
+// existing `google_calendar` row in the table renders a readable label
+// instead of the raw provider string.
 const PROVIDER_OPTIONS = ['whatsapp_meta'] as const;
 
+// Superset of `PROVIDER_OPTIONS` used only for translating the `provider`
+// column of already-existing credential rows (including ones this screen
+// cannot create, like `google_calendar`).
+const KNOWN_PROVIDER_LABELS: Record<string, string> = {
+  whatsapp_meta: 'platform.credentials.providers.whatsapp_meta',
+  google_calendar: 'platform.credentials.providers.google_calendar',
+};
+
 function providerLabel(provider: string): string {
-  return (PROVIDER_OPTIONS as readonly string[]).includes(provider)
-    ? t(`platform.credentials.providers.${provider}`)
-    : provider;
+  const key = KNOWN_PROVIDER_LABELS[provider];
+  return key ? t(key) : provider;
 }
 
 function scopeLabel(credential: CredentialMetadataRecord): string {

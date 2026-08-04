@@ -33,6 +33,52 @@ Servicios expuestos:
 - PostgreSQL: `localhost:5432`
 - Redis: `localhost:6379`
 
+## Integración Google Calendar (agendamiento)
+
+Las tools de agendamiento del agente (`check_availability`, `create_appointment`)
+usan la API de Google Calendar. Se requiere un proyecto en Google Cloud con un
+OAuth client (tipo "Web application"):
+
+- Scopes solicitados: `https://www.googleapis.com/auth/calendar.events` y
+  `https://www.googleapis.com/auth/calendar.freebusy`.
+- Redirect URI autorizado en el OAuth client: el valor de
+  `GOOGLE_CALENDAR_REDIRECT_URI` (por defecto
+  `http://localhost:8080/api/oauth/google/callback`).
+- Variables en `backend/.env`: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+  `GOOGLE_CALENDAR_REDIRECT_URI`, `FRONTEND_URL` (a donde se redirige tras el
+  callback, con éxito o error). `GOOGLE_CALENDAR_BASE_URL`,
+  `GOOGLE_OAUTH_TOKEN_URL` y `GOOGLE_OAUTH_AUTHORIZE_URL` son opcionales, con
+  default a los endpoints públicos de Google.
+
+**Bloqueante de release, no de desarrollo:** los scopes de Calendar son
+"sensitive" en Google. Mientras el OAuth client esté en modo testing, los
+refresh tokens emitidos expiran a los 7 días — inservible en producción. Antes
+de salir a producción hay que completar la verificación del OAuth client con
+Google (trámite de semanas; conviene iniciarlo en paralelo al desarrollo). En
+desarrollo y en el sandbox del agente esto no bloquea nada (se usa un cliente
+fake).
+
+### Configuración de horarios de agendamiento (gap conocido)
+
+El cómputo de disponibilidad (`SchedulingConfigResolver`) lee calendar id,
+timezone y horario de atención desde `overrides` de `tenant_tool_configs` para
+el tool `check_availability` (con fallback línea → tenant; ambas tools de
+agendamiento comparten esta misma config). Hoy no existe UI de admin para
+editar `overrides` y `AdminToolConfigController::persistConfig()` no lo
+persiste, así que hay que sembrarlo manualmente (tinker o seeder) con esta
+forma:
+
+```json
+{
+  "calendar_id": "primary",
+  "timezone": "America/Bogota",
+  "business_hours": {
+    "monday": [{"start": "09:00", "end": "13:00"}, {"start": "14:00", "end": "18:00"}],
+    "sunday": []
+  }
+}
+```
+
 ## Comandos útiles
 
 ```bash

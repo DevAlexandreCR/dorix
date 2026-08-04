@@ -222,6 +222,23 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     highlightKey: 'tools.handoff_to_human',
   },
 
+  // assistant/catalog
+  {
+    id: 'catalog.panel',
+    panelPath: '/admin/assistant/catalog',
+    panelTitleKey: 'admin.assistant.catalog.title',
+    titleKey: 'admin.assistant.catalog.title',
+    helpKey: 'admin.assistant.catalog.description',
+    highlightKey: 'catalog.panel',
+  },
+  {
+    id: 'catalog.create',
+    panelPath: '/admin/assistant/catalog',
+    panelTitleKey: 'admin.assistant.catalog.title',
+    titleKey: 'admin.assistant.catalog.createAction',
+    highlightKey: 'catalog.panel',
+  },
+
   // activity
   {
     id: 'activity.panel',

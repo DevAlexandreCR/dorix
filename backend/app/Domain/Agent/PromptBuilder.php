@@ -3,7 +3,9 @@
 namespace App\Domain\Agent;
 
 use App\Domain\Agent\DTO\AgentContext;
+use App\Domain\Catalog\CatalogItemPricePresenter;
 use App\Domain\Tools\DTO\EnabledTool;
+use App\Models\CatalogItem;
 use App\Models\ConversationMessage;
 use JsonException;
 
@@ -11,6 +13,7 @@ class PromptBuilder
 {
     public function __construct(
         protected AgentPackRegistry $packs,
+        protected CatalogItemPricePresenter $pricePresenter,
     ) {
     }
 
@@ -119,9 +122,13 @@ For all other outcomes, reply_text must be an empty string.
 tool_arguments_json must always be a JSON object string such as {} when unused.
 missing_information_fields must contain snake_case field names when the customer must provide data.
 Prefer concise replies and keep the language aligned with the customer's latest message.
-For inventory_lookup and knowledge_lookup, do not use send_message unless retrieved_context is present.
+For inventory_lookup, knowledge_lookup, and service_scheduling, do not use send_message unless retrieved_context is present.
 For inventory_lookup without retrieved_context, call search_inventory.
 For knowledge_lookup without retrieved_context, call search_knowledge.
+When present, the context's catalog field lists the tenant's active catalog items (id, name, price, duration, and assessment requirement); only use ids from that list for service_scheduling tools.
+For service_scheduling, call get_service_details when the customer asks about a specific catalog item and you need its description, price, or assessment policy before continuing.
+For service_scheduling, once the item and desired date are clear, call check_availability to get concrete slots; never invent, guess, or compute times or durations yourself, and offer the customer only the slots returned by the tool.
+For service_scheduling, call create_appointment only after the customer has confirmed one of the slots returned by check_availability; the appointment duration always comes from the tool, never from your own reasoning.
 handoff_to_human is the only model-callable handoff route.
 request_handoff is an internal runtime/policy fallback and should not be selected by the model.
 When retrieved_context is present, treat it as the only approved knowledge source for the current reply.
@@ -132,7 +139,7 @@ TEXT;
     protected function contextPayload(AgentContext $context): string
     {
         try {
-            return json_encode([
+            $payload = [
                 'tenant' => [
                     'id' => $context->tenant->getKey(),
                     'name' => $context->tenant->name,
@@ -180,7 +187,16 @@ TEXT;
                     fn (ConversationMessage $message): array => $this->serializeMessage($message),
                     $context->recentMessages,
                 ),
-            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+            ];
+
+            if ($context->catalogItems !== []) {
+                $payload['catalog'] = array_map(
+                    fn (CatalogItem $item): array => $this->serializeCatalogItem($item),
+                    $context->catalogItems,
+                );
+            }
+
+            return json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
         } catch (JsonException $exception) {
             return json_encode([
                 'error' => 'Failed to encode context payload.',
@@ -210,6 +226,23 @@ TEXT;
             'provider_message_id' => $message->provider_message_id,
             'received_at' => $message->received_at?->toIso8601String(),
             'sent_at' => $message->sent_at?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Compact catalog index entry per D10: id, name, human-readable price,
+     * duration, and (when applicable) the linked assessment item's id.
+     *
+     * @return array<string, mixed>
+     */
+    protected function serializeCatalogItem(CatalogItem $item): array
+    {
+        return [
+            'id' => $item->getKey(),
+            'name' => $item->name,
+            'price' => $this->pricePresenter->present($item),
+            'duration_minutes' => $item->duration_minutes,
+            'requires_assessment_item_id' => $item->assessment_item_id,
         ];
     }
 }

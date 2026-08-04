@@ -11,6 +11,7 @@ export const ADMIN_ROUTE_REQUIRES: Record<string, readonly string[]> = {
   '/admin/connect/data': ['canManageTenant'],
   '/admin/assistant/behavior': ['canManageAgentConfig'],
   '/admin/assistant/tools': ['canManageAgentConfig'],
+  '/admin/assistant/catalog': ['canManageAgentConfig'],
   '/admin/activity': ['canManageTenant'],
 };
 
@@ -22,6 +23,7 @@ export const ADMIN_FALLBACK_ORDER: readonly string[] = [
   '/admin/connect/data',
   '/admin/assistant/behavior',
   '/admin/assistant/tools',
+  '/admin/assistant/catalog',
   '/admin/activity',
 ];
 

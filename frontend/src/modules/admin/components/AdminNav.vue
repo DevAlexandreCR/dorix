@@ -58,6 +58,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { path: '/admin/assistant/behavior', labelKey: 'admin.nav.assistantBehavior' },
       { path: '/admin/assistant/tools', labelKey: 'admin.nav.assistantTools' },
+      { path: '/admin/assistant/catalog', labelKey: 'admin.nav.assistantCatalog' },
     ],
   },
   {

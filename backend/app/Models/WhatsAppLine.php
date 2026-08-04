@@ -18,7 +18,7 @@ class WhatsAppLine extends TenantScopedModel
 
     public function apiCredentials(): HasMany
     {
-        return $this->hasMany(ApiCredential::class);
+        return $this->hasMany(ApiCredential::class, 'whatsapp_line_id');
     }
 
     public function agentConfigs(): HasMany

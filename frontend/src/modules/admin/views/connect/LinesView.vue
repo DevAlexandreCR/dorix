@@ -2,7 +2,7 @@
 import { Plus } from 'lucide-vue-next';
 import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import DangerZone from '../../../../components/ui/DangerZone.vue';
 import DataTable from '../../../../components/ui/DataTable.vue';
 import FormField from '../../../../components/ui/FormField.vue';
@@ -10,6 +10,7 @@ import InheritanceChip from '../../../../components/ui/InheritanceChip.vue';
 import InlineAlert from '../../../../components/ui/InlineAlert.vue';
 import LiveDot from '../../../../components/ui/LiveDot.vue';
 import LoadingState from '../../../../components/ui/LoadingState.vue';
+import StatusBadge from '../../../../components/ui/StatusBadge.vue';
 import SurfaceCard from '../../../../components/ui/SurfaceCard.vue';
 import TechValue from '../../../../components/ui/TechValue.vue';
 import UiButton from '../../../../components/ui/UiButton.vue';
@@ -19,9 +20,10 @@ import UiModal from '../../../../components/ui/UiModal.vue';
 import UiSwitch from '../../../../components/ui/UiSwitch.vue';
 import { useNavigationAccess } from '../../../../composables/useNavigationAccess';
 import { useTenantSelection } from '../../../../composables/useTenantSelection';
+import { useToast } from '../../../../composables/useToast';
 import PanelHeader from '../../components/PanelHeader.vue';
 import { useAdminResource } from '../../composables/useAdminResource';
-import type { AdminOverview, WhatsAppLineRecord } from '../../types';
+import type { AdminOverview, CalendarConnectionStatus, WhatsAppLineRecord } from '../../types';
 
 // design.md decision 6 (all-or-nothing line scope): whether a line "has its
 // own assistant" is a whole-row fact (an AgentConfigRecord with
@@ -49,10 +51,12 @@ type DetailForm = {
 
 const { t } = useI18n();
 const router = useRouter();
+const route = useRoute();
+const toast = useToast();
 const { selectedMembership } = useTenantSelection();
-const { canManageTenant } = useNavigationAccess(selectedMembership);
+const { canManageTenant, canManageAgentConfig } = useNavigationAccess(selectedMembership);
 
-const { overview: adminOverview, overviewLoading: loading, lines } = useAdminResource();
+const { overview: adminOverview, overviewLoading: loading, lines, reloadOverview } = useAdminResource();
 const { loading: saving, error, success } = lines;
 
 // --- table helpers ---------------------------------------------------------
@@ -69,6 +73,26 @@ function lineHasOwnAssistant(overview: AdminOverview, lineId: number): boolean {
   return overview.agent_configs.some(
     (config) => config.scope_type === 'whatsapp_line' && config.whatsapp_line_id === lineId,
   );
+}
+
+// Google Calendar connection badge (add-catalog-and-scheduling design.md
+// D11/D12) — `calendar_connection_status` has no `broken`-only styling
+// concept elsewhere in the codebase, so this mirrors DataView's
+// `sourceStatusTone` (StatusBadge + a danger InlineAlert only for the
+// failing state).
+function calendarStatusLabel(status: CalendarConnectionStatus): string {
+  return t(`admin.connect.lines.calendarStatus.${status}`);
+}
+
+function calendarStatusTone(status: CalendarConnectionStatus): 'danger' | 'neutral' | 'success' {
+  switch (status) {
+    case 'connected':
+      return 'success';
+    case 'broken':
+      return 'danger';
+    default:
+      return 'neutral';
+  }
 }
 
 // --- connect drawer ----------------------------------------------------------
@@ -220,6 +244,64 @@ function goToLineAssistant(): void {
   router.push({ path: '/admin/assistant/behavior', query: { line: String(line.id) } });
 }
 
+// --- Google Calendar connection ------------------------------------------
+
+const connectingCalendar = ref(false);
+
+function calendarConnectActionLabel(status: CalendarConnectionStatus): string {
+  return status === 'none'
+    ? t('admin.connect.lines.detail.calendar.connectAction')
+    : t('admin.connect.lines.detail.calendar.reconnectAction');
+}
+
+// design.md D11: `LinesView` itself is gated by `canManageTenant`, but the
+// consent-URL endpoint is gated by `Permission::ManageAgentConfig`. Today
+// only `tenant_admin` has both, but this button carries its own
+// `canManageAgentConfig` check so it degrades safely if the role matrix
+// ever separates the two.
+async function connectCalendar(): Promise<void> {
+  const line = detailLine.value;
+
+  if (!line || !canManageAgentConfig.value) {
+    return;
+  }
+
+  connectingCalendar.value = true;
+  const consentUrl = await lines.requestCalendarConnection(line.id);
+  connectingCalendar.value = false;
+
+  if (consentUrl) {
+    window.location.href = consentUrl;
+  }
+}
+
+// Handles the browser landing back on this view after Google's OAuth
+// consent screen: the public callback redirects to
+// `/admin/connect/lines?calendar_connection=success|error` (no line id in
+// the query — the table/badges already re-render for whichever line just
+// finished the flow once the overview reloads). Mirrors
+// `useSettingsHighlight`'s destructure-and-replace approach to strip the
+// query param afterwards.
+function clearCalendarConnectionQuery(): void {
+  const { calendar_connection: _removed, ...rest } = route.query;
+  void router.replace({ path: route.path, query: rest });
+}
+
+watch(
+  () => route.query.calendar_connection,
+  (value) => {
+    if (value === 'success') {
+      toast.success(t('admin.connect.lines.calendarConnectionSuccess'));
+      void reloadOverview();
+      clearCalendarConnectionQuery();
+    } else if (value === 'error') {
+      toast.error(t('admin.connect.lines.calendarConnectionError'));
+      clearCalendarConnectionQuery();
+    }
+  },
+  { immediate: true },
+);
+
 // --- delete confirmation -------------------------------------------------------
 
 const deleteConfirmOpen = ref(false);
@@ -301,11 +383,12 @@ watch(
           { key: 'number', label: t('admin.connect.lines.columns.number') },
           { key: 'status', label: t('admin.connect.lines.columns.status') },
           { key: 'assistant', label: t('admin.connect.lines.columns.assistant') },
+          { key: 'calendar', label: t('admin.connect.lines.columns.calendar') },
         ]"
       >
         <template #body>
           <tr v-if="adminOverview.whatsapp_lines.length === 0">
-            <td colspan="4" class="data-table-empty">{{ t('admin.connect.lines.empty') }}</td>
+            <td colspan="5" class="data-table-empty">{{ t('admin.connect.lines.empty') }}</td>
           </tr>
           <tr
             v-for="line in adminOverview.whatsapp_lines"
@@ -327,6 +410,12 @@ watch(
                 :customized="lineHasOwnAssistant(adminOverview, line.id)"
                 :inherited-label="t('admin.connect.lines.assistantInherited')"
                 :customized-label="t('admin.connect.lines.assistantCustomized')"
+              />
+            </td>
+            <td>
+              <StatusBadge
+                :label="calendarStatusLabel(line.calendar_connection_status)"
+                :tone="calendarStatusTone(line.calendar_connection_status)"
               />
             </td>
           </tr>
@@ -389,6 +478,37 @@ watch(
           />
           <UiButton class="justify-self-start" variant="secondary" size="sm" @click="goToLineAssistant">
             {{ t('admin.connect.lines.detail.personalizeAction') }}
+          </UiButton>
+        </section>
+
+        <section class="grid gap-3">
+          <h4 class="text-h3">{{ t('admin.connect.lines.detail.calendar.title') }}</h4>
+          <StatusBadge
+            class="justify-self-start"
+            :label="calendarStatusLabel(detailLine.calendar_connection_status)"
+            :tone="calendarStatusTone(detailLine.calendar_connection_status)"
+          />
+          <InlineAlert
+            v-if="detailLine.calendar_connection_status === 'broken'"
+            tone="danger"
+            :message="t('admin.connect.lines.detail.calendar.brokenAlert')"
+          />
+          <p v-else class="text-small" style="color: var(--text-mute)">
+            {{
+              detailLine.calendar_connection_status === 'connected'
+                ? t('admin.connect.lines.detail.calendar.connectedHint')
+                : t('admin.connect.lines.detail.calendar.noneHint')
+            }}
+          </p>
+          <UiButton
+            class="justify-self-start"
+            variant="secondary"
+            size="sm"
+            :loading="connectingCalendar"
+            :disabled="!canManageAgentConfig"
+            @click="connectCalendar"
+          >
+            {{ calendarConnectActionLabel(detailLine.calendar_connection_status) }}
           </UiButton>
         </section>
 

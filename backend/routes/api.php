@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Api\AdminAgentConfigController;
+use App\Http\Controllers\Api\AdminCalendarConnectionController;
+use App\Http\Controllers\Api\AdminCatalogItemController;
 use App\Http\Controllers\Api\AdminCredentialController;
 use App\Http\Controllers\Api\AdminTenantController;
 use App\Http\Controllers\Api\AdminTenantUserController;
@@ -9,6 +11,7 @@ use App\Http\Controllers\Api\AdminWhatsAppLineController;
 use App\Http\Controllers\Api\AgentSandboxController;
 use App\Http\Controllers\Api\AuthSessionController;
 use App\Http\Controllers\Api\DataSourceController;
+use App\Http\Controllers\Api\GoogleCalendarOAuthController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\OperationalConversationController;
 use App\Http\Controllers\Api\WhatsAppWebhookController;
@@ -17,6 +20,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/health', HealthController::class);
 Route::get('/webhooks/meta/whatsapp', [WhatsAppWebhookController::class, 'verify']);
 Route::post('/webhooks/meta/whatsapp', [WhatsAppWebhookController::class, 'handle']);
+Route::get('/oauth/google/callback', [GoogleCalendarOAuthController::class, 'callback']);
 
 Route::prefix('v1')->group(function (): void {
     Route::middleware('web')->group(function (): void {
@@ -62,6 +66,17 @@ Route::prefix('v1')->group(function (): void {
         Route::put('/admin/tool-configs/lines/{whatsappLine}/{toolName}', [AdminToolConfigController::class, 'updateLine']);
         Route::delete('/admin/tool-configs/lines/{whatsappLine}/{toolName}', [AdminToolConfigController::class, 'destroyLine']);
         Route::put('/admin/credentials', [AdminCredentialController::class, 'upsert']);
+
+        // Catálogo: un tenant pausado debe poder seguir gestionándolo
+        // (add-catalog-and-scheduling design.md decisión D6).
+        Route::get('/admin/catalog-items', [AdminCatalogItemController::class, 'index']);
+        Route::post('/admin/catalog-items', [AdminCatalogItemController::class, 'store']);
+        Route::put('/admin/catalog-items/{catalogItem}', [AdminCatalogItemController::class, 'update']);
+        Route::delete('/admin/catalog-items/{catalogItem}', [AdminCatalogItemController::class, 'destroy']);
+
+        // Conexión de Google Calendar por línea: un tenant pausado debe poder
+        // reconectar su calendario (add-catalog-and-scheduling design.md D6).
+        Route::post('/admin/calendar-connections/{whatsappLine}', [AdminCalendarConnectionController::class, 'store']);
     });
 
     Route::middleware(['web', 'auth:sanctum'])->group(function (): void {
